@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/ARCHITECTURE_OVERVIEW.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AUTH_FLOW.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/BUILD_COMPLETION_REPORT.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/BUILD_STATUS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/COMPLETE_IMPLEMENTATION_GUIDE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/COMPLETE_SYSTEM_SUMMARY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/DEPLOYMENT_CHECKLIST.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/DOCUMENTATION_INDEX.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/FINAL_COMPLETION_REPORT.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/FINAL_DELIVERY_COMPLETE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/FINAL_STATUS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/FINAL_SUCCESS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/IMPLEMENTATION_CHECKLIST.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/IMPLEMENTATION_COMPLETE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/IMPLEMENTATION_SUMMARY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/IMPLEMENTATION_VERIFICATION.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/LAUNCH_CHECKLIST.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/MASTER_LOGIN_CHECKLIST.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/MASTER_LOGIN_COMPLETE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/MASTER_LOGIN_GUIDE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/PAGE_INVENTORY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/PROGRESS_TRACKING_ROADMAP.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/PROJECT_SUMMARY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/QUICKSTART.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/QUICK_REFERENCE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/QUICK_START.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/README_AUTH.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/SETUP.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/START.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/START_HERE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/START_HERE_STUDENT_PROGRESS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/STUDENT_PROGRESS_FILE_INVENTORY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/STUDENT_PROGRESS_QUICK_GUIDE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/STUDENT_PROGRESS_TRACKING_COMPLETE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/SYSTEM_IMPLEMENTATION.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/api/grades/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/api/grades/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/api/report-cards/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/api/report-cards/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/api/student-progress/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/login/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/progress/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/receipts/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/report-cards/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/analytics/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/assignments/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/attendance/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/audit/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/classes/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/dashboard/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/exams/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/exams/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/roles/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/settings/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/settings/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/staff/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/students/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/admin/subjects/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/check-users/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/login/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/plans/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/schools/provision/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/master/schools/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/promote-admin/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/reset-users-for-testing/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/seed/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/auth/[...all]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/auth/magic-link/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/broadcasts/[id]/report/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/broadcasts/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/conversations/[id]/members/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/conversations/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/fees/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/gradebook/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/gradebook/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/grading-scales/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/grading-scales/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/invoices/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/messages/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/payments/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipt-templates/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/[id]/email/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/[id]/print/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/bulk-email/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/bulk-print/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/receipts/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/report-card-templates/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/report-card-templates/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/report-cards/[id]/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/report-cards/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/settings/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/settings/test/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/students/[id]/progress/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/tenant/users/invite/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/user/check-admin/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/user/role/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/api/webhooks/paystack/route.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/dashboard/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/login/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/activity/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/analytics/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/audit/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/billing/[invoiceId]/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/billing/invoices/[invoiceId]/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/billing/invoices/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/billing/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/dashboard/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/layout.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/login/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/plans/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/plans/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/recovery/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/edit/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/invoices/[invoiceId]/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/invoices/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/permissions/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/schools/provision/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/master/settings/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/parent/attendance/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/parent/dashboard/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/parent/dashboard/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/parent/progress/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/profile/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/profile/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/signup/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/staff/classes/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/staff/dashboard/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/staff/dashboard/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/staff/grades/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/staff/resources/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/assignments/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/dashboard/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/dashboard/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/exams/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/subjects/loading.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/student/subjects/page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/check-accounts.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/check-users.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/academic-overview.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/add-user-dialog.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/admin-dashboard-page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/admin-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/admin-sidebar.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/admin-top-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/billing-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/broadcast-component.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/broadcast-reports-component.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/child-performance.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/class-management.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/communication-analytics.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/communication-page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/dashboard-analytics.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/dashboard-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/finance-analytics.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/finance-component.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/finance-page.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/gradebook-management.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/grading-scales.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/invite-user-form.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/master-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/master-sidebar.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/master-top-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/master/kpi-card.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/master/provision-school-dialog.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/messaging-component.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/parent-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/parent-sidebar.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/parent-top-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/plan-distribution-chart.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provision-wizard/admin-setup-step.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provision-wizard/modules-step.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provision-wizard/plan-selection-step.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provision-wizard/review-step.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provision-wizard/school-info-step.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/provisioning-wizard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/receipt-builder.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/receipts-management.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/recent-grades.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/recent-invoices.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/recent-school-provisioning.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/report-card-builder.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/report-card-management.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/role-selection.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/school-registry-table.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/settings-component.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/staff-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/staff-sidebar.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/staff-top-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/status-pill.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/student-kpi-cards.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/student-progress.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/student-sidebar.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/student-top-nav.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/ui/progress.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/user-management.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/components/user-profile-button.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/delete-user.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/drizzle.config.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/broadcast-utils.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/db-schema.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/db.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/role-utils.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/socket-server.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/socket.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/tenant-auth-client.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/tenant-auth.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/tenant-utils.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/types.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/middleware.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/migrations/001_add_user_role.sql" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pages/api/socket.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/init-db.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/seed.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/seed-database.sql" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/seed-user.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/update-role.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/layout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components.json" beforeDir="false" afterPath="$PROJECT_DIR$/components.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/ui/button.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/ui/button.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eslint.config.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/eslint.config.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/next.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/next.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/postcss.config.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/postcss.config.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/tsconfig.json" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/leona/OneDrive/Desktop/ZyraOS" value="3BhzPO2N1RFJoJcCTZYLoNGHVwz" />
+      <entry key="_C:/Users/leona/OneDrive/Desktop/zyraos" value="3Bi0Djkp25AsqQhp6xheMGoKtEi" />
+    </persistenceIdMap>
+  </component>
+  <component name="CopilotUserSelectedModel">
+    <selectedModels>
+      <entry key="chat-panel" value="Auto" />
+      <entry key="agent-panel" value="Auto" />
+    </selectedModels>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="378" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="3BhzPO2N1RFJoJcCTZYLoNGHVwz" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
+    &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/leona/OneDrive/Desktop/zyraos&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\leona\\OneDrive\\Desktop\\zyraos\\node_modules\\typescript\\lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RunManager" selected="npm.Next.js: server-side">
+    <configuration name="Next.js: debug client-side" type="JavascriptDebugType" uri="http://localhost:3000/">
+      <method v="2" />
+    </configuration>
+    <configuration name="Next.js: server-side" type="js.build_tools.npm">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="dev" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-WS-261.22158.274" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="" />
+      <created>1774956076228</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1774956076228</updated>
+      <workItem from="1774956083990" duration="10000" />
+      <workItem from="1774956111022" duration="260000" />
+      <workItem from="1774956411651" duration="38000" />
+      <workItem from="1774956469442" duration="17837000" />
+      <workItem from="1774980317323" duration="11651000" />
+      <workItem from="1775040810883" duration="854000" />
+      <workItem from="1775060202133" duration="26088000" />
+      <workItem from="1775141316017" duration="12463000" />
+      <workItem from="1775164331850" duration="378000" />
+      <workItem from="1775210464412" duration="18743000" />
+      <workItem from="1775310268014" duration="17000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>
