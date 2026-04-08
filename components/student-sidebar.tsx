@@ -11,30 +11,37 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   LayoutDashboardIcon, BookOpenIcon, FileTextIcon, BarChart3Icon,
-  CalendarIcon, Clock, ClipboardList, User, LogOut, GraduationCap, CheckCircle2
+  CalendarIcon, ClipboardList, User, LogOut, GraduationCap, CheckCircle2, // GraduationCap is used in the header
+  TrendingUp, FolderIcon, CreditCard, MessageSquare, Settings
 } from "lucide-react"
 
 const navigation = [
   {
-    title: "Academic",
+    title: "Academics",
     items: [
       { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboardIcon },
-      { name: "My Subjects", href: "/student/subjects", icon: BookOpenIcon },
-      { name: "Timetable", href: "/student/timetable", icon: Clock },
+      { name: "Subjects", href: "/student/subjects", icon: BookOpenIcon },
+      { name: "Exams & Results", href: "/student/exams", icon: BarChart3Icon },
+      { name: "Assessments", href: "/student/assessments", icon: ClipboardList },
+    ],
+  },
+  {
+    title: "Student Portal",
+    items: [
       { name: "Assignments", href: "/student/assignments", icon: FileTextIcon },
-    ],
-  },
-  {
-    title: "Assessment",
-    items: [
-      { name: "Exams & Results", href: "/student/exams", icon: ClipboardList },
-      { name: "My Grades", href: "/student/grades", icon: BarChart3Icon },
-    ],
-  },
-  {
-    title: "Records",
-    items: [
+      { name: "Performance Insights", href: "/student/performance", icon: TrendingUp },
+      { name: "Learning Resources", href: "/student/resources", icon: FolderIcon },
+      { name: "My Schedule", href: "/student/schedule", icon: CalendarIcon },
       { name: "Attendance", href: "/student/attendance", icon: CheckCircle2 },
+      { name: "Finance", href: "/student/finance", icon: CreditCard },
+      { name: "Communication", href: "/student/communication", icon: MessageSquare },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { name: "My Profile", href: "/student/profile", icon: User },
+      { name: "Settings", href: "/student/settings", icon: Settings },
     ],
   },
 ]

@@ -91,6 +91,8 @@ export function DashboardNav({ user }: DashboardNavProps) {
     if (pathname.startsWith("/staff")) return "/staff/profile";
     if (pathname.startsWith("/student")) return "/student/profile";
     if (pathname.startsWith("/parent")) return "/parent/profile";
+    if (pathname.startsWith("/hr")) return "/hr/profile";
+    if (pathname.startsWith("/accountant")) return "/accountant/profile";
     // For tenant paths like /tenant/school-name/...
     const tenantMatch = pathname.match(/^\/tenant\/([^/]+)/);
     if (tenantMatch) return `/tenant/${tenantMatch[1]}/profile`;

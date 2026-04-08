@@ -48,6 +48,20 @@ const roleConfig = {
     color: "text-purple-600",
     redirectPath: "/staff/dashboard"
   },
+  hr: {
+    title: "HR Login",
+    subtitle: "Staff and payroll management",
+    icon: UserCheck,
+    color: "text-purple-600",
+    redirectPath: "/hr/dashboard"
+  },
+  accountant: {
+    title: "Finance Login",
+    subtitle: "Institutional finance and fees",
+    icon: Shield,
+    color: "text-green-600",
+    redirectPath: "/accountant/dashboard"
+  },
   admin: {
     title: "Admin Login",
     subtitle: "Full system administration",

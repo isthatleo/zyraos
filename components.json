@@ -1,4 +1,4 @@
- {
+{
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "radix-nova",
   "rsc": true,
@@ -11,7 +11,7 @@
     "prefix": ""
   },
   "iconLibrary": "lucide",
-  "rtl": false,
+  "rtl": true,
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",

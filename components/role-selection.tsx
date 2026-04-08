@@ -32,6 +32,22 @@ const roles = [
 		bg: "bg-chart-3/5 group-hover:bg-chart-3/10",
 	},
 	{
+		id: "hr",
+		title: "HR Manager",
+		description: "Manage staff records, payroll, and recruitment",
+		icon: UserCheck,
+		color: "text-purple-600",
+		bg: "bg-purple-50 group-hover:bg-purple-100",
+	},
+	{
+		id: "accountant",
+		title: "Finance",
+		description: "Manage school fees, expenses, and accounting",
+		icon: Shield, // Using Shield as placeholder for Finance
+		color: "text-green-600",
+		bg: "bg-green-50 group-hover:bg-green-100",
+	},
+	{
 		id: "admin",
 		title: "Admin",
 		description: "Full system control and school administration",
@@ -65,7 +81,7 @@ export function RoleSelection() {
 				</div>
 
 				{/* Role Cards - All in 1 row */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+				<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 					{roles.map((role) => {
 						const Icon = role.icon
 						return (

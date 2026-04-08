@@ -20,6 +20,7 @@ import {
   CalendarIcon,
   MessageSquareIcon,
   FileTextIcon,
+  CreditCardIcon,
   User,
   LogOut,
   Settings,
@@ -29,14 +30,23 @@ const navigation = [
   {
     title: "Overview",
     items: [
-      { name: "Dashboard", href: "/parent/dashboard", icon: LayoutDashboardIcon },
+      { name: "Parent dashboard", href: "/parent/dashboard", icon: LayoutDashboardIcon },
     ],
   },
   {
-    title: "Children",
+    title: "Management",
     items: [
-      { name: "Child Progress", href: "/parent/progress", icon: UsersIcon },
+      { name: "Children", href: "/parent/progress", icon: UsersIcon },
       { name: "Attendance", href: "/parent/attendance", icon: CalendarIcon },
+      { name: "Fees", href: "/parent/finance", icon: CreditCardIcon },
+      { name: "Communication", href: "/parent/communication", icon: MessageSquareIcon },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { name: "My profile", href: "/parent/profile", icon: User },
+      { name: "Settings", href: "/parent/settings", icon: Settings },
     ],
   },
 ]

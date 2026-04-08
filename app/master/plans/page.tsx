@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+	Switch,
+} from "@/components/ui/switch"
 import {
 	Dialog,
 	DialogContent,
@@ -25,162 +28,75 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Check, Star, Zap, Shield, Users, Crown, Plus, Pencil, Trash2, Loader2 } from "lucide-react"
+import { Check, X, Star, Zap, Shield, Users, Crown, Plus, Pencil, Trash2, Loader2, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { Separator } from "@/components/ui/separator"
+import { useParams } from "next/navigation";
+import Link from "next/link";
 
 type Plan = {
 	id: string
 	name: string
+	tagline?: string
 	description: string | null
 	price: string
-	currency: string
+	currency: "ZAR" | "USD" | "GBP"
 	period: string
+	label?: string // e.g. "Most Popular"
 	features: string[] | null
+	unavailableFeatures?: string[] | null
+	modules?: string[] | null
 	maxStudents: number | null
 	maxStaff: number | null
 	isActive: boolean
 	tag: string | null
 	popular: boolean
 	color: string
-	iconKey: "basic" | "starter" | "standard" | "professional" | "premium" | "enterprise"
+	iconKey: "basic" | "starter" | "standard" | "professional" | "premium" | "enterprise" | "custom"
 }
+
+type Region = "za" | "uk" | "us";
 
 const fallbackPlans: Plan[] = [
 	{
 		id: "basic",
 		name: "Basic",
+		tagline: "Essential for small setups",
 		price: "299",
-		currency: "R",
+		currency: "ZAR",
 		period: "month",
 		description: "Perfect for small schools getting started",
-		features: [
-			"Core modules only",
-			"Basic reporting",
-			"Email support",
-			"Mobile app access",
-		],
+		features: ["Up to 50 students", "Up to 10 staff", "Core modules only"],
+		unavailableFeatures: ["Payment integration", "Customization", "Advanced analytics"],
+		modules: ["Students", "Attendance", "Exams", "Communication"],
 		maxStudents: 50,
 		maxStaff: 10,
 		popular: false,
 		isActive: true,
-		tag: "Popular",
 		color: "blue",
 		iconKey: "basic",
 	},
 	{
 		id: "standard",
 		name: "Standard",
+		tagline: "The best for growing schools",
+		label: "Most Popular",
 		price: "599",
-		currency: "R",
+		currency: "ZAR",
 		period: "month",
 		description: "Ideal for growing educational institutions",
-		features: [
-			"All core modules",
-			"Advanced reporting & analytics",
-			"Priority email support",
-			"Mobile app access",
-			"Parent portal",
-		],
+		features: ["Up to 200 students", "Up to 25 staff", "All core modules", "Parent portal"],
+		unavailableFeatures: ["Customization", "API access"],
+		modules: ["Students", "Attendance", "Exams", "Communication", "Finance"],
 		maxStudents: 200,
 		maxStaff: 25,
 		popular: true,
 		isActive: true,
-		tag: "Recommended",
 		color: "purple",
 		iconKey: "standard",
 	},
-	{
-		id: "premium",
-		name: "Premium",
-		price: "999",
-		currency: "R",
-		period: "month",
-		description: "Complete solution for large schools",
-		features: [
-			"All modules + premium features",
-			"Advanced analytics & insights",
-			"24/7 phone & email support",
-			"Mobile app access",
-			"Custom integrations",
-			"API access",
-		],
-		maxStudents: 1000,
-		maxStaff: null,
-		popular: false,
-		isActive: true,
-		tag: "Pro",
-		color: "orange",
-		iconKey: "premium",
-	},
-	{
-		id: "enterprise",
-		name: "Enterprise",
-		price: "1,999",
-		currency: "R",
-		period: "month",
-		description: "Tailored for large educational networks",
-		features: [
-			"Unlimited students & staff",
-			"Custom development",
-			"Dedicated account manager",
-			"On-premise deployment option",
-			"SLA guarantee",
-		],
-		maxStudents: null,
-		maxStaff: null,
-		popular: false,
-		isActive: true,
-		tag: "Enterprise",
-		color: "green",
-		iconKey: "enterprise",
-	},
-	{
-		id: "starter",
-		name: "Starter",
-		price: "149",
-		currency: "R",
-		period: "month",
-		description: "Entry-level solution for pilot programs",
-		features: [
-			"Basic modules",
-			"Simple reporting",
-			"Community support",
-			"Mobile app access",
-		],
-		maxStudents: 25,
-		maxStaff: 5,
-		popular: false,
-		isActive: true,
-		tag: "Entry",
-		color: "gray",
-		iconKey: "starter",
-	},
-	{
-		id: "professional",
-		name: "Professional",
-		price: "799",
-		currency: "R",
-		period: "month",
-		description: "Advanced features for established schools",
-		features: [
-			"All core modules",
-			"Professional reporting",
-			"Priority support",
-			"Mobile app access",
-			"Assessment tools",
-			"Custom workflows",
-		],
-		maxStudents: 500,
-		maxStaff: 50,
-		popular: false,
-		isActive: true,
-		tag: "Advanced",
-		color: "indigo",
-		iconKey: "professional",
-	},
 ]
-
 const iconMap = {
 	basic: Shield,
 	starter: Zap,
@@ -188,9 +104,8 @@ const iconMap = {
 	professional: Shield,
 	premium: Star,
 	enterprise: Crown,
+	custom: Globe,
 }
-
-// Helper function to get color classes for dynamic styling
 const getColorClasses = (color: string) => {
 	const colors = {
 		blue: {
@@ -250,11 +165,15 @@ function PlanDialog({
 		initialPlan || {
 			id: "",
 			name: "",
+			tagline: "",
 			description: "",
 			price: "",
 			features: [],
+			unavailableFeatures: [],
+			modules: [],
 			maxStudents: null,
 			maxStaff: null,
+			label: "",
 			isActive: true,
 			tag: "",
 			popular: false,
@@ -270,11 +189,15 @@ function PlanDialog({
 			initialPlan || {
 				id: "",
 				name: "",
+				tagline: "",
 				description: "",
 				price: "",
 				features: [],
+				unavailableFeatures: [],
+				modules: [],
 				maxStudents: null,
 				maxStaff: null,
+				label: "",
 				isActive: true,
 				tag: "",
 				popular: false,
@@ -285,7 +208,6 @@ function PlanDialog({
 			}
 		)
 	}, [initialPlan, open])
-
 	const handleInternalSave = async () => {
 		setSaving(true)
 		try {
@@ -300,9 +222,6 @@ function PlanDialog({
 			<DialogContent className="max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>{initialPlan ? "Edit Plan" : "New Plan"}</DialogTitle>
-					<DialogDescription>
-						Create or update a subscription plan and sync it to the database.
-					</DialogDescription>
 				</DialogHeader>
 
 				<div className="grid gap-4 md:grid-cols-2">
@@ -311,12 +230,20 @@ function PlanDialog({
 						<Input value={plan.name || ""} onChange={(e) => setPlan({ ...plan, name: e.target.value })} />
 					</div>
 					<div className="space-y-2">
-						<Label>Tag</Label>
-						<Input value={plan.tag || ""} onChange={(e) => setPlan({ ...plan, tag: e.target.value })} />
+						<Label>Tagline</Label>
+						<Input value={plan.tagline || ""} onChange={(e) => setPlan({ ...plan, tagline: e.target.value })} />
 					</div>
 					<div className="space-y-2">
-						<Label>Price (ZAR)</Label>
+						<Label>Plan Label (e.g. Most Popular)</Label>
+						<Input value={plan.label || ""} onChange={(e) => setPlan({ ...plan, label: e.target.value })} />
+					</div>
+					<div className="space-y-2">
+						<Label>Price</Label>
 						<Input value={plan.price || ""} onChange={(e) => setPlan({ ...plan, price: e.target.value })} />
+					</div>
+					<div className="space-y-2">
+						<Label>Billing Cycle Note</Label>
+						<Input placeholder="monthly, bi annually or yearly" value={plan.tag || ""} onChange={(e) => setPlan({ ...plan, tag: e.target.value })} />
 					</div>
 					<div className="space-y-2">
 						<Label>Max Students</Label>
@@ -426,7 +353,7 @@ export default function SubscriptionPlansPage() {
 	const [dialogOpen, setDialogOpen] = useState(false)
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 	const [planToDelete, setPlanToDelete] = useState<Plan | null>(null)
-
+	const [region, setRegion] = useState<Region>("za")
 	const fetchPlans = async () => {
 		setLoading(true)
 		try {
@@ -490,20 +417,36 @@ export default function SubscriptionPlansPage() {
 		}
 	}
 
+	const currencySymbol = region === "za" ? "R" : region === "uk" ? "£" : "$"
+
 	return (
 		<div className="p-6 lg:p-8 space-y-8 bg-gray-50 min-h-screen">
 			{/* Page Header */}
 			<div className="flex items-center justify-between gap-4 flex-wrap">
 				<div className="space-y-2">
-					<h1 className="text-4xl font-extrabold text-gray-900">Subscription Management</h1>
-					<p className="text-gray-600 max-w-3xl">
-						Configure pricing tiers, limits, and features available to schools.
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">Subscription Plans</h1>
 				</div>
 				<Button onClick={() => { setActivePlan(null); setDialogOpen(true); }} className="gap-2">
 					<Plus className="h-4 w-4" />
-					New Plan
+					Add Plan
 				</Button>
+			</div>
+
+			<div className="flex justify-center mb-8">
+				<div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/50 border border-border/50">
+					{(["za", "uk", "us"] as Region[]).map((r) => (
+						<button 
+							key={r} 
+							onClick={() => setRegion(r)} 
+							className={cn(
+								"px-3 py-2 rounded-md text-xs font-medium transition-all",
+								region === r ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+							)}
+						>
+							{r === "za" ? "ZAR" : r === "uk" ? "GBP" : "USD"}
+						</button>
+					))}
+				</div>
 			</div>
 
 			{loading && plans.length === 0 ? (
@@ -527,10 +470,10 @@ export default function SubscriptionPlansPage() {
 										plan.popular && "ring-4 ring-purple-500 ring-offset-4" // Enhanced ring for popular plan
 									)}
 								>
-									{plan.popular && (
+									{(plan.popular || plan.label) && (
 										<div className="absolute -top-4 left-1/2 -translate-x-1/2">
-											<Badge className="bg-purple-600 text-white px-4 py-1.5 text-sm font-semibold uppercase shadow-md">
-												Most Popular
+											<Badge className="bg-primary text-primary-foreground px-4 py-1.5 text-xs font-semibold uppercase shadow-md">
+												{plan.label || "Recommended"}
 											</Badge>
 										</div>
 									)}
@@ -549,12 +492,12 @@ export default function SubscriptionPlansPage() {
 										<CardTitle className="text-3xl font-bold text-gray-900">
 											{plan.name}
 										</CardTitle>
-										<p className="text-gray-600 text-sm min-h-[3rem]">
-											{plan.description}
+										<p className="text-muted-foreground text-sm font-medium">
+											{plan.tagline}
 										</p>
 										<div className="mt-4 text-center">
 											<span className="text-5xl font-extrabold text-gray-900">
-												{plan.currency}
+												{currencySymbol}
 												{plan.price}
 											</span>
 											<span className="text-gray-600 text-lg">
@@ -570,21 +513,41 @@ export default function SubscriptionPlansPage() {
 											Staff: <span className="font-medium">{plan.maxStaff ?? "Unlimited"}</span>
 										</div>
 
-										<ul className="space-y-3 mb-6">
+										<div className="space-y-4 mb-6">
+											<p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Features</p>
+											<ul className="space-y-2">
 											{(plan.features || []).map((feature, index) => (
 												<li key={index} className="flex items-start gap-3">
-													<Check
-														className={cn(
-															"h-5 w-5 mt-0.5 flex-shrink-0",
-															colorClasses.iconText
-														)}
-													/>
-													<span className="text-gray-700 text-base">
+													<Check className="h-4 w-4 mt-0.5 text-primary" />
+													<span className="text-gray-700 text-sm">
 														{feature}
 													</span>
 												</li>
 											))}
-										</ul>
+											{(plan.unavailableFeatures || []).map((feature, index) => (
+												<li key={index} className="flex items-start gap-3 opacity-50">
+													<X className="h-4 w-4 mt-0.5 text-muted-foreground" />
+													<span className="text-muted-foreground text-sm line-through">
+														{feature}
+													</span>
+												</li>
+											))}
+											</ul>
+											
+											{plan.modules && plan.modules.length > 0 && (
+												<>
+													<Separator />
+													<div className="space-y-2">
+														<p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Modules</p>
+														<div className="flex flex-wrap gap-1">
+															{plan.modules.map(m => (
+																<Badge key={m} variant="secondary" className="text-[10px]">{m}</Badge>
+															))}
+														</div>
+													</div>
+												</>
+											)}
+										</div>
 
 										<div className="flex gap-2 mt-auto">
 											<Button 
