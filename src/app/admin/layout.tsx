@@ -44,24 +44,3 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   );
 }
-
-2. Teacher Workspace/dashboard
-The Teacher dashboard is a focused environment for instructional delivery and student management.
-    Sidebar Links & Navigation
-• Dashboard: Overview of teaching load.
-• Classes:
-    • My Classes: List of assigned classrooms.
-• Lesson Plans: Curriculum mapping.
-• Learning Content: Resource uploads.
-• Class Insights: Performance data.
-• My Schedule: Personal timetable.
-• Grading & Tasks: Assignment and grading management.
-• Messaging: Communication with parents/students.
-    • My Profile: Personal details.
-• Attendance: Mark and track class presence.
-• Exams: Results entry and report card generation.
-    Core Features & Elements
-• Status Overview: Cards for Classes, Students, Today's Periods, and Pending Grading.
-• Classroom Management: A grid view of assigned classes (e.g., JHS 1, SHS 3A) showing the subject and student count.
-• Student Roster: Within a class view, a list showing each student's name, ID, Attendance %, and Estimated Grade.
-• Attendance Marking Flow: A dedicated "Mark Attendance" interface with class/date filters and an Attendance Sheet containing status buttons (Present, Late, Absent).

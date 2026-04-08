@@ -3,7 +3,7 @@
  * Path: src/components/student/primary-sidebar-nav.tsx
  */
 
-'use client';
+"use client";
 
 import React from 'react';
 import Link from 'next/link';
@@ -38,7 +38,7 @@ export function PrimaryStudentSidebarNav() {
       icon: <Star className="h-5 w-5" />,
     },
     {
-      label: 'Today's Schedule',
+      label: 'Today\'s Schedule',
       href: '/student/primary/schedule',
       icon: <Calendar className="h-5 w-5" />,
     },
@@ -102,4 +102,3 @@ export function PrimaryStudentSidebarNav() {
     </div>
   );
 }
-

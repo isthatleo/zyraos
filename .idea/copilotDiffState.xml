@@ -11,14 +11,6 @@
             </PendingDiffInfo>
           </value>
         </entry>
-        <entry key="$PROJECT_DIR$/src/lib/guards/require-student.ts">
-          <value>
-            <PendingDiffInfo>
-              <option name="filePath" value="$PROJECT_DIR$/src/lib/guards/require-student.ts" />
-              <option name="updatedContent" value="// Require student guard&#10;export const requireStudent = {&#10;  // Student requirement logic here&#10;};" />
-            </PendingDiffInfo>
-          </value>
-        </entry>
       </map>
     </option>
   </component>
