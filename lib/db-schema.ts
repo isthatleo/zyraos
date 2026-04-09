@@ -957,6 +957,119 @@ export const gradebookTable = pgTable(
   ]
 );
 
+// Assessments Table
+export const assessmentsTable = pgTable(
+  "assessments",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    subjectId: text("subject_id").notNull(),
+    classId: text("class_id").notNull(),
+    academicYearId: text("academic_year_id").notNull(),
+    termId: text("term_id").notNull(),
+    assessmentType: text("assessment_type").notNull(), // 'test', 'quiz', 'assignment', 'project', 'exam'
+    totalScore: decimal("total_score", { precision: 5, scale: 2 }).notNull(),
+    passingScore: decimal("passing_score", { precision: 5, scale: 2 }),
+    dueDate: timestamp("due_date"),
+    releaseDate: timestamp("release_date"),
+    createdBy: text("created_by").notNull(),
+    status: text("status").notNull().default("draft"), // 'draft', 'published', 'closed'
+    instructions: text("instructions"),
+    rubric: jsonb("rubric"), // Grading rubric
+    attachments: jsonb("attachments"), // File attachments
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("assessments_subject_id_idx").on(table.subjectId),
+    index("assessments_class_id_idx").on(table.classId),
+    index("assessments_academic_year_id_idx").on(table.academicYearId),
+    index("assessments_term_id_idx").on(table.termId),
+    index("assessments_status_idx").on(table.status),
+    foreignKey({
+      columns: [table.subjectId],
+      foreignColumns: [subjectsTable.id],
+      name: "assessments_subject_id_subjects_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.classId],
+      foreignColumns: [classesTable.id],
+      name: "assessments_class_id_classes_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.academicYearId],
+      foreignColumns: [academicYearsTable.id],
+      name: "assessments_academic_year_id_academic_years_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.termId],
+      foreignColumns: [termsTable.id],
+      name: "assessments_term_id_terms_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [tenantUsersTable.id],
+      name: "assessments_created_by_users_id_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+// Exams Table
+export const examsTable = pgTable(
+  "exams",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    assessmentId: text("assessment_id"),
+    classId: text("class_id").notNull(),
+    academicYearId: text("academic_year_id").notNull(),
+    termId: text("term_id").notNull(),
+    examDate: timestamp("exam_date").notNull(),
+    startTime: text("start_time"),
+    endTime: text("end_time"),
+    location: text("location"),
+    invigilator: text("invigilator"),
+    totalMarks: decimal("total_marks", { precision: 5, scale: 2 }).notNull(),
+    passingMarks: decimal("passing_marks", { precision: 5, scale: 2 }),
+    duration: integer("duration"), // Duration in minutes
+    examType: text("exam_type").notNull(), // 'midterm', 'final', 'mock', 'practical'
+    status: text("status").notNull().default("scheduled"), // 'scheduled', 'in-progress', 'completed', 'cancelled'
+    instructions: text("instructions"),
+    rules: jsonb("rules"), // Exam rules and regulations
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("exams_class_id_idx").on(table.classId),
+    index("exams_academic_year_id_idx").on(table.academicYearId),
+    index("exams_term_id_idx").on(table.termId),
+    index("exams_exam_date_idx").on(table.examDate),
+    index("exams_status_idx").on(table.status),
+    foreignKey({
+      columns: [table.assessmentId],
+      foreignColumns: [assessmentsTable.id],
+      name: "exams_assessment_id_assessments_id_fk",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.classId],
+      foreignColumns: [classesTable.id],
+      name: "exams_class_id_classes_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.academicYearId],
+      foreignColumns: [academicYearsTable.id],
+      name: "exams_academic_year_id_academic_years_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.termId],
+      foreignColumns: [termsTable.id],
+      name: "exams_term_id_terms_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
 // Report Card Templates Table
 export const reportCardTemplatesTable = pgTable(
   "report_card_templates",
@@ -1128,6 +1241,153 @@ export const gradingScalesTable = pgTable(
   (table) => [
     index("grading_scales_scale_type_idx").on(table.scaleType),
     index("grading_scales_is_default_idx").on(table.isDefault),
+  ]
+);
+
+// Attendance Table
+export const attendanceTable = pgTable(
+  "attendance",
+  {
+    id: text("id").primaryKey(),
+    studentId: text("student_id").notNull(),
+    classId: text("class_id").notNull(),
+    academicYearId: text("academic_year_id").notNull(),
+    termId: text("term_id"),
+    attendanceDate: timestamp("attendance_date").notNull(),
+    status: text("status").notNull(), // 'present', 'absent', 'late', 'excused'
+    remarks: text("remarks"),
+    recordedBy: text("recorded_by").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("attendance_student_id_idx").on(table.studentId),
+    index("attendance_class_id_idx").on(table.classId),
+    index("attendance_date_idx").on(table.attendanceDate),
+    foreignKey({
+      columns: [table.studentId],
+      foreignColumns: [studentsTable.id],
+      name: "attendance_student_id_students_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.classId],
+      foreignColumns: [classesTable.id],
+      name: "attendance_class_id_classes_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+// Fee Items Table
+export const feeItemsTable = pgTable(
+  "fee_items",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+    feeType: text("fee_type").notNull(), // 'tuition', 'activity', 'transport', 'uniform', 'lunch', 'other'
+    academicYearId: text("academic_year_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.academicYearId],
+      foreignColumns: [academicYearsTable.id],
+      name: "fee_items_academic_year_id_academic_years_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+// Grades Table (alias for gradebook entries)
+export const gradesTable = pgTable(
+  "grades",
+  {
+    id: text("id").primaryKey(),
+    studentId: text("student_id").notNull(),
+    subjectId: text("subject_id").notNull(),
+    classId: text("class_id").notNull(),
+    academicYearId: text("academic_year_id").notNull(),
+    termId: text("term_id"),
+    assessmentType: text("assessment_type").notNull(), // 'exam', 'test', 'assignment', 'project', 'participation'
+    score: decimal("score", { precision: 5, scale: 2 }).notNull(),
+    maxScore: decimal("max_score", { precision: 5, scale: 2 }).notNull(),
+    percentage: decimal("percentage", { precision: 5, scale: 2 }),
+    grade: text("grade"), // Letter grade
+    weight: decimal("weight", { precision: 3, scale: 2 }).default("1"),
+    assessmentDate: timestamp("assessment_date").notNull(),
+    teacherId: text("teacher_id").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("grades_student_id_idx").on(table.studentId),
+    index("grades_subject_id_idx").on(table.subjectId),
+    foreignKey({
+      columns: [table.studentId],
+      foreignColumns: [studentsTable.id],
+      name: "grades_student_id_students_id_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.subjectId],
+      foreignColumns: [subjectsTable.id],
+      name: "grades_subject_id_subjects_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+// Leave Table (for HR/Staff)
+export const leaveTable = pgTable(
+  "leave",
+  {
+    id: text("id").primaryKey(),
+    staffId: text("staff_id").notNull(),
+    leaveType: text("leave_type").notNull(), // 'annual', 'sick', 'maternity', 'compassionate', 'unpaid'
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+    numberOfDays: decimal("number_of_days", { precision: 5, scale: 2 }).notNull(),
+    reason: text("reason"),
+    approvedBy: text("approved_by"),
+    status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected', 'cancelled'
+    remarks: text("remarks"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.staffId],
+      foreignColumns: [staffTable.id],
+      name: "leave_staff_id_staff_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+// Payroll Table
+export const payrollTable = pgTable(
+  "payroll",
+  {
+    id: text("id").primaryKey(),
+    staffId: text("staff_id").notNull(),
+    payrollPeriod: text("payroll_period").notNull(), // 'monthly', 'bi-weekly', etc.
+    payrollMonth: text("payroll_month").notNull(), // e.g., '2024-01'
+    basicSalary: decimal("basic_salary", { precision: 12, scale: 2 }).notNull(),
+    allowances: decimal("allowances", { precision: 12, scale: 2 }).default("0"),
+    deductions: decimal("deductions", { precision: 12, scale: 2 }).default("0"),
+    grossSalary: decimal("gross_salary", { precision: 12, scale: 2 }).notNull(),
+    netSalary: decimal("net_salary", { precision: 12, scale: 2 }).notNull(),
+    status: text("status").notNull().default("pending"), // 'pending', 'approved', 'paid'
+    paymentDate: timestamp("payment_date"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.staffId],
+      foreignColumns: [staffTable.id],
+      name: "payroll_staff_id_staff_id_fk",
+    }).onDelete("cascade"),
+    index("payroll_payroll_month_idx").on(table.payrollMonth),
   ]
 );
 
@@ -1318,6 +1578,8 @@ export const tenantSchema = {
   receiptsTable,
   // Gradebook and assessment tables
   gradebookTable,
+  assessmentsTable,
+  examsTable,
   reportCardTemplatesTable,
   reportCardsTable,
   studentProgressTable,
@@ -1366,6 +1628,8 @@ export type ReceiptTemplate = typeof receiptTemplatesTable.$inferSelect;
 export type Receipt = typeof receiptsTable.$inferSelect;
 // Gradebook and assessment types
 export type Gradebook = typeof gradebookTable.$inferSelect;
+export type Assessment = typeof assessmentsTable.$inferSelect;
+export type Exam = typeof examsTable.$inferSelect;
 export type ReportCardTemplate = typeof reportCardTemplatesTable.$inferSelect;
 export type ReportCard = typeof reportCardsTable.$inferSelect;
 export type StudentProgress = typeof studentProgressTable.$inferSelect;

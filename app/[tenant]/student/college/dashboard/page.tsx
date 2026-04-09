@@ -165,7 +165,7 @@ export default function CollegeStudentDashboard() {
                       <YAxis stroke="#94a3b8" domain={[2.5, 4.0]} />
                       <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
                       <Bar dataKey="gpa" fill="#3B82F6" name="GPA" />
-                    </LineChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
