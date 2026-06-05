@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export function UniversityStudentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedAcademics, setExpandedAcademics] = useState(false);
 
   const items = [

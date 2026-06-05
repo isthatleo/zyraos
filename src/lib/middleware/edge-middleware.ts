@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RateLimiter } from '@/lib/auth/advanced-auth';
+import { RateLimiter } from '@/src/lib/auth/advanced-auth';
 
 /**
  * Main middleware function
@@ -60,8 +60,7 @@ function getClientIpAddress(request: NextRequest): string {
     return realIp;
   }
   
-  // Fallback to connection info
-  return request.ip || 'unknown';
+  return 'unknown';
 }
 
 /**

@@ -17,76 +17,34 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
 import Image from "next/image"
-import { GraduationCap, Users, UserCheck, Shield, ArrowLeft, Crown } from "lucide-react"
-
-const roleConfig = {
-  master: {
-    title: "Super Admin Login",
-    subtitle: "Platform administration and multi-tenant management",
-    icon: Crown,
-    color: "text-red-600",
-    redirectPath: "/master/dashboard"
-  },
-  student: {
-    title: "Student Login",
-    subtitle: "Access your academic dashboard",
-    icon: GraduationCap,
-    color: "text-blue-600",
-    redirectPath: "/student/dashboard"
-  },
-  parent: {
-    title: "Parent Login",
-    subtitle: "Monitor your child's progress",
-    icon: Users,
-    color: "text-green-600",
-    redirectPath: "/parent/dashboard"
-  },
-  staff: {
-    title: "Staff Login",
-    subtitle: "Manage classes and students",
-    icon: UserCheck,
-    color: "text-purple-600",
-    redirectPath: "/staff/dashboard"
-  },
-  hr: {
-    title: "HR Login",
-    subtitle: "Staff and payroll management",
-    icon: UserCheck,
-    color: "text-purple-600",
-    redirectPath: "/hr/dashboard"
-  },
-  accountant: {
-    title: "Finance Login",
-    subtitle: "Institutional finance and fees",
-    icon: Shield,
-    color: "text-green-600",
-    redirectPath: "/accountant/dashboard"
-  },
-  admin: {
-    title: "Admin Login",
-    subtitle: "Full system administration",
-    icon: Shield,
-    color: "text-orange-600",
-    redirectPath: "/admin/dashboard"
-  }
-}
+import { ArrowLeft } from "lucide-react"
+import { normalizeRole, roleLoginMeta, type CanonicalRole } from "@/lib/roles"
+import { getTenantSubdomain } from "@/lib/tenant-routing"
 
 export function LoginForm({
   className,
+  roleOverride,
+  backHref,
+  redirectPrefix = "",
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+  roleOverride?: CanonicalRole
+  backHref?: string
+  redirectPrefix?: string
+}) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams?.get("role")
-  const role = roleParam || "student"
-  const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.student
+  const role = roleOverride || normalizeRole(roleParam || "student")
+  const config = roleLoginMeta[role]
   const Icon = config.icon
+  const redirectPath = `${redirectPrefix}${config.redirectPath}`
 
   // Back always goes to role selection
-  const backLink = "/login"
+  const backLink = backHref || "/login"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,8 +67,31 @@ export function LoginForm({
         return
       }
       
+      const passwordStatus = await fetch("/api/auth/password-status", {
+        cache: "no-store",
+        credentials: "include",
+      }).then((res) => res.json()).catch(() => null)
+
       toast.success("Signed in successfully!")
-      router.push(config.redirectPath)
+      if (passwordStatus?.mustChangePassword) {
+        const tenantSlug = typeof passwordStatus?.tenantSlug === "string" ? passwordStatus.tenantSlug : ""
+        const isTenantSubdomain = typeof window !== "undefined" ? Boolean(getTenantSubdomain(window.location.hostname)) : false
+        const target =
+          role === "super_admin"
+            ? "/master/complete-access"
+            : isTenantSubdomain
+              ? "/complete-access"
+              : redirectPrefix && redirectPrefix !== ""
+                ? `${redirectPrefix}/complete-access`
+                : tenantSlug
+                  ? `/${tenantSlug}/complete-access`
+                  : "/complete-access"
+        const params = new URLSearchParams({ redirect: redirectPath })
+        router.push(`${target}?${params.toString()}`)
+        return
+      }
+
+      router.push(redirectPath)
     } catch (err) {
       toast.error("An error occurred while signing in")
       setLoading(false)
@@ -138,7 +119,7 @@ export function LoginForm({
               </div>
 
               <div className="flex flex-col items-center gap-2 text-center">
-                <div className={`p-3 rounded-full bg-primary/10 ${config.color} mb-2`}>
+                <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
                   <Icon className="h-8 w-8" />
                 </div>
                 <h1 className="text-2xl font-bold">{config.title}</h1>
@@ -187,7 +168,7 @@ export function LoginForm({
           </form>
           <div className="relative hidden bg-gradient-to-br from-primary/10 to-chart-1/10 md:flex items-center justify-center">
             <div className="text-center p-8">
-              <Image src="/images/roxan-logo.png" alt="Roxan" width={80} height={80} className="mx-auto mb-4" />
+              <Image src="/images/roxan-logo.svg" alt="Roxan" width={80} height={80} className="mx-auto mb-4" />
               <p className="text-2xl font-bold text-foreground">Roxan</p>
               <p className="text-sm text-muted-foreground">Education Operations System</p>
             </div>

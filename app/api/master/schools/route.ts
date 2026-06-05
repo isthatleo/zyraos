@@ -3,9 +3,32 @@ import { masterDb } from '@/lib/db';
 import { schoolsTable, subscriptionPlansTable, subscriptionsTable, tenantModulesTable } from '@/lib/db-schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import crypto from 'crypto';
+import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
+import { convertMoney } from '@/lib/currency-conversion';
+import { getPlatformSetting } from '@/lib/platform-settings-server';
+import { getTenantPortalUrl, resolveTenantDatabaseUrl } from '@/lib/tenant-url';
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function toNumber(value: unknown) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getPlanCurrency(features: unknown, fallback: string) {
+  if (features && typeof features === "object" && !Array.isArray(features)) {
+    const currency = String((features as Record<string, unknown>).currency || "").trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(currency)) return currency;
+  }
+  return fallback;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const { admin, response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const body = await request.json();
     const { name, slug, country, type, planId } = body;
 
@@ -31,8 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For now, use the same database URL (in production, this would create a new database)
-    const databaseUrl = process.env.DATABASE_URL!;
+    const databaseUrl = resolveTenantDatabaseUrl(slug);
 
     // Get the selected plan if provided
     let subscriptionId = null;
@@ -88,6 +110,20 @@ export async function POST(request: NextRequest) {
         .where(eq(subscriptionsTable.id, subscriptionId));
     }
 
+    await writeMasterAudit(request, {
+      adminId: admin.adminId,
+      action: 'School Created',
+      resource: 'schools',
+      resourceId: newSchool[0].id,
+      changes: {
+        name: newSchool[0].name,
+        slug: newSchool[0].slug,
+        country: newSchool[0].country,
+        type: newSchool[0].type,
+        subscriptionId,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       school: newSchool[0],
@@ -105,10 +141,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
+
+    const platformCurrency = String(await getPlatformSetting("currency") || "ZAR").toUpperCase();
 
     const schools = await masterDb
       .select({
@@ -118,11 +159,13 @@ export async function GET(request: NextRequest) {
         country: schoolsTable.country,
         type: schoolsTable.type,
         status: schoolsTable.status,
+        currencyCode: schoolsTable.currencyCode,
         subscriptionId: schoolsTable.subscriptionId,
         createdAt: schoolsTable.createdAt,
         // Join with subscription and plan info
         planName: subscriptionPlansTable.name,
         planPrice: subscriptionPlansTable.price,
+        planFeatures: subscriptionPlansTable.features,
       })
       .from(schoolsTable)
       .leftJoin(subscriptionsTable, eq(schoolsTable.subscriptionId, subscriptionsTable.id))
@@ -132,6 +175,21 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset(offset);
 
+    const convertedSchools = await Promise.all(schools.map(async (school) => {
+      const planCurrency = getPlanCurrency(school.planFeatures, school.currencyCode || platformCurrency);
+      const convertedPlan = await convertMoney(school.planPrice || 0, planCurrency, platformCurrency);
+      return {
+        ...school,
+        portalUrl: getTenantPortalUrl(school.slug, request),
+        planPrice: toNumber(school.planPrice),
+        planCurrency,
+        displayPlanPrice: convertedPlan.displayAmount,
+        displayCurrency: convertedPlan.displayCurrency,
+        exchangeRateProvider: convertedPlan.exchangeRateProvider,
+        conversionAvailable: convertedPlan.conversionAvailable,
+      };
+    }));
+
     // Get total count
     const totalResult = await masterDb
       .select({ count: sql<number>`count(*)` })
@@ -139,9 +197,53 @@ export async function GET(request: NextRequest) {
       .where(status ? eq(schoolsTable.status, status) : undefined);
 
     const total = totalResult[0].count;
+    const statsRows = await masterDb
+      .select({
+        status: schoolsTable.status,
+        count: sql<number>`count(*)`,
+      })
+      .from(schoolsTable)
+      .groupBy(schoolsTable.status);
+
+    const typeRows = await masterDb
+      .select({
+        type: schoolsTable.type,
+        count: sql<number>`count(*)`,
+      })
+      .from(schoolsTable)
+      .groupBy(schoolsTable.type);
+
+    const mrrRows = await masterDb
+      .select({
+        price: subscriptionPlansTable.price,
+        currencyCode: schoolsTable.currencyCode,
+        planFeatures: subscriptionPlansTable.features,
+      })
+      .from(subscriptionsTable)
+      .innerJoin(subscriptionPlansTable, eq(subscriptionsTable.planId, subscriptionPlansTable.id))
+      .innerJoin(schoolsTable, eq(subscriptionsTable.schoolId, schoolsTable.id))
+      .where(eq(subscriptionsTable.status, 'active'));
+
+    const convertedMrrRows = await Promise.all(
+      mrrRows.map((row) => convertMoney(row.price, getPlanCurrency(row.planFeatures, row.currencyCode || platformCurrency), platformCurrency))
+    );
+    const mrr = convertedMrrRows.reduce((sum, row) => sum + row.displayAmount, 0);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const newThisMonth = schools.filter((school) => new Date(school.createdAt) >= monthStart).length;
 
     return NextResponse.json({
-      schools,
+      schools: convertedSchools,
+      stats: {
+        total,
+        active: Number(statsRows.find((row) => row.status === 'active')?.count || 0),
+        inactive: Number(total) - Number(statsRows.find((row) => row.status === 'active')?.count || 0),
+        newThisMonth,
+        mrr,
+        currency: platformCurrency,
+        byType: typeRows.map((row) => ({ type: row.type, count: Number(row.count || 0) })),
+      },
       pagination: {
         total,
         limit,

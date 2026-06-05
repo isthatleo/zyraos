@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { masterDb } from '@/lib/db';
+import { getTenantDb, masterDb } from '@/lib/db';
 import {
   schoolsTable,
   subscriptionsTable,
@@ -10,10 +10,18 @@ import {
   departmentsTable,
   userTable,
   accountTable,
-  invoicesTable
+  invoicesTable,
+  passwordSecurityTable
 } from '@/lib/db-schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'crypto';
+import { getTenantRoleDefinitions, normalizeEducationLevel } from '@/lib/roles';
+import { generateTemporaryPassword, hashCredentialPassword, validatePasswordPolicy } from '@/lib/password-access';
+import { addDays, buildInvoiceNumber, getInvoicePolicy, getPlatformSettings, asString } from '@/lib/platform-settings-server';
+import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
+import { getTenantPortalUrl, validateTenantSlug } from '@/lib/tenant-url';
+import { provisionTenantDatabase } from '@/lib/tenant-database-provisioning';
+import { deliverProvisioningHandoff } from '@/lib/provisioning-delivery';
 
 interface ProvisioningRequest {
   schoolInfo: {
@@ -34,7 +42,7 @@ interface ProvisioningRequest {
     lastName: string;
     email: string;
     phone: string;
-    password: string;
+    password?: string;
   };
   planId: string;
   modules: Array<{
@@ -44,15 +52,43 @@ interface ProvisioningRequest {
   }>;
 }
 
+function getPlanCurrency(features: unknown, fallback: string) {
+  if (features && typeof features === 'object' && !Array.isArray(features)) {
+    const currency = String((features as Record<string, unknown>).currency || '').trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(currency)) return currency;
+  }
+  return fallback;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const { admin, response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const body: ProvisioningRequest = await request.json();
     const { schoolInfo, adminUser, planId, modules } = body;
+    const settings = await getPlatformSettings();
+    const invoicePolicy = getInvoicePolicy(settings);
+    const { slug, error: slugError } = validateTenantSlug(schoolInfo.subdomain || schoolInfo.name);
 
     // Validate required fields
-    if (!schoolInfo.name || !schoolInfo.subdomain || !adminUser.email || !adminUser.password || !planId) {
+    const temporaryPassword = adminUser.password || generateTemporaryPassword();
+
+    if (!schoolInfo.name || !adminUser.email || !planId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (slugError) {
+      return NextResponse.json({ error: slugError, slug }, { status: 400 });
+    }
+
+    const passwordError = validatePasswordPolicy(temporaryPassword);
+    if (passwordError) {
+      return NextResponse.json(
+        { error: passwordError },
         { status: 400 }
       );
     }
@@ -61,7 +97,7 @@ export async function POST(request: NextRequest) {
     const existingSchool = await masterDb
       .select()
       .from(schoolsTable)
-      .where(eq(schoolsTable.slug, schoolInfo.subdomain))
+      .where(eq(schoolsTable.slug, slug))
       .limit(1);
 
     if (existingSchool.length > 0) {
@@ -115,14 +151,16 @@ export async function POST(request: NextRequest) {
       );
     }
     const plan = planResult[0];
+    const invoiceCurrency = getPlanCurrency(plan.features, invoicePolicy.currency);
 
     // Generate IDs
     const schoolId = crypto.randomUUID();
     const adminUserId = crypto.randomUUID();
     const subscriptionId = crypto.randomUUID();
     
-    // For now, use the same database URL (in multi-tenant this would be a separate URL)
-    const databaseUrl = process.env.DATABASE_URL!;
+    const tenantDatabase = await provisionTenantDatabase(slug, settings);
+    const databaseUrl = tenantDatabase.databaseUrl;
+    const tenantBaseUrl = getTenantPortalUrl(slug, request, asString(settings.tenantUrlMode, "auto"));
 
     // Start transaction for provisioning
     const result = await masterDb.transaction(async (tx) => {
@@ -132,14 +170,14 @@ export async function POST(request: NextRequest) {
         .values({
           id: schoolId,
           name: schoolInfo.name,
-          slug: schoolInfo.subdomain,
+          slug,
           country: schoolInfo.country,
           countryCode: schoolInfo.countryCode,
-          currencyCode: schoolInfo.currencyCode,
+          currencyCode: schoolInfo.currencyCode || invoicePolicy.currency,
           currencyName: schoolInfo.currencyName,
           type: schoolInfo.type,
           databaseUrl,
-          status: 'active',
+          status: asString(settings.defaultSchoolStatus, 'active') || 'active',
           subscriptionId: subscriptionId,
         })
         .returning();
@@ -163,10 +201,10 @@ export async function POST(request: NextRequest) {
 
       // 3. Create invoice for the subscription
       const invoiceId = crypto.randomUUID();
-      const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const invoiceNumber = buildInvoiceNumber(invoicePolicy.prefix);
       const issueDate = new Date();
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30); // 30 days payment term
+      const dueDate = addDays(issueDate, invoicePolicy.dueDays);
+      const taxNote = invoicePolicy.taxRate > 0 ? ` ${invoicePolicy.taxLabel} policy: ${invoicePolicy.taxRate}%.` : '';
 
       await tx
         .insert(invoicesTable)
@@ -176,29 +214,29 @@ export async function POST(request: NextRequest) {
           schoolId,
           subscriptionId,
           amount: plan.price.toString(),
-          currency: schoolInfo.currencyCode || 'ZAR',
+          currency: invoiceCurrency,
           status: 'pending',
           issueDate,
           dueDate,
           description: `Subscription for ${plan.name} plan`,
-          notes: `Monthly subscription for ${schoolInfo.name} school`,
+          notes: `Subscription invoice for ${schoolInfo.name}.${taxNote}`,
         });
 
-      // 4. Create default roles for the school
-      const adminRoleId = crypto.randomUUID();
-      const systemAdminRoleId = adminRoleId;
-      
-      const roles = [
-        { id: systemAdminRoleId, name: 'School Admin', description: 'Full system access for school administrators', isSystem: true },
-        { id: crypto.randomUUID(), name: 'HR Staff', description: 'Human resources management', isSystem: true },
-        { id: crypto.randomUUID(), name: 'Accountant', description: 'Financial management', isSystem: true },
-        { id: crypto.randomUUID(), name: 'Librarian', description: 'Library management', isSystem: true },
-        { id: crypto.randomUUID(), name: 'Student', description: 'Student access', isSystem: true },
-        { id: crypto.randomUUID(), name: 'Parent', description: 'Parent access', isSystem: true },
-      ];
+      // 4. Create tenant roles based on the selected education level.
+      const educationLevel = normalizeEducationLevel(schoolInfo.type);
+      const tenantRoles = getTenantRoleDefinitions(educationLevel);
+      const ownerRole = tenantRoles.find((role) => role.canonicalRole === 'owner') || tenantRoles[0];
 
-      for (const role of roles) {
-        await tx.insert(rolesTable).values(role);
+      for (const role of tenantRoles) {
+        await tx
+          .insert(rolesTable)
+          .values({
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            isSystem: role.isSystem,
+          })
+          .onConflictDoNothing();
       }
 
       // 5. Create default department
@@ -211,18 +249,16 @@ export async function POST(request: NextRequest) {
         });
 
       // 6. Create the platform-wide auth user
-      const hashedPassword = crypto
-        .createHash('sha256')
-        .update(adminUser.password)
-        .digest('hex');
+      const hashedPassword = await hashCredentialPassword(temporaryPassword);
 
       await tx
         .insert(userTable)
         .values({
           id: adminUserId,
           email: adminUser.email,
+          emailVerified: true,
           name: `${adminUser.firstName} ${adminUser.lastName}`,
-          role: 'admin',
+          role: 'owner',
         });
 
       await tx
@@ -230,9 +266,29 @@ export async function POST(request: NextRequest) {
         .values({
           id: crypto.randomUUID(),
           userId: adminUserId,
-          accountId: adminUser.email,
+          accountId: adminUserId,
           providerId: 'credential',
           password: hashedPassword,
+        });
+
+      await tx
+        .insert(passwordSecurityTable)
+        .values({
+          userId: adminUserId,
+          tenantSlug: slug,
+          forcePasswordChange: true,
+          temporaryPasswordIssuedAt: new Date(),
+          reason: 'school_provisioning_admin_setup',
+        })
+        .onConflictDoUpdate({
+          target: passwordSecurityTable.userId,
+          set: {
+            tenantSlug: slug,
+            forcePasswordChange: true,
+            temporaryPasswordIssuedAt: new Date(),
+            reason: 'school_provisioning_admin_setup',
+            updatedAt: new Date(),
+          },
         });
 
       // 7. Create the tenant-specific user record
@@ -242,7 +298,7 @@ export async function POST(request: NextRequest) {
           id: adminUserId,
           email: adminUser.email,
           name: `${adminUser.firstName} ${adminUser.lastName}`,
-          roleId: systemAdminRoleId,
+          roleId: ownerRole.id,
           departmentId: adminDeptId,
           isActive: true,
         });
@@ -265,11 +321,31 @@ export async function POST(request: NextRequest) {
       return {
         school: newSchool[0],
         planName: plan.name,
+        tenantSeed: {
+          roles: tenantRoles,
+          ownerRoleId: ownerRole.id,
+          adminDeptId,
+          adminUserId,
+          adminName: `${adminUser.firstName} ${adminUser.lastName}`,
+          adminEmail: adminUser.email,
+        },
         adminUser: {
           email: adminUser.email,
           name: `${adminUser.firstName} ${adminUser.lastName}`,
         },
-        portalUrl: `https://${schoolInfo.subdomain}.roxan.com`,
+        temporaryPassword,
+        portalUrl: `${tenantBaseUrl}/admins`,
+        tenantLoginUrl: `${tenantBaseUrl}/staff`,
+        slug,
+        database: {
+          mode: tenantDatabase.mode,
+          provider: tenantDatabase.provider,
+          isolated: tenantDatabase.isolated,
+          branchId: tenantDatabase.branchId,
+          endpointId: tenantDatabase.endpointId,
+          databaseName: tenantDatabase.databaseName,
+          message: tenantDatabase.message,
+        },
         currency: {
           code: schoolInfo.currencyCode,
           name: schoolInfo.currencyName,
@@ -278,16 +354,120 @@ export async function POST(request: NextRequest) {
           id: invoiceId,
           invoiceNumber,
           amount: plan.price,
-          currency: schoolInfo.currencyCode || 'ZAR',
+          currency: invoiceCurrency,
           status: 'pending',
           dueDate,
         }
       };
     });
 
+    const tenantDb = getTenantDb(result.school.databaseUrl);
+    await tenantDb.transaction(async (tx) => {
+      for (const role of result.tenantSeed.roles) {
+        await tx
+          .insert(rolesTable)
+          .values({
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            isSystem: role.isSystem,
+          })
+          .onConflictDoUpdate({
+            target: rolesTable.id,
+            set: {
+              name: role.name,
+              description: role.description,
+              isSystem: role.isSystem,
+              updatedAt: new Date(),
+            },
+          });
+      }
+
+      await tx
+        .insert(departmentsTable)
+        .values({
+          id: result.tenantSeed.adminDeptId,
+          name: 'Administration',
+        })
+        .onConflictDoNothing();
+
+      await tx
+        .insert(tenantUsersTable)
+        .values({
+          id: result.tenantSeed.adminUserId,
+          email: result.tenantSeed.adminEmail,
+          name: result.tenantSeed.adminName,
+          roleId: result.tenantSeed.ownerRoleId,
+          departmentId: result.tenantSeed.adminDeptId,
+          isActive: true,
+        })
+        .onConflictDoUpdate({
+          target: tenantUsersTable.id,
+          set: {
+            email: result.tenantSeed.adminEmail,
+            name: result.tenantSeed.adminName,
+            roleId: result.tenantSeed.ownerRoleId,
+            departmentId: result.tenantSeed.adminDeptId,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        });
+    });
+
+    await writeMasterAudit(request, {
+      adminId: admin.adminId,
+      action: 'School Provisioned',
+      resource: 'schools',
+      resourceId: result.school.id,
+      changes: {
+        schoolName: result.school.name,
+        slug: result.school.slug,
+        type: result.school.type,
+        planName: result.planName,
+        adminEmail: result.adminUser.email,
+        invoiceNumber: result.invoice.invoiceNumber,
+        moduleCount: modules.filter((module) => module.enabled).length,
+        database: result.database,
+      },
+    });
+
+    const delivery = await deliverProvisioningHandoff({
+      school: {
+        id: result.school.id,
+        name: result.school.name,
+        slug: result.school.slug,
+        country: result.school.country,
+        currencyCode: result.school.currencyCode,
+      },
+      adminUser: {
+        name: result.adminUser.name,
+        email: result.adminUser.email,
+        phone: adminUser.phone,
+      },
+      planName: result.planName,
+      temporaryPassword: result.temporaryPassword,
+      portalUrl: result.portalUrl,
+      tenantLoginUrl: result.tenantLoginUrl,
+      invoice: result.invoice,
+      database: result.database,
+      settings,
+    });
+
+    await writeMasterAudit(request, {
+      adminId: admin.adminId,
+      action: 'School Provisioning Handoff Delivered',
+      resource: 'schools',
+      resourceId: result.school.id,
+      changes: {
+        delivery,
+      },
+      status: delivery.ok ? 'success' : 'warning',
+    });
+
     return NextResponse.json({
       success: true,
       ...result,
+      delivery,
       message: 'School provisioned successfully with localized settings'
     });
 

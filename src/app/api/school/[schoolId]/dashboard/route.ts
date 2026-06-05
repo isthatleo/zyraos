@@ -4,9 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSchoolAccess } from '@/lib/guards/permissions';
-import { AuditLogger } from '@/lib/auth/advanced-auth';
-import { getTenantFromRequest } from '@/lib/middleware/tenant-middleware';
+import { requireSchoolAccess } from '@/src/lib/guards/permissions';
+import { AuditLogger } from '@/src/lib/auth/advanced-auth';
+import { getTenantFromRequest } from '@/src/lib/middleware/tenant-middleware';
 
 export async function GET(
   request: NextRequest,

@@ -1,237 +1,235 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Download, TrendingUp, AlertCircle } from 'lucide-react';
+import * as React from "react";
+import { useParams } from "next/navigation";
+import { AlertCircle, Download, Loader2, RefreshCw, Receipt, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
+type PlatformInvoice = {
+  id: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  originalAmount: number;
+  originalCurrency: string;
+  displayAmount: number;
+  displayCurrency: string;
+  exchangeRate: number;
+  exchangeRateDate: string | null;
+  exchangeRateProvider: string;
+  exchangeRateStale: boolean;
+  conversionAvailable: boolean;
+  status: string;
+  issueDate: string | null;
+  dueDate: string | null;
+  paidDate: string | null;
+  description: string | null;
+  plan: string;
+};
+
+type PlatformInvoiceData = {
+  school: { name: string; slug: string; currencyCode: string | null; currencyName: string | null };
+  invoices: PlatformInvoice[];
+  summary: { currency: string; total: number; paid: number; outstanding: number };
+  generatedAt: string;
+};
+
+function money(amount: number, currency = "ZAR") {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(amount || 0));
+}
+
+function dateLabel(value?: string | null) {
+  return value ? new Date(value).toLocaleDateString() : "Not set";
+}
+
+function statusClass(status: string) {
+  if (status === "paid") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  if (status === "overdue") return "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300";
+  if (status === "pending") return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  return "border-muted bg-muted text-muted-foreground";
+}
+
+function downloadCsv(invoices: PlatformInvoice[]) {
+  const rows = [
+    ["Invoice", "Plan", "Status", "Tenant Amount", "Tenant Currency", "Original Amount", "Original Currency", "Rate", "Rate Date", "Due Date"],
+    ...invoices.map((invoice) => [
+      invoice.invoiceNumber,
+      invoice.plan,
+      invoice.status,
+      invoice.displayAmount,
+      invoice.displayCurrency,
+      invoice.originalAmount,
+      invoice.originalCurrency,
+      invoice.exchangeRate,
+      invoice.exchangeRateDate || "",
+      invoice.dueDate || "",
+    ]),
+  ];
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `platform-invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function FinanceDashboard() {
-  const [invoices, setInvoices] = useState([
-    { id: '1', student: 'John Doe', amount: 5000, status: 'Paid', dueDate: '2024-01-31', paidDate: '2024-01-25' },
-    { id: '2', student: 'Jane Smith', amount: 4500, status: 'Pending', dueDate: '2024-02-28', paidDate: null },
-    { id: '3', student: 'Mike Johnson', amount: 5000, status: 'Overdue', dueDate: '2024-01-15', paidDate: null },
-  ]);
+  const params = useParams<{ tenant?: string }>();
+  const tenant = params?.tenant || "";
+  const [data, setData] = React.useState<PlatformInvoiceData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQuery] = React.useState("");
 
-  const financialData = [
-    { month: 'Jan', collected: 45000, expected: 50000, expenses: 12000 },
-    { month: 'Feb', collected: 42000, expected: 50000, expenses: 12500 },
-    { month: 'Mar', collected: 48000, expected: 50000, expenses: 13000 },
-    { month: 'Apr', collected: 51000, expected: 52000, expenses: 12800 },
-    { month: 'May', collected: 53000, expected: 52000, expenses: 13200 },
-    { month: 'Jun', collected: 55000, expected: 54000, expenses: 13500 },
-  ];
+  const loadInvoices = React.useCallback(async () => {
+    if (!tenant) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/tenant/${tenant}/platform-invoices`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || "Failed to load platform invoices");
+      setData(payload);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load platform invoices");
+    } finally {
+      setLoading(false);
+    }
+  }, [tenant]);
 
-  const stats = {
-    totalCollected: 294000,
-    outstandingFees: 75000,
-    paymentsToday: 12500,
-    studentsOwing: 24,
-  };
+  React.useEffect(() => {
+    void loadInvoices();
+  }, [loadInvoices]);
+
+  const invoices = React.useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return data?.invoices || [];
+    return (data?.invoices || []).filter((invoice) =>
+      [invoice.invoiceNumber, invoice.plan, invoice.status, invoice.description].filter(Boolean).join(" ").toLowerCase().includes(term)
+    );
+  }, [data?.invoices, query]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Finance & Billing</h1>
-            <p className="text-slate-400">Manage payments, invoices, and financial records</p>
-          </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create Invoice
+    <div className="space-y-8 p-4 md:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Platform Billing</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Finance & Billing</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Platform subscription invoices are converted into {data?.school.currencyCode || "your school currency"} using current exchange rates.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => data && downloadCsv(data.invoices)} disabled={!data?.invoices?.length}>
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button variant="outline" className="rounded-full" onClick={loadInvoices} disabled={loading}>
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh
           </Button>
         </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium text-slate-200">Total Collected</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">GHS {stats.totalCollected.toLocaleString()}</div>
-              <p className="text-xs text-slate-400 mt-2">All time total</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium text-slate-200">Outstanding Fees</CardTitle>
-              <AlertCircle className="h-4 w-4 text-yellow-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">GHS {stats.outstandingFees.toLocaleString()}</div>
-              <p className="text-xs text-slate-400 mt-2">From {stats.studentsOwing} students</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium text-slate-200">Payments Today</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">GHS {stats.paymentsToday.toLocaleString()}</div>
-              <p className="text-xs text-slate-400 mt-2">3 payments received</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium text-slate-200">Collection Rate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-purple-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">78.6%</div>
-              <p className="text-xs text-slate-400 mt-2">
-                <span className="text-green-400 font-semibold">+2.3%</span> this month
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabs */}
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="bg-slate-800/50 border border-slate-700 mb-6">
-            <TabsTrigger value="dashboard" className="text-slate-300 data-[state=active]:text-white">
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="invoices" className="text-slate-300 data-[state=active]:text-white">
-              Invoices
-            </TabsTrigger>
-            <TabsTrigger value="fees" className="text-slate-300 data-[state=active]:text-white">
-              Fee Setup
-            </TabsTrigger>
-            <TabsTrigger value="scholarships" className="text-slate-300 data-[state=active]:text-white">
-              Scholarships
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="text-slate-300 data-[state=active]:text-white">
-              Reports
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="dashboard" className="space-y-6">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-white">Revenue & Expenses Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={financialData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                    <XAxis stroke="#94a3b8" />
-                    <YAxis stroke="#94a3b8" />
-                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="collected" stroke="#10B981" strokeWidth={2} name="Collected" />
-                    <Line type="monotone" dataKey="expected" stroke="#3B82F6" strokeWidth={2} name="Expected" />
-                    <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} name="Expenses" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="invoices" className="space-y-6">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="text-white">Invoice Management</CardTitle>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700" size="sm">
-                      <Download className="h-4 w-4 mr-2" /> Export
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input placeholder="Search invoices..." className="bg-slate-700/50 border-slate-600 text-white" />
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-700">
-                          <th className="px-4 py-3 text-left text-slate-300 font-semibold">Invoice #</th>
-                          <th className="px-4 py-3 text-left text-slate-300 font-semibold">Student</th>
-                          <th className="px-4 py-3 text-left text-slate-300 font-semibold">Amount</th>
-                          <th className="px-4 py-3 text-left text-slate-300 font-semibold">Status</th>
-                          <th className="px-4 py-3 text-left text-slate-300 font-semibold">Due Date</th>
-                          <th className="px-4 py-3 text-right text-slate-300 font-semibold">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invoices.map((invoice) => (
-                          <tr key={invoice.id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
-                            <td className="px-4 py-3 text-white font-mono">INV-{String(invoice.id).padStart(4, '0')}</td>
-                            <td className="px-4 py-3 text-slate-400">{invoice.student}</td>
-                            <td className="px-4 py-3 text-white">GHS {invoice.amount.toLocaleString()}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                invoice.status === 'Paid' ? 'bg-green-900/30 text-green-300 border border-green-800/50' :
-                                invoice.status === 'Pending' ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-800/50' :
-                                'bg-red-900/30 text-red-300 border border-red-800/50'
-                              }`}>
-                                {invoice.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-slate-400 text-xs">{invoice.dueDate}</td>
-                            <td className="px-4 py-3 text-right">
-                              <Button size="sm" variant="ghost" className="text-blue-400 hover:bg-blue-900/20">
-                                View
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="fees">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-white">Fee Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-400">Fee setup interface will be displayed here</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="scholarships">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-white">Scholarship Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-400">Scholarship management interface will be displayed here</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reports">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-white">Financial Reports</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-400">Financial reports interface will be displayed here</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
       </div>
+
+      {loading && !data ? (
+        <div className="flex min-h-[45vh] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Invoiced</CardTitle>
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{money(data?.summary.total || 0, data?.summary.currency)}</div>
+                <p className="text-xs text-muted-foreground">Converted tenant display value</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Paid</CardTitle>
+                <TrendingUp className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-600">{money(data?.summary.paid || 0, data?.summary.currency)}</div>
+                <p className="text-xs text-muted-foreground">Confirmed platform payments</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">{money(data?.summary.outstanding || 0, data?.summary.currency)}</div>
+                <p className="text-xs text-muted-foreground">Pending and overdue invoices</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle>Platform Subscription Invoices</CardTitle>
+                  <CardDescription>
+                    Original invoice currency is preserved for accounting; tenant display amount uses live conversion.
+                  </CardDescription>
+                </div>
+                <Input className="max-w-sm" placeholder="Search invoices..." value={query} onChange={(event) => setQuery(event.target.value)} />
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Tenant Amount</TableHead>
+                    <TableHead>Original Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Rate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoices.length ? invoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-mono font-medium">{invoice.invoiceNumber}</TableCell>
+                      <TableCell>{invoice.plan}</TableCell>
+                      <TableCell className="font-semibold">{money(invoice.displayAmount, invoice.displayCurrency)}</TableCell>
+                      <TableCell className="text-muted-foreground">{money(invoice.originalAmount, invoice.originalCurrency)}</TableCell>
+                      <TableCell><Badge className={cn("rounded-full border capitalize", statusClass(invoice.status))}>{invoice.status}</Badge></TableCell>
+                      <TableCell>{dateLabel(invoice.dueDate)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {invoice.conversionAvailable
+                          ? `${invoice.exchangeRate.toFixed(6)} · ${invoice.exchangeRateProvider}${invoice.exchangeRateDate ? ` · ${invoice.exchangeRateDate}` : ""}${invoice.exchangeRateStale ? " · cached" : ""}`
+                          : "Conversion unavailable"}
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        No platform invoices found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
-

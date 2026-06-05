@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export function UniversityParentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedAcademics, setExpandedAcademics] = useState(false);
   const [expandedCareer, setExpandedCareer] = useState(false);
 

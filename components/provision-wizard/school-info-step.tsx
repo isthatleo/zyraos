@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,7 +9,8 @@ import * as countryCodes from "country-codes-list";
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import { Badge } from "@/components/ui/badge";
-import { Globe, DollarSign, Phone } from "lucide-react";
+import { Globe, DollarSign, Phone, MapPin } from "lucide-react";
+import { normalizeTenantSlug } from "@/lib/tenant-url";
 
 interface SchoolInfoData {
   name: string;
@@ -33,12 +34,38 @@ interface SchoolInfoStepProps {
 const SCHOOL_TYPES = [
   { value: "primary", label: "Primary School" },
   { value: "secondary", label: "Secondary School" },
+  { value: "high_school", label: "High School" },
   { value: "university", label: "University" },
   { value: "college", label: "College" },
-  { value: "other", label: "Other" },
+  { value: "vocational", label: "Vocational / Technical College" },
 ];
 
+const CITY_LIBRARY: Record<string, string> = {
+  kampala: "UG",
+  entebbe: "UG",
+  mbarara: "UG",
+  gulu: "UG",
+  nairobi: "KE",
+  mombasa: "KE",
+  kisumu: "KE",
+  kigali: "RW",
+  accra: "GH",
+  kumasi: "GH",
+  lagos: "NG",
+  abuja: "NG",
+  "dar es salaam": "TZ",
+  arusha: "TZ",
+  johannesburg: "ZA",
+  "cape town": "ZA",
+  london: "GB",
+  "new york": "US",
+};
+
 export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
+  const [cityHint, setCityHint] = useState("");
+  const tenantSuffix = typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? `.localhost:${window.location.port || "3000"}/admins`
+    : ".roxan.com/admins";
   // Get all countries with their metadata, ensuring unique country codes
   const countries = useMemo(() => {
     const allCountries = countryCodes.all();
@@ -70,26 +97,46 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
     }
   };
 
+  const handleCityChange = (city: string) => {
+    const inferredCode = CITY_LIBRARY[city.trim().toLowerCase()];
+    const country = inferredCode ? countries.find(c => c.countryCode === inferredCode) : null;
+    setCityHint(country ? country.countryNameEn : "");
+    if (country && !data.countryCode) {
+      onUpdate({
+        ...data,
+        city,
+        country: country.countryNameEn,
+        countryCode: country.countryCode,
+        currencyCode: country.currencyCode,
+        currencyName: country.currencyNameEn,
+      });
+      return;
+    }
+    updateField("city", city);
+  };
+
   const handleNameChange = (name: string) => {
-    updateField("name", name);
     // Only update subdomain if it's empty or was previously auto-generated
     const currentSlug = generateSlug(data.name);
     if (!data.subdomain || data.subdomain === currentSlug) {
-      updateField("subdomain", generateSlug(name));
+      onUpdate({ ...data, name, subdomain: generateSlug(name) });
+      return;
     }
+    onUpdate({ ...data, name });
   };
 
   const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
+    return normalizeTenantSlug(name);
   };
 
   return (
     <div className="space-y-8">
+      <div className="rounded-2xl border bg-muted/30 p-4">
+        <h3 className="font-semibold">School identity and location</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Country selection drives currency defaults and phone number formatting. City suggestions help auto-detect the country when possible.
+        </p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="school-name">School Name *</Label>
@@ -99,14 +146,13 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
             value={data.name}
             onChange={(e) => handleNameChange(e.target.value)}
             required
-            className="border-gray-300 focus:ring-orange-500"
           />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="school-type">School Type *</Label>
           <Select value={data.type} onValueChange={(value) => updateField("type", value)}>
-            <SelectTrigger className="border-gray-300">
+            <SelectTrigger>
               <SelectValue placeholder="Select school type" />
             </SelectTrigger>
             <SelectContent>
@@ -125,7 +171,7 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
             Country *
           </Label>
           <Select value={data.countryCode} onValueChange={handleCountryChange}>
-            <SelectTrigger className="border-gray-300">
+            <SelectTrigger>
               <SelectValue placeholder="Select country" />
             </SelectTrigger>
             <SelectContent className="max-h-[300px]">
@@ -139,14 +185,23 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="city">City</Label>
+          <Label htmlFor="city" className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            City
+          </Label>
           <Input
             id="city"
             placeholder="Enter city"
+            list="school-city-library"
             value={data.city}
-            onChange={(e) => updateField("city", e.target.value)}
-            className="border-gray-300"
+            onChange={(e) => handleCityChange(e.target.value)}
           />
+          <datalist id="school-city-library">
+            {Object.keys(CITY_LIBRARY).map((city) => (
+              <option key={city} value={city.replace(/\b\w/g, (char) => char.toUpperCase())} />
+            ))}
+          </datalist>
+          {cityHint ? <p className="text-xs text-muted-foreground">Country suggestion: {cityHint}</p> : null}
         </div>
 
         <div className="space-y-2">
@@ -160,7 +215,9 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
               value={data.phone}
               onChange={(value) => updateField("phone", value || "")}
               defaultCountry={data.countryCode as any}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              international
+              countryCallingCodeEditable={false}
+              className="phone-field flex min-h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
         </div>
@@ -173,7 +230,6 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
             placeholder="contact@school.com"
             value={data.contactEmail}
             onChange={(e) => updateField("contactEmail", e.target.value)}
-            className="border-gray-300"
           />
         </div>
 
@@ -184,16 +240,15 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
               id="subdomain"
               placeholder="school-name"
               value={data.subdomain}
-              onChange={(e) => updateField("subdomain", e.target.value)}
+              onChange={(e) => updateField("subdomain", normalizeTenantSlug(e.target.value))}
               required
-              className="rounded-r-none border-gray-300 focus:ring-orange-500"
             />
-            <span className="inline-flex items-center px-4 text-sm text-gray-600 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md font-medium">
-              .roxan.com
+            <span className="inline-flex items-center rounded-r-md border border-l-0 bg-muted px-4 text-sm font-medium text-muted-foreground">
+              {tenantSuffix}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            The unique web address for your school's dashboard.
+          <p className="text-xs text-muted-foreground mt-1">
+            The unique tenant slug. In development this opens as {data.subdomain || "school-name"}{tenantSuffix}; in production it opens as {data.subdomain || "school-name"}.roxan.com/admins.
           </p>
         </div>
       </div>
@@ -206,23 +261,22 @@ export function SchoolInfoStep({ data, onUpdate }: SchoolInfoStepProps) {
           value={data.address}
           onChange={(e) => updateField("address", e.target.value)}
           rows={3}
-          className="border-gray-300"
         />
       </div>
 
       {data.currencyCode && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-2xl border border-primary/20 bg-primary/10 p-4">
           <div className="flex items-center gap-3">
-            <div className="bg-orange-100 p-2 rounded-full">
-              <DollarSign className="h-5 w-5 text-orange-600" />
+            <div className="rounded-full bg-primary/15 p-2">
+              <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-orange-900">Detected Local Currency</p>
-              <p className="text-xs text-orange-700">Based on your country selection</p>
+              <p className="text-sm font-medium">Detected Local Currency</p>
+              <p className="text-xs text-muted-foreground">Based on your country selection</p>
             </div>
           </div>
           <div className="text-right">
-            <Badge className="bg-orange-200 text-orange-800 hover:bg-orange-200 border-none font-bold">
+            <Badge className="border-none bg-primary text-primary-foreground font-bold">
               {data.currencyCode} - {data.currencyName}
             </Badge>
           </div>

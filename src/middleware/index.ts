@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getTenantFromRequest } from './lib/tenant-utils';
+import { getTenantFromRequest } from '@/lib/tenant-utils';
 
 export async function middleware(request: NextRequest) {
   const pathName = request.nextUrl.pathname;

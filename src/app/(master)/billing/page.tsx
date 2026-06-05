@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, TrendingUp, FileText, Download, Print, Eye, Search } from 'lucide-react';
+import { DollarSign, TrendingUp, FileText, Download, Printer, Eye, Search } from 'lucide-react';
 
 interface Invoice {
   id: string;
@@ -290,7 +290,7 @@ export default function BillingPage() {
                           <Download className="h-4 w-4 text-slate-300" />
                         </button>
                         <button className="p-2 rounded-lg hover:bg-slate-600">
-                          <Print className="h-4 w-4 text-slate-300" />
+                          <Printer className="h-4 w-4 text-slate-300" />
                         </button>
                       </div>
                     </td>

@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Edit2, Download, Print, Share2, Eye, FileText } from 'lucide-react';
+import { Edit2, Download, Printer, Share2, Eye, FileText } from 'lucide-react';
 
 export default function StudentDetailPage({ params }: { params: { studentId: string } }) {
   const [studentData] = useState({
@@ -81,7 +81,7 @@ export default function StudentDetailPage({ params }: { params: { studentId: str
             Edit
           </Button>
           <Button className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
-            <Print className="h-4 w-4" />
+            <Printer className="h-4 w-4" />
             Print
           </Button>
           <Button className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2">

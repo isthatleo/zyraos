@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { useProfileAvatar } from "@/hooks/use-profile-avatar";
 
 interface DashboardNavProps {
   user?: {
@@ -50,6 +51,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname() || "";
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { displayName, displayImage } = useProfileAvatar(user);
   const [mounted, setMounted] = React.useState(false);
   const [notifications, setNotifications] = React.useState([
     { id: "1", title: "New school provisioned", time: "2m ago", read: false },
@@ -208,9 +210,9 @@ export function DashboardNav({ user }: DashboardNavProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full border border-border/50 hover:bg-accent p-0 overflow-hidden">
               <Avatar className="h-10 w-10">
-                <AvatarImage src={user?.image || undefined} alt={user?.name || "User"} />
+                <AvatarImage src={displayImage || undefined} alt={displayName || user?.name || "User"} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-chart-1 text-primary-foreground font-bold">
-                  {(user?.name || "AD").substring(0, 2).toUpperCase()}
+                  {(displayName || user?.name || "AD").substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -219,7 +221,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
             <DropdownMenuLabel className="font-normal p-4">
               <div className="flex flex-col space-y-2">
                 <p className="text-sm font-bold">{user?.name || "System Admin"}</p>
-                <p className="text-xs text-muted-foreground">{user?.email || "admin@roxan.app"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email || "Verified account"}</p>
                 <Badge variant="outline" className="w-fit text-[10px] uppercase font-bold tracking-wider">
                   {user?.role || "Administrator"}
                 </Badge>

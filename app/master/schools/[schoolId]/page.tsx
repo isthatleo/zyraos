@@ -1,404 +1,418 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { StatusPill } from "@/components/status-pill"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Settings,
-  Edit,
-  MoreHorizontal,
   Building2,
-  User,
-  CreditCard,
   Calendar,
-  DollarSign,
-  Loader2
-} from "lucide-react"
-import { useParams, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+  CheckCircle,
+  CreditCard,
+  Database,
+  Edit,
+  ExternalLink,
+  Gauge,
+  Loader2,
+  Mail,
+  PackageCheck,
+  ReceiptText,
+  Settings,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 
-interface SchoolDetails {
+import { StatusPill } from "@/components/status-pill";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PLATFORM_SETTINGS_CHANNEL, PLATFORM_SETTINGS_SYNC_EVENT } from "@/lib/platform-settings-sync";
+
+type SchoolDetail = {
   id: string;
   name: string;
   slug: string;
   country: string;
+  countryCode?: string | null;
+  currencyCode?: string | null;
+  currencyName?: string | null;
   type: string;
-  status: "active" | "deactivated" | "pending";
-  planName?: string;
-  planPrice?: number;
-  maxStudents?: number;
-  maxStaff?: number;
+  status: string;
+  portalUrl?: string;
+  subscriptionStatus?: string | null;
+  subscriptionStartDate?: string | null;
+  subscriptionEndDate?: string | null;
+  planName?: string | null;
+  planPrice?: number | string | null;
+  planCurrency?: string | null;
+  displayPlanPrice?: number | string | null;
+  displayCurrency?: string | null;
+  maxStudents?: number | null;
+  maxStaff?: number | null;
+  exchangeRateProvider?: string | null;
   createdAt: string;
   updatedAt: string;
+  owner?: {
+    id: string;
+    name: string | null;
+    email: string;
+    roleName: string | null;
+    temporaryAccess?: boolean | null;
+    temporaryPasswordIssuedAt?: string | null;
+  } | null;
+  modules?: Array<{ id: string; moduleName: string; moduleKey: string; isEnabled: boolean }>;
+  invoices?: Array<{
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    issueDate: string;
+    dueDate: string;
+    amount: number | string;
+    currency: string;
+    displayAmount?: number | string;
+    displayCurrency?: string;
+    originalAmount?: number | string;
+    originalCurrency?: string;
+    description?: string | null;
+  }>;
+};
+
+function safeCurrency(currency?: string | null) {
+  return /^[A-Z]{3}$/.test(String(currency || "")) ? String(currency).toUpperCase() : "ZAR";
 }
 
-const defaultSchoolData = {
-  id: "1",
-  name: "Academy School International",
-  slug: "academy-school",
-  domain: "academyschool.edu",
-  country: "Nigeria",
-  city: "Lagos",
-  timezone: "Africa/Lagos",
-  currency: "R",
-  status: "active" as const,
-  plan: "Standard",
-  maxStudents: 200,
-  maxStaff: 25,
-  owner: {
-    name: "Dr. Adebayo Johnson",
-    email: "adebayo.johnson@academyschool.edu",
-    phone: "+234 801 234 5678",
-    address: "123 Education Street, Lagos, Nigeria"
-  },
-  subscription: {
-    status: "active",
-    plan: "Standard",
-    billingCycle: "monthly",
-    nextBilling: "2026-05-01"
-  },
-  timestamps: {
-    created: "2026-02-18T10:30:00Z",
-    updated: "2026-04-01T14:20:00Z",
-    provisioned: "2026-02-18T11:00:00Z"
-  }
+function money(value: number | string | null | undefined, currency?: string | null) {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: safeCurrency(currency) }).format(Number(value || 0));
 }
 
-const invoices = [
-  {
-    id: "INV-2026-9000",
-    date: "2026-04-01",
-    amount: "R1,000.00",
-    status: "paid" as const,
-    dueDate: "2026-04-15"
-  },
-  {
-    id: "INV-2026-8999",
-    date: "2026-03-01",
-    amount: "R1,000.00",
-    status: "paid" as const,
-    dueDate: "2026-03-15"
-  },
-  {
-    id: "INV-2026-8998",
-    date: "2026-02-01",
-    amount: "R1,000.00",
-    status: "paid" as const,
-    dueDate: "2026-02-15"
-  }
-]
+function dateLabel(value?: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleDateString();
+}
+
+function daysUntil(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.ceil((date.getTime() - Date.now()) / 86_400_000);
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="text-sm font-medium">{value}</div>
+    </div>
+  );
+}
 
 export default function SchoolDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const schoolId = (params?.schoolId as string) || ''
-  const [schoolData, setSchoolData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<any[]>([])
+  const params = useParams();
+  const router = useRouter();
+  const schoolId = String(params?.schoolId || "");
+  const [school, setSchool] = useState<SchoolDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSchool = async () => {
+    if (!schoolId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`/api/master/schools/${schoolId}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to load school");
+      setSchool(data.school || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load school");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!schoolId) return
+    void fetchSchool();
+  }, [schoolId]);
 
-    const fetchSchool = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch(`/api/master/schools/${schoolId}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.school) {
-            // Merge with default data to keep the structure
-            setSchoolData({
-              ...defaultSchoolData,
-              id: data.school.id,
-              name: data.school.name,
-              slug: data.school.slug,
-              country: data.school.country,
-              countryCode: data.school.countryCode,
-              currency: data.school.currencyCode || data.school.currencyName || defaultSchoolData.currency,
-              status: data.school.status,
-              plan: data.school.planName || defaultSchoolData.plan,
-              maxStudents: data.school.maxStudents || defaultSchoolData.maxStudents,
-              maxStaff: data.school.maxStaff || defaultSchoolData.maxStaff,
-              domain: `${data.school.slug}.roxan.com`,
-              subscription: {
-                status: data.school.subscriptionStatus || "inactive",
-                plan: data.school.planName || "No Plan",
-                billingCycle: data.school.subscriptionBillingCycle ? "Annual" : "Monthly",
-                nextBilling: data.school.subscriptionEndDate ? new Date(data.school.subscriptionEndDate).toLocaleDateString() : "N/A"
-              },
-              timestamps: {
-                created: data.school.createdAt,
-                updated: data.school.updatedAt,
-                provisioned: data.school.createdAt,
-              }
-            })
+  useEffect(() => {
+    const refresh = () => void fetchSchool();
+    window.addEventListener(PLATFORM_SETTINGS_SYNC_EVENT, refresh);
+    const channel = "BroadcastChannel" in window ? new BroadcastChannel(PLATFORM_SETTINGS_CHANNEL) : null;
+    channel?.addEventListener("message", refresh);
+    return () => {
+      window.removeEventListener(PLATFORM_SETTINGS_SYNC_EVENT, refresh);
+      channel?.close();
+    };
+  }, [schoolId]);
 
-            if (data.school.invoices) {
-              setInvoices(data.school.invoices.map((inv: any) => ({
-                id: inv.invoiceNumber,
-                date: new Date(inv.issueDate).toLocaleDateString(),
-                amount: `${inv.currency} ${inv.amount}`,
-                status: inv.status,
-                dueDate: new Date(inv.dueDate).toLocaleDateString()
-              })))
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching school:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchSchool()
-  }, [schoolId])
+  const invoices = school?.invoices || [];
+  const activeModules = useMemo(() => school?.modules?.filter((module) => module.isEnabled) || [], [school?.modules]);
+  const invoiceMetrics = useMemo(() => {
+    const pending = invoices.filter((invoice) => !["paid", "void", "cancelled"].includes(invoice.status.toLowerCase()));
+    const paid = invoices.filter((invoice) => invoice.status.toLowerCase() === "paid");
+    const totalOutstanding = pending.reduce((sum, invoice) => sum + Number(invoice.displayAmount ?? invoice.amount ?? 0), 0);
+    return {
+      pendingCount: pending.length,
+      paidCount: paid.length,
+      totalOutstanding,
+      currency: pending[0]?.displayCurrency || pending[0]?.currency || school?.displayCurrency || school?.currencyCode,
+    };
+  }, [invoices, school?.currencyCode, school?.displayCurrency]);
+  const renewalDays = daysUntil(school?.subscriptionEndDate);
+  const moduleCoverage = school?.modules?.length ? Math.round((activeModules.length / school.modules.length) * 100) : 0;
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-          <p className="text-gray-500">Loading school details...</p>
+      <div className="space-y-6">
+        <Skeleton className="h-32 rounded-3xl" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
         </div>
       </div>
-    )
+    );
   }
 
-  // Fallback if not found or error (though we merged with defaultSchoolData above)
-  const displayData = schoolData || defaultSchoolData
+  if (error || !school) {
+    return (
+      <Card className="bg-card/85 backdrop-blur">
+        <CardContent className="flex min-h-80 flex-col items-center justify-center gap-4 p-8 text-center">
+          <Building2 className="size-10 text-muted-foreground" />
+          <div>
+            <h1 className="text-2xl font-semibold">School not available</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{error || "No school record was returned by the API."}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => router.push("/master/schools")}>Back to Schools</Button>
+            <Button onClick={() => void fetchSchool()}>Retry</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/master/schools')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Schools
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">{displayData.name}</h1>
-              <StatusPill status={displayData.status} text={displayData.status.charAt(0).toUpperCase() + displayData.status.slice(1)} />
+    <div className="space-y-8">
+      <div className="rounded-3xl border bg-card/85 p-6 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-4">
+            <Button variant="ghost" size="sm" className="w-fit gap-2 px-0 hover:bg-transparent" onClick={() => router.push("/master/schools")}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to Schools
+            </Button>
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold tracking-tight">{school.name}</h1>
+                <StatusPill status={school.status as any} text={school.status.charAt(0).toUpperCase() + school.status.slice(1)} />
+              </div>
+              <p className="mt-2 text-muted-foreground">Tenant configuration, subscription, access handoff, and billing visibility.</p>
             </div>
-            <p className="text-gray-600 mt-1">School configuration and management</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => router.push(`/master/schools/${schoolId}/permissions`)}>
-            <Settings className="h-4 w-4" />
-            Permissions
-          </Button>
-          <Button variant="outline" className="gap-2" onClick={() => router.push(`/master/schools/${schoolId}/edit`)}>
-            <Edit className="h-4 w-4" />
-            Edit School
-          </Button>
-          <Button variant="outline" size="sm">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => school.portalUrl && window.open(school.portalUrl, "_blank", "noopener,noreferrer")}>
+              <ExternalLink className="h-4 w-4" />
+              Open Portal
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => router.push(`/master/schools/${schoolId}/permissions`)}>
+              <Settings className="h-4 w-4" />
+              Permissions
+            </Button>
+            <Button className="gap-2" onClick={() => router.push(`/master/schools/${schoolId}/edit`)}>
+              <Edit className="h-4 w-4" />
+              Edit School
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* School Information */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Plan</p>
+            <p className="mt-2 text-2xl font-semibold">{school.planName || "No plan"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {school.planName ? money(school.displayPlanPrice ?? school.planPrice, school.displayCurrency ?? school.planCurrency) : "Subscription not assigned"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subscription</p>
+            <p className="mt-2 text-2xl font-semibold capitalize">{school.subscriptionStatus || "inactive"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Renews or ends {dateLabel(school.subscriptionEndDate)}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capacity</p>
+            <p className="mt-2 text-2xl font-semibold">{school.maxStudents || 0} / {school.maxStaff || 0}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Students / staff limits</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Modules</p>
+            <p className="mt-2 text-2xl font-semibold">{activeModules.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Enabled tenant modules</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Access Handoff</p>
+              <ShieldCheck className="size-5 text-primary" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold">{school.owner?.temporaryAccess ? "Pending" : "Completed"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {school.owner?.temporaryAccess ? `Issued ${dateLabel(school.owner.temporaryPasswordIssuedAt)}` : "Owner has completed first-access setup"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Outstanding Billing</p>
+              <ReceiptText className="size-5 text-primary" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold">{money(invoiceMetrics.totalOutstanding, invoiceMetrics.currency)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{invoiceMetrics.pendingCount} open invoice{invoiceMetrics.pendingCount === 1 ? "" : "s"}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Renewal Window</p>
+              <TrendingUp className="size-5 text-primary" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold">{renewalDays === null ? "Not set" : renewalDays >= 0 ? `${renewalDays} days` : "Expired"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Subscription end: {dateLabel(school.subscriptionEndDate)}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/85 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Module Coverage</p>
+              <Gauge className="size-5 text-primary" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold">{moduleCoverage}%</p>
+            <p className="mt-1 text-sm text-muted-foreground">{activeModules.length} enabled from {school.modules?.length || 0} provisioned modules</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="bg-card/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              School Information
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Building2 className="size-5 text-primary" /> School Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Name</label>
-              <p className="text-gray-900">{displayData.name}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Slug</label>
-              <p className="text-gray-900 font-mono text-sm">{displayData.slug}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Domain</label>
-              <p className="text-gray-900">{displayData.domain}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Country</label>
-              <p className="text-gray-900">{displayData.country} ({displayData.countryCode})</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Currency</label>
-              <p className="text-gray-900">{displayData.currency}</p>
-            </div>
+          <CardContent className="space-y-4">
+            <InfoRow label="Tenant slug" value={<code className="rounded bg-muted px-2 py-1 text-xs">{school.slug}</code>} />
+            <InfoRow label="Portal URL" value={<a className="break-all text-primary hover:underline" href={school.portalUrl} target="_blank" rel="noreferrer">{school.portalUrl}</a>} />
+            <InfoRow label="Education level" value={<span className="capitalize">{school.type.replace(/_/g, " ")}</span>} />
+            <InfoRow label="Country" value={`${school.country}${school.countryCode ? ` (${school.countryCode})` : ""}`} />
+            <InfoRow label="Tenant currency" value={`${school.currencyCode || "Not set"}${school.currencyName ? ` - ${school.currencyName}` : ""}`} />
           </CardContent>
         </Card>
 
-        {/* Owner & Contact */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+        <Card className="bg-card/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Owner & Contact
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Users className="size-5 text-primary" /> Owner Access</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Owner Name</label>
-              <p className="text-gray-900">{displayData.owner.name}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Email</label>
-              <p className="text-gray-900">{displayData.owner.email}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Phone</label>
-              <p className="text-gray-900">{displayData.owner.phone}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Address</label>
-              <p className="text-gray-900 text-sm">{displayData.owner.address}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Plan & Capacity */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Plan & Capacity
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Plan</label>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge className="bg-purple-100 text-purple-700 rounded-full px-2.5 py-0.5 text-xs font-medium">
-                  {displayData.plan}
-                </Badge>
+          <CardContent className="space-y-4">
+            {school.owner ? (
+              <>
+                <InfoRow label="Owner name" value={school.owner.name || "Unnamed owner"} />
+                <InfoRow label="Email" value={<span className="inline-flex items-center gap-2"><Mail className="size-4 text-muted-foreground" />{school.owner.email}</span>} />
+                <InfoRow label="Role" value={<Badge variant="outline" className="rounded-full capitalize">{school.owner.roleName || "owner"}</Badge>} />
+                <InfoRow
+                  label="Access state"
+                  value={school.owner.temporaryAccess ? "Temporary password pending completion" : "Access completed"}
+                />
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+                No scoped owner account is linked to this tenant yet.
               </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Max Students</label>
-              <p className="text-gray-900">{displayData.maxStudents}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Max Staff</label>
-              <p className="text-gray-900">{displayData.maxStaff}</p>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Subscription */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+        <Card className="bg-card/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Subscription
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><CreditCard className="size-5 text-primary" /> Subscription</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Status</label>
-              <div className="flex items-center gap-2 mt-1">
-                <StatusPill status={displayData.subscription.status as "active" | "pending" | "inactive" | "paid" | "overdue" | "trial"} text={displayData.subscription.status.charAt(0).toUpperCase() + displayData.subscription.status.slice(1)} />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Plan</label>
-              <p className="text-gray-900">{displayData.subscription.plan}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Billing Cycle</label>
-              <p className="text-gray-900">{displayData.subscription.billingCycle}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Next Billing</label>
-              <p className="text-gray-900">{displayData.subscription.nextBilling}</p>
-            </div>
+          <CardContent className="space-y-4">
+            <InfoRow label="Status" value={<StatusPill status={(school.subscriptionStatus || "inactive") as any} text={school.subscriptionStatus || "inactive"} />} />
+            <InfoRow label="Plan price" value={school.planName ? money(school.displayPlanPrice ?? school.planPrice, school.displayCurrency ?? school.planCurrency) : "No active plan"} />
+            <InfoRow label="Exchange source" value={school.exchangeRateProvider || "No conversion required"} />
+            <InfoRow label="Start date" value={dateLabel(school.subscriptionStartDate)} />
+            <InfoRow label="End date" value={dateLabel(school.subscriptionEndDate)} />
           </CardContent>
         </Card>
+      </div>
 
-        {/* Timestamps */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="grid gap-6 xl:grid-cols-[1fr_1.6fr]">
+        <Card className="bg-card/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Timestamps
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Created</label>
-              <p className="text-gray-900 text-sm">{new Date(displayData.timestamps.created).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Updated</label>
-              <p className="text-gray-900 text-sm">{new Date(displayData.timestamps.updated).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Provisioned</label>
-              <p className="text-gray-900 text-sm">{new Date(displayData.timestamps.provisioned).toLocaleDateString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Invoices */}
-        <Card className="rounded-xl border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 lg:col-span-3">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Recent Invoices
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => router.push(`/master/schools/${schoolId}/invoices`)}>
-              View All Invoices
-            </Button>
+            <CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" /> Enabled Modules</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            {activeModules.length ? (
+              <div className="flex flex-wrap gap-2">
+                {activeModules.map((module) => (
+                  <Badge key={module.id} variant="outline" className="rounded-full">{module.moduleName}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No modules are enabled for this tenant.</p>
+            )}
+            <Separator className="my-5" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InfoRow label="Created" value={<span className="inline-flex items-center gap-2"><Calendar className="size-4 text-muted-foreground" />{dateLabel(school.createdAt)}</span>} />
+              <InfoRow label="Updated" value={dateLabel(school.updatedAt)} />
+              <InfoRow label="Database" value={<span className="inline-flex items-center gap-2"><Database className="size-4 text-muted-foreground" />Provisioned</span>} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/85 backdrop-blur">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2"><CreditCard className="size-5 text-primary" /> Recent Invoices</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/master/schools/${schoolId}/invoices`)}>View All</Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-xl border">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b border-gray-200 bg-gray-50">
-                    <TableHead className="py-2 px-3 font-semibold text-gray-900">Invoice #</TableHead>
-                    <TableHead className="py-2 px-3 font-semibold text-gray-900">Date</TableHead>
-                    <TableHead className="py-2 px-3 font-semibold text-gray-900">Amount</TableHead>
-                    <TableHead className="py-2 px-3 font-semibold text-gray-900">Status</TableHead>
-                    <TableHead className="py-2 px-3 font-semibold text-gray-900">Due Date</TableHead>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Issued</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Due</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.length > 0 ? (
-                    invoices.map((invoice) => (
-                      <TableRow 
-                        key={invoice.id} 
-                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/master/schools/${schoolId}/invoices/${invoice.id}`)}
-                      >
-                        <TableCell className="py-3 px-3 font-medium">{invoice.id}</TableCell>
-                        <TableCell className="py-3 px-3 text-sm">{invoice.date}</TableCell>
-                        <TableCell className="py-3 px-3 font-medium">{invoice.amount}</TableCell>
-                        <TableCell className="py-3 px-3">
-                          <StatusPill status={invoice.status} text={invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)} />
-                        </TableCell>
-                        <TableCell className="py-3 px-3 text-sm">{invoice.dueDate}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
+                  {invoices.slice(0, 5).map((invoice) => (
+                    <TableRow key={invoice.id} className="cursor-pointer" onClick={() => router.push(`/master/schools/${schoolId}/invoices/${invoice.invoiceNumber}`)}>
+                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{dateLabel(invoice.issueDate)}</TableCell>
+                      <TableCell>{money(invoice.displayAmount ?? invoice.amount, invoice.displayCurrency ?? invoice.currency)}</TableCell>
+                      <TableCell><StatusPill status={invoice.status as any} text={invoice.status} /></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{dateLabel(invoice.dueDate)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {!invoices.length && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center text-gray-500">
-                        No invoices found for this school.
-                      </TableCell>
+                      <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No invoices found for this school.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -407,6 +421,60 @@ export default function SchoolDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="bg-card/85 backdrop-blur xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><PackageCheck className="size-5 text-primary" /> Tenant Readiness Checklist</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {[
+              { label: "Tenant record created", done: Boolean(school.id), detail: school.slug },
+              { label: "Owner account linked", done: Boolean(school.owner?.email), detail: school.owner?.email || "Missing owner" },
+              { label: "First-access security enabled", done: Boolean(school.owner), detail: school.owner?.temporaryAccess ? "Temporary password pending" : "Completed" },
+              { label: "Subscription assigned", done: Boolean(school.planName), detail: school.planName || "No plan assigned" },
+              { label: "Modules enabled", done: activeModules.length > 0, detail: `${activeModules.length} module${activeModules.length === 1 ? "" : "s"} active` },
+              { label: "Invoice generated", done: invoices.length > 0, detail: `${invoices.length} invoice${invoices.length === 1 ? "" : "s"} available` },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border bg-background/60 p-4">
+                <div className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex size-6 items-center justify-center rounded-full ${item.done ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"}`}>
+                    <CheckCircle className="size-4" />
+                  </span>
+                  <div>
+                    <p className="font-medium">{item.label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/85 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Settings className="size-5 text-primary" /> Quick Operations</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => router.push(`/master/schools/${schoolId}/edit`)}>
+              <Edit className="size-4" />
+              Update school profile
+            </Button>
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => router.push(`/master/schools/${schoolId}/permissions`)}>
+              <ShieldCheck className="size-4" />
+              Review role permissions
+            </Button>
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => router.push(`/master/schools/${schoolId}/invoices`)}>
+              <ReceiptText className="size-4" />
+              Manage tenant invoices
+            </Button>
+            <Button className="w-full justify-start gap-2" onClick={() => school.portalUrl && window.open(school.portalUrl, "_blank", "noopener,noreferrer")}>
+              <ExternalLink className="size-4" />
+              Open tenant admin portal
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  )
+  );
 }

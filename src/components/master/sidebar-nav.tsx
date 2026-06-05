@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Building2, DollarSign, BarChart3, Settings, LogOut } from 'lucide-react';
 
 export function MasterSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
 
   const masterItems = [
     {

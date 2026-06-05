@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useSearchParams } from 'react';
-import { useRouter } from 'next/navigation';
+import React from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Home, Mail, ArrowLeft } from 'lucide-react';
@@ -15,9 +15,9 @@ export default function AccessDeniedPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const userRole = searchParams.get('role') || 'Unknown';
-  const module = searchParams.get('module') || 'This Module';
-  const page = searchParams.get('page') || 'This Page';
+  const userRole = searchParams?.get('role') || 'Unknown';
+  const module = searchParams?.get('module') || 'This Module';
+  const page = searchParams?.get('page') || 'This Page';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">

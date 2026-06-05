@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { authClient } from "@/lib/auth-client"
+import { useProfileAvatar } from "@/hooks/use-profile-avatar"
 import { toast } from "sonner"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -51,6 +52,7 @@ export function StudentSidebar() {
   const router = useRouter()
   const { data: session } = authClient.useSession()
   const user = session?.user
+  const { displayName, displayImage } = useProfileAvatar(user)
 
   const handleLogout = async () => {
     try {
@@ -60,8 +62,8 @@ export function StudentSidebar() {
     } catch { toast.error("Logout failed") }
   }
 
-  const userDisplayName = user?.name || "Student"
-  const userEmail = user?.email || "student@roxan.app"
+  const userDisplayName = displayName || "Student"
+  const userEmail = user?.email || "Verified account"
   const userInitials = userDisplayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
 
   return (
@@ -109,7 +111,7 @@ export function StudentSidebar() {
           <DropdownMenuTrigger asChild>
             <button className="w-full flex items-center gap-3 hover:bg-sidebar-accent/50 rounded-lg p-2 transition-colors">
               <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarImage src={user?.image || undefined} alt={userDisplayName} />
+                <AvatarImage src={displayImage || undefined} alt={userDisplayName} />
                 <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">{userInitials}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0 text-left">

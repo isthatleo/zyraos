@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { TeacherSidebarNav } from '@/components/teacher/sidebar-nav';
+import { TeacherSidebarNav } from '@/src/components/teacher/sidebar-nav';
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   return (

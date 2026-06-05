@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { classesTable, academicYearsTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { classesTable } from "@/lib/db-schema";
+import { eq } from "drizzle-orm";
 import { classSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -27,14 +27,12 @@ export async function POST(request: NextRequest) {
     const classId = `class_${Date.now()}`;
     const newClass = await db.insert(classesTable).values({
       id: classId,
-      schoolId,
       name: validated.name,
-      classCode: validated.classCode,
+      grade: validated.stage,
+      section: validated.classCode,
       academicYearId: validated.academicYearId,
-      stage: validated.stage,
       capacity: validated.capacity || 50,
-      classTeacherId: validated.classTeacherId,
-      description: validated.description,
+      teacherId: validated.classTeacherId,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -50,7 +48,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "Validation failed", details: error.errors },
+        { error: "Validation failed", details: error.issues },
         { status: 400 }
       );
     }
@@ -78,24 +76,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = db
-      .select()
-      .from(classesTable)
-      .where(eq(classesTable.schoolId, schoolId));
-
-    if (academicYearId) {
-      query = db
-        .select()
-        .from(classesTable)
-        .where(
-          and(
-            eq(classesTable.schoolId, schoolId),
-            eq(classesTable.academicYearId, academicYearId)
-          )
-        );
-    }
-
-    const classes = await query;
+    const classes = academicYearId
+      ? await db.select().from(classesTable).where(eq(classesTable.academicYearId, academicYearId))
+      : await db.select().from(classesTable);
 
     return NextResponse.json(
       {
@@ -137,12 +120,7 @@ export async function PUT(request: NextRequest) {
         ...updateData,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(classesTable.id, classId),
-          eq(classesTable.schoolId, schoolId)
-        )
-      );
+      .where(eq(classesTable.id, classId));
 
     return NextResponse.json(
       {
@@ -178,12 +156,7 @@ export async function DELETE(request: NextRequest) {
 
     await db
       .delete(classesTable)
-      .where(
-        and(
-          eq(classesTable.id, classId),
-          eq(classesTable.schoolId, schoolId)
-        )
-      );
+      .where(eq(classesTable.id, classId));
 
     return NextResponse.json(
       {

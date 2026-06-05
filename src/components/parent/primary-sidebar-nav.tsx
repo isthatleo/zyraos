@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export function PrimaryParentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
 
   const items = [
     {

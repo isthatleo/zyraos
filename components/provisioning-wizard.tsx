@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Circle, LockKeyhole, School, Settings2, ShieldCheck, WalletCards } from "lucide-react";
 import { SchoolInfoStep } from "./provision-wizard/school-info-step";
 import { AdminSetupStep } from "./provision-wizard/admin-setup-step";
 import { PlanSelectionStep } from "./provision-wizard/plan-selection-step";
@@ -12,23 +13,26 @@ import { ModulesStep } from "./provision-wizard/modules-step";
 import { ReviewStep } from "./provision-wizard/review-step";
 
 export interface ProvisioningData {
-  schoolInfo: {
-    name: string;
-    type: string;
-    country: string;
-    city: string;
-    contactEmail: string;
-    phone: string;
-    address: string;
-    subdomain: string;
-  };
+    schoolInfo: {
+      name: string;
+      type: string;
+      country: string;
+      city: string;
+      contactEmail: string;
+      phone: string;
+      address: string;
+      subdomain: string;
+      currencyCode?: string;
+      currencyName?: string;
+      countryCode?: string;
+    };
   adminUser: {
     firstName: string;
     lastName: string;
     email: string;
     phone: string;
-    password: string;
-    confirmPassword: string;
+    password?: string;
+    confirmPassword?: string;
   };
   planId: string;
   modules: Array<{
@@ -44,15 +48,16 @@ interface ProvisioningWizardProps {
 }
 
 const STEPS = [
-  { id: 1, title: "School Information", description: "Basic school details" },
-  { id: 2, title: "Admin Setup", description: "Create administrator account" },
-  { id: 3, title: "Subscription Plan", description: "Choose subscription plan" },
-  { id: 4, title: "Modules & Access", description: "Select enabled modules" },
-  { id: 5, title: "Review & Provision", description: "Confirm and provision" },
+  { id: 1, title: "School Information", description: "Identity, location, contact details, and tenant URL", icon: School },
+  { id: 2, title: "Admin Setup", description: "Owner identity and secure post-provision temporary password handoff", icon: LockKeyhole },
+  { id: 3, title: "Subscription Plan", description: "Billing plan and tenant subscription limits", icon: WalletCards },
+  { id: 4, title: "Modules & Access", description: "Core and optional modules enabled at launch", icon: Settings2 },
+  { id: 5, title: "Review & Provision", description: "Final checks before creating the tenant", icon: ShieldCheck },
 ];
 
 export function ProvisioningWizard({ onComplete, onCancel }: ProvisioningWizardProps) {
   const [currentStep, setCurrentStep] = useState(1);
+  const wizardTopRef = React.useRef<HTMLDivElement | null>(null);
   const [data, setData] = useState<ProvisioningData>({
     schoolInfo: {
       name: "",
@@ -69,8 +74,6 @@ export function ProvisioningWizard({ onComplete, onCancel }: ProvisioningWizardP
       lastName: "",
       email: "",
       phone: "",
-      password: "",
-      confirmPassword: "",
     },
     planId: "",
     modules: [
@@ -80,10 +83,23 @@ export function ProvisioningWizard({ onComplete, onCancel }: ProvisioningWizardP
       { key: "hr_portal", name: "HR Staff Portal", enabled: false },
       { key: "finance_portal", name: "Finance Portal", enabled: false },
       { key: "library_portal", name: "Library Portal", enabled: false },
+      { key: "canteen_portal", name: "Canteen Portal", enabled: false },
+      { key: "transport_portal", name: "Transport Portal", enabled: false },
+      { key: "hostel_portal", name: "Hostel Portal", enabled: false },
+      { key: "health_portal", name: "Health Portal", enabled: false },
     ],
   });
 
   const progress = (currentStep / STEPS.length) * 100;
+
+  React.useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      wizardTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentStep]);
 
   const updateData = (stepData: Partial<ProvisioningData>) => {
     setData(prev => ({ ...prev, ...stepData }));
@@ -122,56 +138,71 @@ export function ProvisioningWizard({ onComplete, onCancel }: ProvisioningWizardP
     }
   };
 
-  const canProceed = () => {
-    switch (currentStep) {
+  const isStepComplete = (step: number): boolean => {
+    switch (step) {
       case 1:
-        return data.schoolInfo.name && data.schoolInfo.subdomain && data.schoolInfo.country && data.schoolInfo.type;
+        return Boolean(data.schoolInfo.name && data.schoolInfo.subdomain && data.schoolInfo.country && data.schoolInfo.type && data.schoolInfo.phone);
       case 2:
-        return data.adminUser.firstName && data.adminUser.lastName && data.adminUser.email &&
-               data.adminUser.password && data.adminUser.password === data.adminUser.confirmPassword;
+        return Boolean(
+          data.adminUser.firstName &&
+          data.adminUser.lastName &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.adminUser.email)
+        );
       case 3:
-        return data.planId;
+        return Boolean(data.planId);
       case 4:
         return data.modules.some(m => m.enabled);
       case 5:
-        return true;
+        return [1, 2, 3, 4].every((stepId) => isStepComplete(stepId));
       default:
         return false;
     }
   };
 
+  const canProceed = () => isStepComplete(currentStep);
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div ref={wizardTopRef} className="mx-auto max-w-6xl scroll-mt-24 p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Provision New School</h1>
-        <p className="text-gray-600">Set up a new school tenant in the Roxan ecosystem</p>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Provision New School</h1>
+        <p className="text-muted-foreground">Set up a new school tenant in the Roxan ecosystem</p>
       </div>
 
-      {/* Progress Indicator */}
-      <Card className="mb-8">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            {STEPS.map((step) => (
-              <div key={step.id} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step.id < currentStep
-                    ? "bg-green-500 text-white"
-                    : step.id === currentStep
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-200 text-gray-600"
-                }`}>
-                  {step.id < currentStep ? <Check className="w-4 h-4" /> : step.id}
-                </div>
-                {step.id < STEPS.length && (
-                  <div className={`w-12 h-0.5 mx-2 ${
-                    step.id < currentStep ? "bg-green-500" : "bg-gray-200"
-                  }`} />
-                )}
+      <div className="mb-8 grid gap-3 md:grid-cols-5">
+        {STEPS.map((step) => {
+          const complete = isStepComplete(step.id);
+          const active = step.id === currentStep;
+          const Icon = step.icon;
+          return (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => setCurrentStep(step.id)}
+              className={`rounded-2xl border p-4 text-left transition-all ${
+                active
+                  ? "border-primary bg-primary/10 shadow-sm"
+                  : complete
+                    ? "border-emerald-500/30 bg-emerald-500/10"
+                    : "border-border bg-card hover:bg-muted/40"
+              }`}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className={`flex size-9 items-center justify-center rounded-xl ${complete ? "bg-emerald-500 text-white" : active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {complete ? <Check className="size-4" /> : <Icon className="size-4" />}
+                </span>
+                {complete ? <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">Complete</span> : <Circle className="size-3 text-muted-foreground" />}
               </div>
-            ))}
-          </div>
+              <p className="text-sm font-semibold">{step.title}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{step.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="mb-8 bg-card/85 backdrop-blur">
+        <CardContent className="pt-6">
           <Progress value={progress} className="mb-2" />
-          <div className="flex justify-between text-sm text-gray-600">
+          <div className="flex justify-between text-sm text-muted-foreground">
             <span>{STEPS[currentStep - 1].title}</span>
             <span>Step {currentStep} of {STEPS.length}</span>
           </div>
@@ -179,7 +210,7 @@ export function ProvisioningWizard({ onComplete, onCancel }: ProvisioningWizardP
       </Card>
 
       {/* Step Content */}
-      <Card className="mb-8">
+      <Card className="mb-8 bg-card/85 backdrop-blur">
         <CardHeader>
           <CardTitle>{STEPS[currentStep - 1].title}</CardTitle>
           <CardDescription>{STEPS[currentStep - 1].description}</CardDescription>

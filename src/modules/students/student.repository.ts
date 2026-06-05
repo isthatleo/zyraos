@@ -4,12 +4,27 @@ import { students } from '../../drizzle/schema';
 import { eq, and, or, like, sql } from 'drizzle-orm';
 import { Student, CreateStudentData, UpdateStudentData, StudentFilters, StudentStats } from './student.types';
 
+const toDateOnlyString = (date: Date): string => date.toISOString().slice(0, 10);
+type StudentRow = typeof students.$inferSelect;
+
+const mapStudent = (student: StudentRow): Student => ({
+  ...student,
+  phone: student.phone ?? undefined,
+  dateOfBirth: new Date(student.dateOfBirth),
+  graduationDate: student.graduationDate ?? undefined,
+  status: student.status as Student['status'],
+  address: student.address as Student['address'],
+  emergencyContact: student.emergencyContact as Student['emergencyContact'],
+  medicalInfo: student.medicalInfo as Student['medicalInfo'],
+});
+
 export class StudentRepository {
   // Create student
   async create(data: CreateStudentData): Promise<Student> {
     const now = new Date();
     const studentData = {
       ...data,
+      dateOfBirth: toDateOnlyString(data.dateOfBirth),
       enrollmentDate: data.enrollmentDate || now,
       status: 'active' as const,
       createdAt: now,
@@ -17,19 +32,19 @@ export class StudentRepository {
     };
 
     const [student] = await db.insert(students).values(studentData).returning();
-    return student;
+    return mapStudent(student);
   }
 
   // Get student by ID
   async findById(id: string): Promise<Student | null> {
     const [student] = await db.select().from(students).where(eq(students.id, id));
-    return student || null;
+    return student ? mapStudent(student) : null;
   }
 
   // Get student by user ID
   async findByUserId(userId: string): Promise<Student | null> {
     const [student] = await db.select().from(students).where(eq(students.userId, userId));
-    return student || null;
+    return student ? mapStudent(student) : null;
   }
 
   // Get students with filters and pagination
@@ -90,7 +105,7 @@ export class StudentRepository {
       .offset(offset);
 
     return {
-      students: studentList,
+      students: studentList.map(mapStudent),
       total: count,
       page,
       limit,
@@ -99,8 +114,10 @@ export class StudentRepository {
 
   // Update student
   async update(id: string, data: UpdateStudentData): Promise<Student | null> {
+    const { dateOfBirth, ...rest } = data;
     const updateData = {
-      ...data,
+      ...rest,
+      ...(dateOfBirth ? { dateOfBirth: toDateOnlyString(dateOfBirth) } : {}),
       updatedAt: new Date(),
     };
 
@@ -110,18 +127,19 @@ export class StudentRepository {
       .where(eq(students.id, id))
       .returning();
 
-    return updatedStudent || null;
+    return updatedStudent ? mapStudent(updatedStudent) : null;
   }
 
   // Delete student
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(students).where(eq(students.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Get students by school
   async findBySchool(schoolId: string): Promise<Student[]> {
-    return await db.select().from(students).where(eq(students.schoolId, schoolId));
+    const studentList = await db.select().from(students).where(eq(students.schoolId, schoolId));
+    return studentList.map(mapStudent);
   }
 
   // Get students by grade
@@ -130,7 +148,8 @@ export class StudentRepository {
       ? and(eq(students.grade, grade), eq(students.schoolId, schoolId))
       : eq(students.grade, grade);
 
-    return await db.select().from(students).where(whereClause);
+    const studentList = await db.select().from(students).where(whereClause);
+    return studentList.map(mapStudent);
   }
 
   // Get student statistics
@@ -199,13 +218,15 @@ export class StudentRepository {
     const now = new Date();
     const studentData = data.map(item => ({
       ...item,
+      dateOfBirth: toDateOnlyString(item.dateOfBirth),
       enrollmentDate: item.enrollmentDate || now,
       status: 'active' as const,
       createdAt: now,
       updatedAt: now,
     }));
 
-    return await db.insert(students).values(studentData).returning();
+    const studentList = await db.insert(students).values(studentData).returning();
+    return studentList.map(mapStudent);
   }
 
   async bulkUpdate(updates: Array<{ id: string; data: UpdateStudentData }>): Promise<Student[]> {
@@ -223,7 +244,7 @@ export class StudentRepository {
 
   async bulkDelete(ids: string[]): Promise<number> {
     const result = await db.delete(students).where(sql`${students.id} IN ${ids}`);
-    return result.rowCount;
+    return result.rowCount ?? 0;
   }
 
   // Check existence

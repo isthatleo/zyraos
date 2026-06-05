@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { attendanceTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { attendanceSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -19,12 +19,14 @@ export async function POST(request: NextRequest) {
 
     await db.insert(attendanceTable).values({
       id: attendanceId,
-      schoolId,
       studentId: validated.studentId,
       classId: validated.classId,
-      date: new Date(validated.date),
+      academicYearId: body.academicYearId || "year_default",
+      termId: body.termId,
+      attendanceDate: new Date(validated.date),
       status: validated.status,
       remarks: validated.remarks,
+      recordedBy: body.recordedBy || "system",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     console.error("Attendance recording error:", error);
     return NextResponse.json({ error: "Failed to record attendance" }, { status: 500 });
@@ -54,23 +56,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "School ID is required" }, { status: 400 });
     }
 
-    let query = db.select().from(attendanceTable).where(eq(attendanceTable.schoolId, schoolId));
-
-    if (studentId) {
-      query = db
-        .select()
-        .from(attendanceTable)
-        .where(and(eq(attendanceTable.schoolId, schoolId), eq(attendanceTable.studentId, studentId)));
-    }
-
-    if (classId) {
-      query = db
-        .select()
-        .from(attendanceTable)
-        .where(and(eq(attendanceTable.schoolId, schoolId), eq(attendanceTable.classId, classId)));
-    }
-
-    const records = await query;
+    const records = studentId
+      ? await db.select().from(attendanceTable).where(eq(attendanceTable.studentId, studentId))
+      : classId
+        ? await db.select().from(attendanceTable).where(eq(attendanceTable.classId, classId))
+        : await db.select().from(attendanceTable);
 
     return NextResponse.json(
       { success: true, records, total: records.length },
@@ -95,7 +85,7 @@ export async function PUT(request: NextRequest) {
     await db
       .update(attendanceTable)
       .set({ ...updateData, updatedAt: new Date() })
-      .where(and(eq(attendanceTable.id, attendanceId), eq(attendanceTable.schoolId, schoolId)));
+      .where(eq(attendanceTable.id, attendanceId));
 
     return NextResponse.json({ success: true, message: "Attendance updated successfully" }, { status: 200 });
   } catch (error) {

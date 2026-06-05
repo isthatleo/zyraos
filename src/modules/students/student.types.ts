@@ -52,11 +52,14 @@ export interface CreateStudentData {
 }
 
 export interface UpdateStudentData {
+  schoolId?: string;
   firstName?: string;
   lastName?: string;
   email?: string;
   phone?: string;
+  dateOfBirth?: Date;
   grade?: string;
+  graduationDate?: Date;
   status?: Student['status'];
   address?: Student['address'];
   emergencyContact?: Student['emergencyContact'];

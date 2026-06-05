@@ -4,9 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { MessagingService } from '@/lib/messaging/messaging.service';
-import { AuditLogger, RateLimiter } from '@/lib/auth/advanced-auth';
-import { getTenantFromRequest } from '@/lib/middleware/tenant-middleware';
+import { MessagingService } from '@/src/lib/messaging/messaging.service';
+import { AuditLogger, RateLimiter } from '@/src/lib/auth/advanced-auth';
+import { getTenantFromRequest } from '@/src/lib/middleware/tenant-middleware';
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,0 +1,3 @@
+[realtime] Redis adapter disabled; set REDIS_URL for multi-instance fanout.
+[realtime] Socket.IO server listening on http://localhost:4010
+[realtime] Allowed origins: http://localhost:3000

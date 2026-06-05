@@ -31,7 +31,7 @@ interface NavSection {
 }
 
 export function TeacherSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedSections, setExpandedSections] = useState<string[]>(['classes']);
 
   const sections: NavSection[] = [

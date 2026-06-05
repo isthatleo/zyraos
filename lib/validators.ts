@@ -72,7 +72,7 @@ export const studentDocumentsSchema = z.object({
 // ==================== ACADEMICS ====================
 export const classSchema = z.object({
   name: z.string().min(1, "Class name is required"),
-  classCode: z.string().min(1, "Class code is required").unique(),
+  classCode: z.string().min(1, "Class code is required"),
   academicYearId: z.string().min(1, "Academic year is required"),
   stage: z.string().min(1, "Stage is required"),
   capacity: z.number().int().positive().optional(),
@@ -199,7 +199,7 @@ export const staffSchema = z.object({
   lastName: z.string().min(1),
   email: z.string().email(),
   phone: z.string().min(1),
-  staffId: z.string().min(1).unique(),
+  staffId: z.string().min(1),
   designation: z.string().min(1),
   department: z.string().min(1),
   hireDate: z.string().datetime(),
@@ -215,8 +215,8 @@ export const payrollSchema = z.object({
   month: z.number().int().min(1).max(12),
   year: z.number().int().positive(),
   baseSalary: z.number().positive(),
-  allowances: z.record(z.number()).optional(),
-  deductions: z.record(z.number()).optional(),
+  allowances: z.record(z.string(), z.number()).optional(),
+  deductions: z.record(z.string(), z.number()).optional(),
   netSalary: z.number(),
   paymentDate: z.string().datetime(),
   paymentStatus: z.enum(["pending", "processed", "paid"]),

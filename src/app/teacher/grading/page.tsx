@@ -24,7 +24,7 @@ interface Assignment {
 interface StudentGrade {
   studentId: string;
   studentName: string;
-  submittedDate: string;
+  submittedDate?: string;
   score?: number;
   maxScore: number;
   feedback?: string;

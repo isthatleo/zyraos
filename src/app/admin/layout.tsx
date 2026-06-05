@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { AdminSidebarNav } from '@/components/admin/sidebar-nav';
+import { AdminSidebarNav } from '@/src/components/admin/sidebar-nav';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

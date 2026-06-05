@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export function SecondaryParentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedAcademics, setExpandedAcademics] = useState(false);
 
   const items = [

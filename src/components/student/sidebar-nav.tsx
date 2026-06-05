@@ -21,7 +21,7 @@ import {
 import { useState } from 'react';
 
 export function StudentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedAcademics, setExpandedAcademics] = useState(false);
 
   const items = [

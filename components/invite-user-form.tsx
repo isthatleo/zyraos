@@ -1,44 +1,69 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { UserPlus, Mail, CheckCircle } from "lucide-react"
+import { CheckCircle, Copy, KeyRound, UserPlus } from "lucide-react"
 
 interface InviteUserFormProps {
   tenantSlug: string
+}
+
+type TenantRoleOption = {
+  id: string
+  name: string
+  description?: string
+}
+
+type AccessResult = {
+  email: string
+  temporaryPassword: string
+  loginUrl: string
 }
 
 export function InviteUserForm({ tenantSlug }: InviteUserFormProps) {
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [roleId, setRoleId] = useState("")
-  const [departmentId, setDepartmentId] = useState("")
   const [loading, setLoading] = useState(false)
+  const [rolesLoading, setRolesLoading] = useState(true)
   const [success, setSuccess] = useState(false)
+  const [roles, setRoles] = useState<TenantRoleOption[]>([])
+  const [accessResult, setAccessResult] = useState<AccessResult | null>(null)
 
-  // Mock roles - in real app, fetch from API
-  const roles = [
-    { id: "student", name: "Student" },
-    { id: "parent", name: "Parent" },
-    { id: "teacher", name: "Teacher" },
-    { id: "school_admin", name: "School Admin" },
-    { id: "accountant", name: "Accountant" },
-    { id: "hr", name: "HR" },
-    { id: "staff", name: "Staff" }
-  ]
+  useEffect(() => {
+    let cancelled = false
 
-  // Mock departments - in real app, fetch from API
-  const departments = [
-    { id: "1", name: "Mathematics" },
-    { id: "2", name: "Science" },
-    { id: "3", name: "English" },
-    { id: "4", name: "Administration" }
-  ]
+    async function loadRoles() {
+      if (!tenantSlug) return
+      setRolesLoading(true)
+      try {
+        const response = await fetch(`/api/tenant/roles?tenant=${tenantSlug}`, {
+          cache: "no-store",
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || "Failed to load roles")
+        if (!cancelled) {
+          setRoles(data.roles || [])
+        }
+      } catch (error) {
+        console.error("Error loading tenant roles:", error)
+        toast.error("Failed to load tenant roles")
+      } finally {
+        if (!cancelled) setRolesLoading(false)
+      }
+    }
+
+    loadRoles()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tenantSlug])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,37 +75,39 @@ export function InviteUserForm({ tenantSlug }: InviteUserFormProps) {
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/tenant/users/invite?tenant=${tenantSlug}`, {
+      const response = await fetch(`/api/tenant/users/create-with-access?tenant=${tenantSlug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
           name,
           roleId,
-          departmentId: departmentId || null
+          departmentId: null
         })
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to send invitation")
+        throw new Error(result.error || "Failed to create user account")
       }
 
-      toast.success("Invitation sent successfully!")
+      setAccessResult({
+        email,
+        temporaryPassword: result.temporaryPassword,
+        loginUrl: result.loginUrl,
+      })
+      toast.success("User account created with temporary access")
       setSuccess(true)
 
       // Reset form
       setEmail("")
       setName("")
       setRoleId("")
-      setDepartmentId("")
 
-      // Reset success after 3 seconds
-      setTimeout(() => setSuccess(false), 3000)
     } catch (error) {
-      console.error("Error sending invitation:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to send invitation")
+      console.error("Error creating user:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to create user")
     } finally {
       setLoading(false)
     }
@@ -91,20 +118,53 @@ export function InviteUserForm({ tenantSlug }: InviteUserFormProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="h-5 w-5" />
-          Invite New User
+          Create New User
         </CardTitle>
         <CardDescription>
-          Send an invitation email with a secure login link. Users will be able to access their portal immediately.
+          Generate a temporary password and force the user to change it before entering their dashboard.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {success ? (
+        {success && accessResult ? (
           <div className="text-center py-8">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Invitation Sent!</h3>
+            <h3 className="text-lg font-semibold mb-2">Temporary Access Created</h3>
             <p className="text-muted-foreground">
-              The user will receive an email with their login link shortly.
+              Share this credential securely. The user must change it after first login.
             </p>
+            <div className="mx-auto mt-6 max-w-lg space-y-3 rounded-2xl border bg-muted/30 p-4 text-left text-sm">
+              <div>
+                <p className="text-muted-foreground">Email</p>
+                <p className="font-medium">{accessResult.email}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Temporary password</p>
+                <p className="font-mono text-base font-semibold">{accessResult.temporaryPassword}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Login portal</p>
+                <p className="break-all font-medium">{accessResult.loginUrl}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigator.clipboard.writeText(`Email: ${accessResult.email}\nTemporary Password: ${accessResult.temporaryPassword}\nLogin: ${accessResult.loginUrl}`).catch(() => null)}
+              >
+                <Copy className="size-4" />
+                Copy Access
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setSuccess(false)
+                  setAccessResult(null)
+                }}
+              >
+                Create Another
+              </Button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -132,12 +192,12 @@ export function InviteUserForm({ tenantSlug }: InviteUserFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
-                <Select value={roleId} onValueChange={setRoleId} required>
+                <Select value={roleId} onValueChange={setRoleId} required disabled={rolesLoading}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
+                    <SelectValue placeholder={rolesLoading ? "Loading tenant roles..." : "Select a role"} />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((role) => (
@@ -148,33 +208,18 @@ export function InviteUserForm({ tenantSlug }: InviteUserFormProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="department">Department (Optional)</Label>
-                <Select value={departmentId} onValueChange={setDepartmentId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || rolesLoading}>
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Sending Invitation...
+                  Creating Account...
                 </>
               ) : (
                 <>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send Invitation
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Create Temporary Access
                 </>
               )}
             </Button>

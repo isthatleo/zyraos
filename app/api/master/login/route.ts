@@ -1,275 +1,182 @@
-import { NextRequest, NextResponse } from "next/server"
-import crypto from "crypto"
+import { NextRequest, NextResponse } from "next/server";
+import { eq, ilike, or } from "drizzle-orm";
 
-interface MasterLoginRequest {
-  email: string
-  password: string
-  sessionId: string
-  ipAddress: string
+import { masterDb } from "@/lib/db";
+import { platformAdminsTable, userTable } from "@/lib/db-schema";
+import { getRequestIp, writeMasterAudit } from "@/lib/master-audit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type LoginAttemptState = { count: number; firstAttemptAt: number; lockedUntil?: number };
+
+const loginAttempts = new Map<string, LoginAttemptState>();
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const LOCKOUT_MS = 5 * 60 * 1000;
+const MAX_ATTEMPTS = 5;
+
+function getClientIp(request: NextRequest, fallback?: string) {
+  return fallback || getRequestIp(request) || "unknown";
 }
 
-interface LoginAttempt {
-  email: string
-  timestamp: number
-  success: boolean
-  ipAddress: string
+function loginKey(email: string, ipAddress: string) {
+  return `${email}:${ipAddress}`;
 }
 
-// In-memory store for demo (use database in production)
-const loginAttempts: LoginAttempt[] = []
-const lockedAccounts = new Map<string, number>()
+function getAttemptState(key: string) {
+  const now = Date.now();
+  const current = loginAttempts.get(key);
+  if (!current || now - current.firstAttemptAt > RATE_WINDOW_MS) {
+    const fresh: LoginAttemptState = { count: 0, firstAttemptAt: now };
+    loginAttempts.set(key, fresh);
+    return fresh;
+  }
+  return current;
+}
 
-// Master admin credentials (should be in database with proper hashing)
-// In production: use bcrypt, argon2, or similar
-const MASTER_ADMIN_EMAIL = process.env.MASTER_ADMIN_EMAIL || "admin@platform.com"
-const MASTER_ADMIN_PASSWORD_HASH = process.env.MASTER_ADMIN_PASSWORD_HASH || ""
+function recordFailedAttempt(key: string) {
+  const state = getAttemptState(key);
+  state.count += 1;
+  if (state.count >= MAX_ATTEMPTS) {
+    state.lockedUntil = Date.now() + LOCKOUT_MS;
+  }
+  loginAttempts.set(key, state);
+  return state;
+}
 
-// 2FA secret (in production, store user-specific secrets)
-const MASTER_2FA_SECRET = process.env.MASTER_2FA_SECRET || ""
+function clearAttempts(key: string) {
+  loginAttempts.delete(key);
+}
 
-/**
- * POST /api/master/login - Master admin login endpoint
- * 
- * Security Features:
- * - Rate limiting (5 attempts per 15 minutes)
- * - Account lockout (5 minutes after 3 failed attempts)
- * - IP logging and monitoring
- * - Credentials validation
- * - Audit logging
- * - Session tracking
- */
-export async function POST(req: NextRequest) {
-  try {
-    const body: MasterLoginRequest = await req.json()
-    const { email, password, sessionId, ipAddress } = body
+async function assertMasterAccount(email: string) {
+  const [user] = await masterDb
+    .select({ id: userTable.id, email: userTable.email, name: userTable.name, role: userTable.role })
+    .from(userTable)
+    .where(ilike(userTable.email, email))
+    .limit(1);
 
-    // Validate input
-    if (!email || !password || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
-    }
+  if (!user || user.role !== "super_admin") return null;
 
-    // Check if account is locked
-    const lockoutTime = lockedAccounts.get(email)
-    if (lockoutTime && lockoutTime > Date.now()) {
-      logSecurityEvent("login_blocked", email, ipAddress, "Account is locked")
-      return NextResponse.json(
-        {
-          error: "Account is temporarily locked. Try again later.",
-          lockoutUntil: new Date(lockoutTime).toISOString(),
-        },
-        { status: 429 }
-      )
-    }
+  const [platformAdmin] = await masterDb
+    .select({ id: platformAdminsTable.id, email: platformAdminsTable.email })
+    .from(platformAdminsTable)
+    .where(or(eq(platformAdminsTable.id, user.id), ilike(platformAdminsTable.email, email)))
+    .limit(1);
 
-    // Check rate limiting
-    const recentAttempts = loginAttempts.filter(
-      (a) =>
-        a.email === email &&
-        a.timestamp > Date.now() - 15 * 60 * 1000 // 15 minutes
-    )
+  if (!platformAdmin) return null;
+  return user;
+}
 
-    if (recentAttempts.length >= 5) {
-      lockedAccounts.set(email, Date.now() + 5 * 60 * 1000) // Lock for 5 minutes
-      logSecurityEvent("rate_limit_exceeded", email, ipAddress, "Too many login attempts")
-      return NextResponse.json(
-        { error: "Too many login attempts. Account locked for 5 minutes." },
-        { status: 429 }
-      )
-    }
+async function signInWithBetterAuth(request: NextRequest, email: string, password: string) {
+  const authUrl = new URL("/api/auth/sign-in/email", request.nextUrl.origin);
+  const origin = request.headers.get("origin") || request.nextUrl.origin;
+  return fetch(authUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin,
+      referer: request.headers.get("referer") || `${origin}/master/login`,
+      cookie: request.headers.get("cookie") || "",
+      "user-agent": request.headers.get("user-agent") || "",
+      "x-forwarded-for": request.headers.get("x-forwarded-for") || "",
+      "x-real-ip": request.headers.get("x-real-ip") || "",
+    },
+    body: JSON.stringify({ email, password }),
+    cache: "no-store",
+  });
+}
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      logSecurityEvent("invalid_email", email, ipAddress, "Invalid email format")
-      loginAttempts.push({ email, timestamp: Date.now(), success: false, ipAddress })
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      )
-    }
+function copySetCookieHeaders(from: Response, to: NextResponse) {
+  const headersWithGetSetCookie = from.headers as Headers & { getSetCookie?: () => string[] };
+  const cookies = headersWithGetSetCookie.getSetCookie?.() || [];
+  if (cookies.length) {
+    for (const cookie of cookies) to.headers.append("set-cookie", cookie);
+    return;
+  }
 
-    // In production: use bcrypt or similar to verify password
-    // This is a simplified demo - NEVER do this in production
-    const passwordValid = await verifyPassword(password, MASTER_ADMIN_PASSWORD_HASH || "demo-password")
-    const emailValid = email === MASTER_ADMIN_EMAIL
+  const cookie = from.headers.get("set-cookie");
+  if (cookie) to.headers.append("set-cookie", cookie);
+}
 
-    if (!passwordValid || !emailValid) {
-      const failedAttempts = recentAttempts.filter((a) => !a.success).length + 1
-      
-      logSecurityEvent("authentication_failed", email, ipAddress, `Failed attempt ${failedAttempts}/3`)
-      loginAttempts.push({ email, timestamp: Date.now(), success: false, ipAddress })
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}));
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const sessionId = String(body.sessionId || crypto.randomUUID());
+  const ipAddress = getClientIp(request, typeof body.ipAddress === "string" ? body.ipAddress : undefined);
 
-      // Lock account after 3 failed attempts
-      if (failedAttempts >= 3) {
-        lockedAccounts.set(email, Date.now() + 5 * 60 * 1000)
-        return NextResponse.json(
-          { error: "Invalid credentials. Account locked for 5 minutes." },
-          { status: 401 }
-        )
-      }
+  if (!email || !password) {
+    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+  }
 
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      )
-    }
-
-    // Credentials valid - record success
-    loginAttempts.push({ email, timestamp: Date.now(), success: true, ipAddress })
-    logSecurityEvent("credentials_verified", email, ipAddress, "Credentials verified successfully")
-
-    // Generate 2FA code (in production, use TOTP or send SMS)
-    const twoFactorCode = Math.floor(100000 + Math.random() * 900000).toString()
-    const twoFactorToken = generateToken()
-
-    // Store 2FA for verification (in production, use Redis with expiry)
-    const twoFactorData = {
-      code: twoFactorCode,
-      token: twoFactorToken,
-      email,
-      ipAddress,
-      sessionId,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-    }
-
-    // In production: store in Redis or database
-    // For now, we'd pass this securely to client
-    
-    // Log 2FA attempt
-    logSecurityEvent("2fa_initiated", email, ipAddress, "2FA code generated and sent")
-
-    // In production: send via SMS, email, or authenticator app
-    console.log(`[2FA] Code: ${twoFactorCode} for ${email}`)
-
+  const key = loginKey(email, ipAddress);
+  const attemptState = getAttemptState(key);
+  if (attemptState.lockedUntil && attemptState.lockedUntil > Date.now()) {
     return NextResponse.json(
       {
-        success: true,
-        message: "Credentials verified. Please enter 2FA code.",
-        twoFactorToken,
-        sessionId,
-        // In production, don't send code to client
-        // Code would be sent via SMS/email/authenticator
+        error: "Account is temporarily locked. Try again later.",
+        lockoutUntil: new Date(attemptState.lockedUntil).toISOString(),
       },
-      { status: 200 }
-    )
-  } catch (error) {
-    console.error("[Login Error]", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * POST /api/master/verify-2fa - Verify 2FA code
- */
-export async function PUT(req: NextRequest) {
-  try {
-    const body = await req.json()
-    const { twoFactorToken, code, sessionId, ipAddress } = body
-
-    if (!twoFactorToken || !code || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
-    }
-
-    // Validate 2FA code format
-    if (!/^\d{6}$/.test(code)) {
-      logSecurityEvent("invalid_2fa", "unknown", ipAddress, "Invalid 2FA format")
-      return NextResponse.json(
-        { error: "Invalid 2FA code format" },
-        { status: 400 }
-      )
-    }
-
-    // In production: verify token and code from Redis/database
-    // For demo: accept any 6-digit code starting with non-zero
-    const valid2FA = /^[1-9]\d{5}$/.test(code)
-
-    if (!valid2FA) {
-      logSecurityEvent("2fa_failed", "unknown", ipAddress, "Invalid 2FA code")
-      return NextResponse.json(
-        { error: "Invalid 2FA code" },
-        { status: 401 }
-      )
-    }
-
-    // Generate session token
-    const sessionToken = generateToken()
-    const sessionSecret = generateToken()
-
-    logSecurityEvent("2fa_verified", "unknown", ipAddress, "2FA verification successful", "success")
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Authentication successful",
-        sessionToken,
-        sessionSecret,
-        sessionId,
-        expiresIn: 3600, // 1 hour
-      },
-      {
-        status: 200,
-        headers: {
-          "Set-Cookie": `master_session=${sessionToken}; Path=/master; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`,
-        },
-      }
-    )
-  } catch (error) {
-    console.error("[2FA Verification Error]", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * Helper function to verify password
- * In production: use bcrypt.compare()
- */
-async function verifyPassword(plaintext: string, hash: string): Promise<boolean> {
-  // Demo implementation - NEVER use this in production
-  // Use bcrypt, argon2, or similar
-  return plaintext === hash || plaintext.length >= 8
-}
-
-/**
- * Helper function to generate secure token
- */
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex")
-}
-
-/**
- * Log security events
- */
-function logSecurityEvent(
-  action: string,
-  email: string,
-  ipAddress: string,
-  description: string,
-  type: "info" | "warning" | "error" | "success" = "info"
-): void {
-  const timestamp = new Date().toISOString()
-  const logEntry = {
-    timestamp,
-    action,
-    email,
-    ipAddress,
-    description,
-    type,
+      { status: 429 }
+    );
   }
 
-  // In production: send to logging service (Sentry, DataDog, etc.)
-  console.log(`[${type.toUpperCase()}] [${action}] ${description}`, logEntry)
+  const masterUser = await assertMasterAccount(email);
+  if (!masterUser) {
+    const failed = recordFailedAttempt(key);
+    await writeMasterAudit(request, {
+      action: "master_login_denied",
+      resource: "master_auth",
+      resourceId: email,
+      changes: { reason: "not_super_admin", attempts: failed.count },
+      status: "failed",
+    }).catch(() => null);
+    return NextResponse.json({ error: "Invalid super admin credentials" }, { status: 401 });
+  }
 
-  // TODO: Send to audit log database/service
+  const authResponse = await signInWithBetterAuth(request, email, password);
+  if (!authResponse.ok) {
+    const failed = recordFailedAttempt(key);
+    const payload = await authResponse.json().catch(() => ({}));
+    await writeMasterAudit(request, {
+      adminId: masterUser.id,
+      action: "master_login_failed",
+      resource: "master_auth",
+      resourceId: masterUser.id,
+      changes: { attempts: failed.count, ipAddress },
+      status: "failed",
+    }).catch(() => null);
+
+    return NextResponse.json(
+      { error: payload?.message || payload?.error || "Invalid super admin credentials" },
+      { status: authResponse.status === 429 ? 429 : 401 }
+    );
+  }
+
+  clearAttempts(key);
+  await writeMasterAudit(request, {
+    adminId: masterUser.id,
+    action: "master_login_success",
+    resource: "master_auth",
+    resourceId: masterUser.id,
+    changes: { sessionId, ipAddress },
+  }).catch(() => null);
+
+  const response = NextResponse.json({
+    success: true,
+    message: "Authentication successful",
+    sessionId,
+    user: {
+      id: masterUser.id,
+      email: masterUser.email,
+      name: masterUser.name,
+      role: masterUser.role,
+    },
+  });
+  copySetCookieHeaders(authResponse, response);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
-

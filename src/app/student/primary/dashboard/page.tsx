@@ -183,7 +183,7 @@ export default function PrimaryStudentDashboard() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ subject, grade }) => `${subject}: ${grade}`}
+                        label={({ payload }) => `${payload?.subject ?? ""}: ${payload?.grade ?? ""}`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="score"

@@ -1,6 +1,7 @@
 import { Server as NetServer } from 'http'
 import { NextApiResponse } from 'next'
 import { Server as ServerIO } from 'socket.io'
+import { configureRealtimeServer } from '@/lib/realtime-socket'
 
 export type NextApiResponseServerIo = NextApiResponse & {
   socket: any & {
@@ -20,37 +21,7 @@ export const initSocket = (res: NextApiResponseServerIo) => {
       addTrailingSlash: false,
     })
 
-    res.socket.server.io = io
-
-    io.on('connection', (socket) => {
-      console.log('Client connected:', socket.id)
-
-      socket.on('sendMessage', (data) => {
-        // Broadcast to all clients in the conversation
-        socket.to(data.conversationId).emit('message', data.message)
-      })
-
-      socket.on('joinConversation', (conversationId) => {
-        socket.join(conversationId)
-      })
-
-      socket.on('leaveConversation', (conversationId) => {
-        socket.leave(conversationId)
-      })
-
-      socket.on('typing', (data) => {
-        socket.to(data.conversationId).emit('userTyping', data)
-      })
-
-      socket.on('sendBroadcast', (data) => {
-        // Broadcast to all connected clients or specific rooms based on audience
-        io.emit('new_broadcast', data.broadcast)
-      })
-
-      socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id)
-      })
-    })
+    res.socket.server.io = configureRealtimeServer(io)
   }
 
   return res.socket.server.io

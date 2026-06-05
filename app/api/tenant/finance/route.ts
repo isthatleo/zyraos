@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { feeItemsTable, invoicesTable, paymentsTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { feeItemSchema, invoiceSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -23,13 +23,10 @@ export async function POST(request: NextRequest) {
 
       await db.insert(feeItemsTable).values({
         id: feeItemId,
-        schoolId,
         name: validated.name,
-        amount: validated.amount,
-        currency: validated.currency,
-        category: validated.category,
-        billingCycle: validated.billingCycle,
-        isOptional: validated.isOptional,
+        amount: String(validated.amount),
+        feeType: validated.category,
+        academicYearId: body.academicYearId || "year_default",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -48,11 +45,13 @@ export async function POST(request: NextRequest) {
       await db.insert(invoicesTable).values({
         id: invoiceId,
         schoolId,
-        studentId: validated.studentId,
         invoiceNumber: `INV-${Date.now()}`,
-        amount: body.totalAmount || 0,
+        amount: String(body.totalAmount || 0),
+        currency: body.currency || "ZAR",
+        issueDate: new Date(),
         dueDate: new Date(validated.dueDate),
         status: "pending",
+        notes: validated.notes,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     console.error("Finance creation error:", error);
     return NextResponse.json({ error: "Failed to create record" }, { status: 500 });
@@ -84,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "fee_items") {
-      const fees = await db.select().from(feeItemsTable).where(eq(feeItemsTable.schoolId, schoolId));
+      const fees = await db.select().from(feeItemsTable);
       return NextResponse.json({ success: true, fees, total: fees.length }, { status: 200 });
     }
 
@@ -94,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "payments") {
-      const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.schoolId, schoolId));
+      const payments = await db.select().from(paymentsTable);
       return NextResponse.json({ success: true, payments, total: payments.length }, { status: 200 });
     }
 
@@ -120,7 +119,7 @@ export async function PUT(request: NextRequest) {
       await db
         .update(invoicesTable)
         .set({ ...updateData, updatedAt: new Date() })
-        .where(and(eq(invoicesTable.id, recordId), eq(invoicesTable.schoolId, schoolId)));
+        .where(eq(invoicesTable.id, recordId));
     }
 
     return NextResponse.json({ success: true, message: "Record updated successfully" }, { status: 200 });

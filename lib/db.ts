@@ -2,10 +2,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import * as schema from "./db-schema";
+import { normalizeDatabaseUrl } from "./database-url";
 
 // Master database connection (for control center)
 const masterClient = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: normalizeDatabaseUrl(process.env.DATABASE_URL),
+  connectionTimeoutMillis: 15000,
+  idleTimeoutMillis: 30000,
+  max: 10,
 });
 
 export const masterDb = drizzle(masterClient, { schema: schema.masterSchema });
@@ -15,16 +19,21 @@ const tenantConnections = new Map<string, ReturnType<typeof drizzle>>();
 
 // Get tenant database connection
 export function getTenantDb(databaseUrl: string) {
-  if (tenantConnections.has(databaseUrl)) {
-    return tenantConnections.get(databaseUrl)!;
+  const normalizedDatabaseUrl = normalizeDatabaseUrl(databaseUrl) || databaseUrl;
+
+  if (tenantConnections.has(normalizedDatabaseUrl)) {
+    return tenantConnections.get(normalizedDatabaseUrl)!;
   }
 
   const tenantClient = new Pool({
-    connectionString: databaseUrl,
+    connectionString: normalizedDatabaseUrl,
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000,
+    max: 10,
   });
 
   const tenantDb = drizzle(tenantClient, { schema: schema.tenantSchema });
-  tenantConnections.set(databaseUrl, tenantDb);
+  tenantConnections.set(normalizedDatabaseUrl, tenantDb);
 
   return tenantDb;
 }

@@ -3,10 +3,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { SmsService } from '@/services/sms.service';
-import { requirePermission } from '@/lib/guards/require-permission';
-import { AuditLogger } from '@/lib/auth/audit-logger';
-import { AuditAction } from '@/lib/auth/audit-logger';
+import { SmsService } from '@/src/services/sms.service';
+import { requirePermission } from '@/src/lib/guards/require-permission';
+import { AuditLogger } from '@/src/lib/auth/audit-logger';
+import { AuditAction } from '@/src/lib/auth/audit-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,6 +53,10 @@ export async function POST(request: NextRequest) {
       result = await smsService.sendSms(to, message);
     }
 
+    const success = Array.isArray(result)
+      ? result.every((item) => item.success)
+      : result.success;
+
     // Audit log
     await AuditLogger.logUserAction(
       userId,
@@ -62,7 +66,7 @@ export async function POST(request: NextRequest) {
       {
         type,
         recipientCount: type === 'bulk' ? to.length : 1,
-        success: result.success,
+        success,
       }
     );
 

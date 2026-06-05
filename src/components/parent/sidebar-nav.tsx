@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export function ParentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
 
   const items = [
     {

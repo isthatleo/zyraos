@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export function AdminSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
 
   const navItems = [
     {

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { StudentSidebarNav } from '@/components/student/sidebar-nav';
+import { StudentSidebarNav } from '@/src/components/student/sidebar-nav';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (

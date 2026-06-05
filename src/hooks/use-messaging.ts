@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Message, Conversation } from '@/types/messaging';
+import { Message, Conversation } from '@/src/types/messaging';
 
 interface UseChatOptions {
   schoolId: string;

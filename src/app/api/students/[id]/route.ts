@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { StudentController } from '@/modules/students/student.controller';
+import { StudentController } from '@/src/modules/students/student.controller';
 
 const studentController = new StudentController();
 

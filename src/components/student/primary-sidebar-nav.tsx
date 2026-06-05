@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export function PrimaryStudentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
 
   const items = [
     {

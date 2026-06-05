@@ -35,7 +35,7 @@ interface NavSection {
 }
 
 export function AdminSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedSections, setExpandedSections] = useState<string[]>(['school-operations']);
 
   const sections: NavSection[] = [

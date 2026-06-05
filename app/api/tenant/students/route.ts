@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { studentsTable, usersTable, classesTable } from "@/lib/db-schema";
+import { studentsTable, tenantUsersTable } from "@/lib/db-schema";
 import { eq, and } from "drizzle-orm";
 import { studentEnrollmentSchema } from "@/lib/validators";
 import { ZodError } from "zod";
@@ -22,40 +22,29 @@ export async function POST(request: NextRequest) {
     const studentId = `student_${Date.now()}`;
     const userId = `user_${Date.now()}`;
 
-    // Create student record
-    await db.insert(studentsTable).values({
-      id: studentId,
-      schoolId,
-      userId,
-      firstName: validated.firstName,
-      lastName: validated.lastName,
-      otherNames: validated.otherNames,
-      email: validated.email,
-      phone: validated.phone,
-      dateOfBirth: validated.dateOfBirth ? new Date(validated.dateOfBirth) : null,
-      gender: validated.gender,
-      nationality: validated.nationality,
-      homeAddress: validated.homeAddress,
-      classId: validated.classId,
-      enrollmentStatus: validated.enrollmentStatus,
-      enrollmentDate: new Date(),
+    await db.insert(tenantUsersTable).values({
+      id: userId,
+      email: validated.email || `${userId}@student.local`,
+      name: `${validated.firstName} ${validated.lastName}`,
+      roleId: body.roleId || "student",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    // Create associated user account
-    if (validated.email) {
-      await db.insert(usersTable).values({
-        id: userId,
-        schoolId,
-        email: validated.email,
-        name: `${validated.firstName} ${validated.lastName}`,
-        role: "student",
-        status: "active",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
+    await db.insert(studentsTable).values({
+      id: studentId,
+      userId,
+      admissionNumber: body.admissionNumber || `ADM-${Date.now()}`,
+      dateOfBirth: validated.dateOfBirth ? new Date(validated.dateOfBirth) : null,
+      gender: validated.gender || "other",
+      address: validated.homeAddress,
+      phone: validated.phone,
+      classId: validated.classId,
+      enrollmentDate: new Date(),
+      status: validated.enrollmentStatus,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     return NextResponse.json(
       { success: true, studentId, userId, message: "Student enrolled successfully" },
@@ -63,7 +52,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     console.error("Student enrollment error:", error);
     return NextResponse.json({ error: "Failed to enroll student" }, { status: 500 });
@@ -88,22 +77,15 @@ export async function GET(request: NextRequest) {
       const student = await db
         .select()
         .from(studentsTable)
-        .where(and(eq(studentsTable.id, studentId), eq(studentsTable.schoolId, schoolId)))
+        .where(eq(studentsTable.id, studentId))
         .limit(1);
 
       return NextResponse.json({ success: true, student: student[0] || null }, { status: 200 });
     }
 
-    let query = db.select().from(studentsTable).where(eq(studentsTable.schoolId, schoolId));
-
-    if (classId) {
-      query = db
-        .select()
-        .from(studentsTable)
-        .where(and(eq(studentsTable.schoolId, schoolId), eq(studentsTable.classId, classId)));
-    }
-
-    const students = await query;
+    const students = classId
+      ? await db.select().from(studentsTable).where(eq(studentsTable.classId, classId))
+      : await db.select().from(studentsTable);
 
     return NextResponse.json({ success: true, students, total: students.length }, { status: 200 });
   } catch (error) {
@@ -129,7 +111,7 @@ export async function PUT(request: NextRequest) {
     await db
       .update(studentsTable)
       .set({ ...updateData, updatedAt: new Date() })
-      .where(and(eq(studentsTable.id, studentId), eq(studentsTable.schoolId, schoolId)));
+      .where(eq(studentsTable.id, studentId));
 
     return NextResponse.json({ success: true, message: "Student updated successfully" }, { status: 200 });
   } catch (error) {
@@ -154,8 +136,8 @@ export async function DELETE(request: NextRequest) {
     // Soft delete by updating status
     await db
       .update(studentsTable)
-      .set({ enrollmentStatus: "suspended", updatedAt: new Date() })
-      .where(and(eq(studentsTable.id, studentId), eq(studentsTable.schoolId, schoolId)));
+      .set({ status: "suspended", updatedAt: new Date() })
+      .where(eq(studentsTable.id, studentId));
 
     return NextResponse.json({ success: true, message: "Student deactivated successfully" }, { status: 200 });
   } catch (error) {

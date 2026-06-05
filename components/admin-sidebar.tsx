@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { authClient } from "@/lib/auth-client"
+import { useProfileAvatar } from "@/hooks/use-profile-avatar"
 import { toast } from "sonner"
 import {
   DropdownMenu,
@@ -74,6 +75,7 @@ export function AdminSidebar() {
 
   const { data: session } = authClient.useSession()
   const user = session?.user
+  const { displayName, displayImage } = useProfileAvatar(user)
 
   const handleLogout = async () => {
     try {
@@ -85,8 +87,8 @@ export function AdminSidebar() {
     }
   }
 
-  const userDisplayName = user?.name || "Super Admin"
-  const userEmail = user?.email || "admin@roxan.app"
+  const userDisplayName = displayName || "Super Admin"
+  const userEmail = user?.email || "Verified account"
   const userInitials = userDisplayName
     .split(" ")
     .map((n) => n[0])
@@ -148,7 +150,7 @@ export function AdminSidebar() {
           <DropdownMenuTrigger asChild>
             <button className="w-full flex items-center gap-3 hover:bg-sidebar-accent/50 rounded-lg p-2 transition-colors">
               <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarImage src={user?.image || undefined} alt={userDisplayName} />
+                <AvatarImage src={displayImage || undefined} alt={userDisplayName} />
                 <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
                   {userInitials}
                 </AvatarFallback>

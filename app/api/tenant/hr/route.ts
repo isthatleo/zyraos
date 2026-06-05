@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { staffTable, payrollTable, leaveTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { staffSchema, payrollSchema, leaveSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -22,20 +22,13 @@ export async function POST(request: NextRequest) {
 
       await db.insert(staffTable).values({
         id,
-        schoolId,
-        firstName: validated.firstName,
-        lastName: validated.lastName,
-        email: validated.email,
-        phone: validated.phone,
-        staffId: validated.staffId,
-        designation: validated.designation,
-        department: validated.department,
+        userId: body.userId || `user_${Date.now()}`,
+        employeeId: validated.staffId,
+        departmentId: body.departmentId || validated.department,
+        position: validated.designation,
         hireDate: new Date(validated.hireDate),
-        employmentType: validated.employmentType,
-        baseSalary: validated.baseSalary,
-        currency: validated.currency,
-        bankAccount: validated.bankAccount,
-        address: validated.address,
+        salary: String(validated.baseSalary),
+        status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -53,16 +46,16 @@ export async function POST(request: NextRequest) {
 
       await db.insert(payrollTable).values({
         id,
-        schoolId,
         staffId: validated.staffId,
-        month: validated.month,
-        year: validated.year,
-        baseSalary: validated.baseSalary,
-        allowances: validated.allowances,
-        deductions: validated.deductions,
-        netSalary: validated.netSalary,
+        payrollPeriod: "monthly",
+        payrollMonth: `${validated.year}-${String(validated.month).padStart(2, "0")}`,
+        basicSalary: String(validated.baseSalary),
+        allowances: String(body.allowancesTotal || 0),
+        deductions: String(body.deductionsTotal || 0),
+        grossSalary: String(body.grossSalary || validated.baseSalary),
+        netSalary: String(validated.netSalary),
         paymentDate: new Date(validated.paymentDate),
-        paymentStatus: validated.paymentStatus,
+        status: validated.paymentStatus === "processed" ? "approved" : validated.paymentStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -80,14 +73,14 @@ export async function POST(request: NextRequest) {
 
       await db.insert(leaveTable).values({
         id,
-        schoolId,
         staffId: validated.staffId,
         leaveType: validated.leaveType,
         startDate: new Date(validated.startDate),
         endDate: new Date(validated.endDate),
+        numberOfDays: String(body.numberOfDays || 1),
         reason: validated.reason,
         status: validated.status,
-        approverNotes: validated.approverNotes,
+        remarks: validated.approverNotes,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -101,7 +94,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     console.error("HR creation error:", error);
     return NextResponse.json({ error: "Failed to create record" }, { status: 500 });
@@ -118,17 +111,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "staff") {
-      const staff = await db.select().from(staffTable).where(eq(staffTable.schoolId, schoolId));
+      const staff = await db.select().from(staffTable);
       return NextResponse.json({ success: true, staff, total: staff.length }, { status: 200 });
     }
 
     if (type === "payroll") {
-      const payroll = await db.select().from(payrollTable).where(eq(payrollTable.schoolId, schoolId));
+      const payroll = await db.select().from(payrollTable);
       return NextResponse.json({ success: true, payroll, total: payroll.length }, { status: 200 });
     }
 
     if (type === "leave") {
-      const leaves = await db.select().from(leaveTable).where(eq(leaveTable.schoolId, schoolId));
+      const leaves = await db.select().from(leaveTable);
       return NextResponse.json({ success: true, leaves, total: leaves.length }, { status: 200 });
     }
 
@@ -153,12 +146,12 @@ export async function PUT(request: NextRequest) {
       await db
         .update(staffTable)
         .set({ ...updateData, updatedAt: new Date() })
-        .where(and(eq(staffTable.id, recordId), eq(staffTable.schoolId, schoolId)));
+        .where(eq(staffTable.id, recordId));
     } else if (type === "leave") {
       await db
         .update(leaveTable)
         .set({ ...updateData, updatedAt: new Date() })
-        .where(and(eq(leaveTable.id, recordId), eq(leaveTable.schoolId, schoolId)));
+        .where(eq(leaveTable.id, recordId));
     }
 
     return NextResponse.json({ success: true, message: "Record updated successfully" }, { status: 200 });

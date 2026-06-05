@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { RouteScrollToTop } from "@/components/shared/route-scroll-to-top";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -22,8 +24,9 @@ export const metadata: Metadata = {
   title: "Roxan — Education Operations System",
   description: "Production-grade multi-tenant SaaS education ERP platform for schools and universities.",
   icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/images/roxan-logo.svg",
+    shortcut: "/images/roxan-logo.svg",
+    apple: "/images/roxan-logo.svg",
   },
 };
 
@@ -46,6 +49,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
+            <Suspense fallback={null}>
+              <RouteScrollToTop />
+            </Suspense>
             {children}
           </TooltipProvider>
         </ThemeProvider>

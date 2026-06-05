@@ -10,8 +10,8 @@ export function MasterTopNav() {
   return (
     <DashboardNav 
       user={{ 
-        name: user?.name || "Master Admin", 
-        email: user?.email || "master@roxan.app", 
+        name: user?.name || "Super Admin", 
+        email: user?.email || "", 
         role: "super_admin",
         image: user?.image || undefined
       }} 

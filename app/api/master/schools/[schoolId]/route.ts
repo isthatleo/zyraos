@@ -1,14 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { masterDb } from '@/lib/db';
-import { schoolsTable, subscriptionsTable, subscriptionPlansTable, tenantModulesTable, invoicesTable } from '@/lib/db-schema';
+import { schoolsTable, subscriptionsTable, subscriptionPlansTable, tenantModulesTable, invoicesTable, userTable, passwordSecurityTable } from '@/lib/db-schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
+import { convertMoney } from '@/lib/currency-conversion';
+import { getPlatformSetting } from '@/lib/platform-settings-server';
+import { getTenantPortalUrl } from '@/lib/tenant-url';
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function toNumber(value: unknown) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getPlanCurrency(features: unknown, fallback: string) {
+  if (features && typeof features === "object" && !Array.isArray(features)) {
+    const currency = String((features as Record<string, unknown>).currency || "").trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(currency)) return currency;
+  }
+  return fallback;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ schoolId: string }> }
 ) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const { schoolId } = await params;
+    const platformCurrency = String(await getPlatformSetting("currency") || "ZAR").toUpperCase();
 
     // Get school details with subscription and modules
     const schoolData = await masterDb
@@ -73,12 +97,52 @@ export async function GET(
       .orderBy(desc(invoicesTable.issueDate));
 
     const school = schoolData[0];
+    const planCurrency = getPlanCurrency(school.planFeatures, school.currencyCode || platformCurrency);
+    const convertedPlan = await convertMoney(school.planPrice || 0, planCurrency, platformCurrency);
+    const convertedInvoices = await Promise.all(invoices.map(async (invoice) => {
+      const converted = await convertMoney(invoice.amount, invoice.currency, platformCurrency);
+      return {
+        ...invoice,
+        amount: toNumber(invoice.amount),
+        originalAmount: toNumber(invoice.amount),
+        originalCurrency: invoice.currency,
+        displayAmount: converted.displayAmount,
+        displayCurrency: converted.displayCurrency,
+        exchangeRate: converted.exchangeRate,
+        exchangeRateDate: converted.exchangeRateDate,
+        exchangeRateProvider: converted.exchangeRateProvider,
+        exchangeRateStale: converted.exchangeRateStale,
+        conversionAvailable: converted.conversionAvailable,
+      };
+    }));
+
+    const [owner] = await masterDb
+      .select({
+        id: userTable.id,
+        name: userTable.name,
+        email: userTable.email,
+        image: userTable.image,
+        roleName: userTable.role,
+        temporaryAccess: passwordSecurityTable.forcePasswordChange,
+        temporaryPasswordIssuedAt: passwordSecurityTable.temporaryPasswordIssuedAt,
+      })
+      .from(userTable)
+      .innerJoin(passwordSecurityTable, eq(passwordSecurityTable.userId, userTable.id))
+      .where(and(eq(passwordSecurityTable.tenantSlug, school.slug), eq(userTable.role, 'owner')))
+      .limit(1);
 
     return NextResponse.json({
       school: {
         ...school,
+        portalUrl: getTenantPortalUrl(school.slug, request),
+        planPrice: toNumber(school.planPrice),
+        planCurrency,
+        displayPlanPrice: convertedPlan.displayAmount,
+        displayCurrency: convertedPlan.displayCurrency,
+        exchangeRateProvider: convertedPlan.exchangeRateProvider,
+        owner: owner || null,
         modules,
-        invoices,
+        invoices: convertedInvoices,
       }
     });
   } catch (error) {
@@ -95,6 +159,9 @@ export async function PUT(
   { params }: { params: Promise<{ schoolId: string }> }
 ) {
   try {
+    const { admin, response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const { schoolId } = await params;
     const body = await request.json();
     const { name, country, type, status } = body;
@@ -129,6 +196,27 @@ export async function PUT(
       .where(eq(schoolsTable.id, schoolId))
       .returning();
 
+    await writeMasterAudit(request, {
+      adminId: admin.adminId,
+      action: 'School Updated',
+      resource: 'schools',
+      resourceId: schoolId,
+      changes: {
+        before: {
+          name: existingSchool[0].name,
+          country: existingSchool[0].country,
+          type: existingSchool[0].type,
+          status: existingSchool[0].status,
+        },
+        after: {
+          name: updatedSchool[0].name,
+          country: updatedSchool[0].country,
+          type: updatedSchool[0].type,
+          status: updatedSchool[0].status,
+        },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       school: updatedSchool[0],
@@ -148,6 +236,9 @@ export async function DELETE(
   { params }: { params: Promise<{ schoolId: string }> }
 ) {
   try {
+    const { admin, response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const { schoolId } = await params;
 
     // Check if school exists
@@ -174,6 +265,18 @@ export async function DELETE(
       })
       .where(eq(schoolsTable.id, schoolId))
       .returning();
+
+    await writeMasterAudit(request, {
+      adminId: admin.adminId,
+      action: 'School Deactivated',
+      resource: 'schools',
+      resourceId: schoolId,
+      changes: {
+        name: existingSchool[0].name,
+        previousStatus: existingSchool[0].status,
+        status: updatedSchool[0].status,
+      },
+    });
 
     return NextResponse.json({
       success: true,

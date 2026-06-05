@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { schoolsTable, usersTable } from "@/lib/db-schema";
+import { rolesTable, schoolsTable, tenantUsersTable, userTable } from "@/lib/db-schema";
 import { eq } from "drizzle-orm";
+import { getTenantRoleDefinitions, normalizeEducationLevel } from "@/lib/roles";
 
 /**
  * POST /api/tenant/setup
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const educationLevel = normalizeEducationLevel(type);
+    const tenantRoles = getTenantRoleDefinitions(educationLevel);
+    const ownerRole = tenantRoles.find((role) => role.canonicalRole === "owner") || tenantRoles[0];
+
     // Create new school record
     const schoolId = `school_${Date.now()}`;
     const newSchool = await db.insert(schoolsTable).values({
@@ -50,15 +55,36 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     });
 
-    // Create admin user for the school
+    for (const role of tenantRoles) {
+      await db
+        .insert(rolesTable)
+        .values({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isSystem: role.isSystem,
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing();
+    }
+
+    // Create admin auth user for the school owner.
     const adminUserId = `user_${Date.now()}`;
-    await db.insert(usersTable).values({
+    await db.insert(userTable).values({
       id: adminUserId,
-      schoolId,
       email: adminEmail,
       name: adminName,
-      role: "admin",
-      status: "active",
+      role: "owner",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await db.insert(tenantUsersTable).values({
+      id: adminUserId,
+      email: adminEmail,
+      name: adminName,
+      roleId: ownerRole.id,
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

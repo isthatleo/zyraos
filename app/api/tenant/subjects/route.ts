@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { subjectsTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { subjectSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -19,13 +19,10 @@ export async function POST(request: NextRequest) {
 
     await db.insert(subjectsTable).values({
       id: subjectId,
-      schoolId,
       name: validated.name,
       code: validated.code,
       description: validated.description,
-      category: validated.category,
-      creditHours: validated.creditHours,
-      isMandatory: validated.isMandatory,
+      type: validated.category,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -36,7 +33,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     console.error("Subject creation error:", error);
     return NextResponse.json({ error: "Failed to create subject" }, { status: 500 });
@@ -52,16 +49,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "School ID is required" }, { status: 400 });
     }
 
-    let query = db.select().from(subjectsTable).where(eq(subjectsTable.schoolId, schoolId));
-
-    if (category) {
-      query = db
-        .select()
-        .from(subjectsTable)
-        .where(and(eq(subjectsTable.schoolId, schoolId), eq(subjectsTable.category, category)));
-    }
-
-    const subjects = await query;
+    const subjects = category
+      ? await db.select().from(subjectsTable).where(eq(subjectsTable.type, category))
+      : await db.select().from(subjectsTable);
 
     return NextResponse.json({ success: true, subjects, total: subjects.length }, { status: 200 });
   } catch (error) {
@@ -83,7 +73,7 @@ export async function PUT(request: NextRequest) {
     await db
       .update(subjectsTable)
       .set({ ...updateData, updatedAt: new Date() })
-      .where(and(eq(subjectsTable.id, subjectId), eq(subjectsTable.schoolId, schoolId)));
+      .where(eq(subjectsTable.id, subjectId));
 
     return NextResponse.json({ success: true, message: "Subject updated successfully" }, { status: 200 });
   } catch (error) {
@@ -103,7 +93,7 @@ export async function DELETE(request: NextRequest) {
 
     await db
       .delete(subjectsTable)
-      .where(and(eq(subjectsTable.id, subjectId), eq(subjectsTable.schoolId, schoolId)));
+      .where(eq(subjectsTable.id, subjectId));
 
     return NextResponse.json({ success: true, message: "Subject deleted successfully" }, { status: 200 });
   } catch (error) {

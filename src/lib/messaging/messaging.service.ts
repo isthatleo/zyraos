@@ -3,9 +3,9 @@
  * Path: src/lib/messaging/messaging.service.ts
  */
 
-import { SMSService } from '@/lib/sms/sms.service';
-import { AuditLogger } from '@/lib/auth/advanced-auth';
-import { Message, SMSBroadcast, Conversation, BroadcastTarget } from '@/types/messaging';
+import { SMSService } from '@/src/lib/sms/sms.service';
+import { AuditLogger } from '@/src/lib/auth/advanced-auth';
+import { Message, SMSBroadcast, Conversation, BroadcastTarget } from '@/src/types/messaging';
 
 export class MessagingService {
   /**
@@ -96,10 +96,16 @@ export class MessagingService {
 
     for (const recipient of recipients) {
       try {
+        if (!recipient.phoneNumber) {
+          failureCount++;
+          continue;
+        }
         const result = await smsService.send(recipient.phoneNumber, content);
         if (result.success) {
           successCount++;
-          broadcast.messageIds.push(result.messageId);
+          if (result.messageId) {
+            broadcast.messageIds.push(result.messageId);
+          }
         } else {
           failureCount++;
         }

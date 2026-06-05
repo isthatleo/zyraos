@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export function VocationalParentSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedTraining, setExpandedTraining] = useState(false);
 
   const items = [

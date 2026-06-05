@@ -6,18 +6,96 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Loader2, Upload, User, Mail, Shield, Calendar, Camera } from "lucide-react"
+import { Loader2, User, Mail, Shield, Calendar, Camera, Phone, Briefcase, MapPin, Contact, HeartPulse } from "lucide-react"
+
+type ExtendedProfile = {
+  phone: string
+  alternateEmail: string
+  jobTitle: string
+  department: string
+  employeeCode: string
+  admissionNumber: string
+  guardianContact: string
+  campus: string
+  address: string
+  city: string
+  country: string
+  timezone: string
+  language: string
+  bio: string
+  emergencyContactName: string
+  emergencyContactPhone: string
+  preferredContactMethod: string
+}
+
+const defaultProfile: ExtendedProfile = {
+  phone: "",
+  alternateEmail: "",
+  jobTitle: "",
+  department: "",
+  employeeCode: "",
+  admissionNumber: "",
+  guardianContact: "",
+  campus: "",
+  address: "",
+  city: "",
+  country: "",
+  timezone: "Africa/Kampala",
+  language: "English",
+  bio: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  preferredContactMethod: "in_app",
+}
+
+function normalizeProfile(value: Partial<Record<keyof ExtendedProfile, unknown>> = {}): ExtendedProfile {
+  return (Object.keys(defaultProfile) as Array<keyof ExtendedProfile>).reduce((next, key) => {
+    const raw = value[key]
+    next[key] = raw == null ? defaultProfile[key] : String(raw)
+    return next
+  }, { ...defaultProfile })
+}
+
+export const USER_PROFILE_UPDATED_EVENT = "roxan:user-profile-updated"
+export const USER_PROFILE_CACHE_KEY = "roxan:user-profile-cache"
+
+export type UserProfileUpdateDetail = {
+  name?: string
+  image?: string | null
+  avatarVersion?: number
+}
+
+export function readCachedUserProfile(): UserProfileUpdateDetail | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(USER_PROFILE_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function writeCachedUserProfile(detail: UserProfileUpdateDetail) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(detail))
+  } catch {
+    // Large data-url avatars may exceed storage quota; event sync still updates the current tab.
+  }
+}
 
 export function ProfileForm() {
-  const { data: session, isPending, error } = authClient.useSession()
+  const { data: session, isPending, refetch } = authClient.useSession()
   const [isUpdating, setIsUpdating] = useState(false)
   const [name, setName] = useState("")
   const [image, setImage] = useState("")
   const [previewUrl, setPreviewUrl] = useState("")
+  const [profile, setProfile] = useState<ExtendedProfile>(defaultProfile)
 
   useEffect(() => {
     if (session?.user) {
@@ -25,6 +103,19 @@ export function ProfileForm() {
       setImage(session.user.image || "")
     }
   }, [session])
+
+  useEffect(() => {
+    void (async () => {
+      const response = await fetch("/api/profile", { cache: "no-store" }).catch(() => null)
+      if (!response?.ok) return
+      const data = await response.json().catch(() => ({}))
+      setProfile(normalizeProfile(data.profile || {}))
+    })()
+  }, [])
+
+  const updateProfileField = (key: keyof ExtendedProfile, value: string) => {
+    setProfile((current) => ({ ...current, [key]: value }))
+  }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -56,10 +147,28 @@ export function ProfileForm() {
 
       if (error) {
         toast.error(error.message || "Failed to update profile")
-      } else {
-        toast.success("Profile updated successfully")
-        setPreviewUrl("")
+        return
       }
+
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...profile, name, image }),
+      }).catch(() => null)
+
+      if (!response?.ok) {
+        toast.error("Basic profile saved, but extended profile failed")
+        return
+      }
+
+      const data = await response.json().catch(() => ({}))
+      setProfile(normalizeProfile(data.profile || profile))
+      const detail = { name, image: image ? `/api/profile/avatar?v=${Date.now()}` : null, avatarVersion: Date.now() }
+      writeCachedUserProfile(detail)
+      window.dispatchEvent(new CustomEvent(USER_PROFILE_UPDATED_EVENT, { detail }))
+      await refetch().catch(() => undefined)
+      toast.success("Profile updated successfully")
+      setPreviewUrl("")
     } catch (err) {
       toast.error("An unexpected error occurred")
     } finally {
@@ -96,7 +205,7 @@ export function ProfileForm() {
             <CardHeader className="text-center">
               <div className="relative mx-auto w-32 h-32 mb-4 group">
                 <Avatar className="w-full h-full border-4 border-background shadow-xl">
-                  <AvatarImage src={previewUrl || user.image || undefined} className="object-cover" />
+                  <AvatarImage src={previewUrl || image || user.image || undefined} className="object-cover" />
                   <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
                     {user.name?.charAt(0) || "U"}
                   </AvatarFallback>
@@ -115,7 +224,7 @@ export function ProfileForm() {
                   />
                 </label>
               </div>
-              <CardTitle className="text-xl">{user.name}</CardTitle>
+              <CardTitle className="text-xl">{name || user.name}</CardTitle>
               <CardDescription>{user.email}</CardDescription>
               <div className="flex justify-center gap-2 mt-4">
                 <Badge variant="secondary" className="capitalize">
@@ -139,6 +248,13 @@ export function ProfileForm() {
                   <span className="text-muted-foreground font-medium">Account ID:</span>
                   <span className="truncate max-w-[120px]" title={user.id}>{user.id}</span>
                 </div>
+                {profile.phone ? (
+                  <div className="flex items-center text-sm gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground font-medium">Phone:</span>
+                    <span className="truncate">{profile.phone}</span>
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -197,11 +313,119 @@ export function ProfileForm() {
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium">School Profile</h3>
+                  <p className="text-sm text-muted-foreground">Role-aware contact and school identity details used across the education system.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Primary Phone</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="phone" className="pl-9" value={profile.phone} onChange={(event) => updateProfileField("phone", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="alternateEmail">Alternate Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="alternateEmail" type="email" className="pl-9" value={profile.alternateEmail} onChange={(event) => updateProfileField("alternateEmail", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="jobTitle">Job Title / Learner Status</Label>
+                    <div className="relative">
+                      <Briefcase className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="jobTitle" className="pl-9" value={profile.jobTitle} onChange={(event) => updateProfileField("jobTitle", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="department">Department / Class</Label>
+                    <Input id="department" value={profile.department} onChange={(event) => updateProfileField("department", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="employeeCode">Staff Code</Label>
+                    <Input id="employeeCode" value={profile.employeeCode} onChange={(event) => updateProfileField("employeeCode", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="admissionNumber">Admission Number</Label>
+                    <Input id="admissionNumber" value={profile.admissionNumber} onChange={(event) => updateProfileField("admissionNumber", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="campus">Campus / Branch</Label>
+                    <Input id="campus" value={profile.campus} onChange={(event) => updateProfileField("campus", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="guardianContact">Guardian Contact</Label>
+                    <Input id="guardianContact" value={profile.guardianContact} onChange={(event) => updateProfileField("guardianContact", event.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium">Location & Preferences</h3>
+                  <p className="text-sm text-muted-foreground">Used for scheduling, communication, support, and localized dashboard behavior.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="address">Address</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="address" className="pl-9" value={profile.address} onChange={(event) => updateProfileField("address", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input id="city" value={profile.city} onChange={(event) => updateProfileField("city", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="country">Country</Label>
+                    <Input id="country" value={profile.country} onChange={(event) => updateProfileField("country", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Input id="timezone" value={profile.timezone} onChange={(event) => updateProfileField("timezone", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="language">Preferred Language</Label>
+                    <Input id="language" value={profile.language} onChange={(event) => updateProfileField("language", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+                    <div className="relative">
+                      <Contact className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="emergencyContactName" className="pl-9" value={profile.emergencyContactName} onChange={(event) => updateProfileField("emergencyContactName", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="emergencyContactPhone">Emergency Contact Phone</Label>
+                    <div className="relative">
+                      <HeartPulse className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="emergencyContactPhone" className="pl-9" value={profile.emergencyContactPhone} onChange={(event) => updateProfileField("emergencyContactPhone", event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="preferredContactMethod">Preferred Contact Method</Label>
+                    <Input id="preferredContactMethod" value={profile.preferredContactMethod} onChange={(event) => updateProfileField("preferredContactMethod", event.target.value)} />
+                  </div>
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="bio">Professional / Academic Bio</Label>
+                    <Textarea id="bio" rows={4} value={profile.bio} onChange={(event) => updateProfileField("bio", event.target.value)} />
+                  </div>
+                </div>
+              </div>
             </CardContent>
             <CardFooter className="border-t bg-muted/20 px-6 py-4 flex justify-end">
               <Button 
                 type="submit" 
-                disabled={isUpdating || (name === user.name && !previewUrl)}
+                disabled={isUpdating}
                 className="min-w-[120px]"
               >
                 {isUpdating ? (

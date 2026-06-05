@@ -8,11 +8,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ArrowRight, UserGraduate, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ArrowRight, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 export function SisSidebarNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [expandedSIS, setExpandedSIS] = useState(true);
 
   const sisItems = [

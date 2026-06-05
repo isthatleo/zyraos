@@ -1,37 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getEmailProviderStatus, getSmsProviderStatus, sendPlatformEmail, sendPlatformSms } from "@/lib/platform-integrations";
 
 // POST /api/tenant/settings/test - Test provider connection
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     if (type === "sms") {
-      // Test SMS provider (simplified - in production, make actual API call)
-      if (!body.apiKey) {
-        return NextResponse.json(
-          { success: false, error: "Missing API key" },
-          { status: 400 }
-        );
-      }
-
-      // TODO: Implement actual SMS provider testing
-      // For now, just validate that we have required fields
-      return NextResponse.json({ success: true, message: "SMS connection successful" });
+      const result = body.to
+        ? await sendPlatformSms({ to: String(body.to), body: String(body.message || "Roxan SMS provider test") })
+        : await getSmsProviderStatus();
+      return NextResponse.json({ success: result.ok, ...result }, { status: result.ok ? 200 : 400 });
     }
 
     if (type === "email") {
-      // Test Email provider
-      if (!body.apiKey || !body.senderEmail) {
-        return NextResponse.json(
-          { success: false, error: "Missing required fields" },
-          { status: 400 }
-        );
-      }
-
-      // TODO: Implement actual email provider testing
-      return NextResponse.json({ success: true, message: "Email connection successful" });
+      const result = body.to
+        ? await sendPlatformEmail({
+            to: String(body.to),
+            subject: String(body.subject || "Roxan email provider test"),
+            html: body.html ? String(body.html) : "<strong>Roxan email provider test</strong>",
+            text: body.text ? String(body.text) : "Roxan email provider test",
+          })
+        : await getEmailProviderStatus();
+      return NextResponse.json({ success: result.ok, ...result }, { status: result.ok ? 200 : 400 });
     }
 
     if (type === "paystack") {

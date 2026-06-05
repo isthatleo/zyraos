@@ -42,6 +42,22 @@ const MODULE_DETAILS = {
     description: "Library management, book tracking, and resource management",
     required: false,
   },
+  canteen_portal: {
+    description: "Menus, orders, canteen inventory, meal payments, and reports",
+    required: false,
+  },
+  transport_portal: {
+    description: "Routes, buses, drivers, pickup tracking, incidents, and reports",
+    required: false,
+  },
+  hostel_portal: {
+    description: "Boarding allocations, rooms, roll call, welfare notes, and hostel reports",
+    required: false,
+  },
+  health_portal: {
+    description: "Sick bay visits, health records, medication logs, and health incidents",
+    required: false,
+  },
 };
 
 export function ModulesStep({ modules, onUpdate }: ModulesStepProps) {

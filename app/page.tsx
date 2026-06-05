@@ -7,9 +7,10 @@ import {
 } from "lucide-react"
 import { SiteNav } from "@/components/shared/site-nav"
 import { SiteFooter } from "@/components/shared/site-footer"
+import { TenantSubdomainRedirect } from "@/components/tenant-subdomain-redirect"
 import { headers } from "next/headers"
-import { getTenantFromRequest } from "@/lib/tenant-utils"
-import { RoleSelection } from "@/components/role-selection"
+import { redirect } from "next/navigation"
+import { getTenantSubdomain } from "@/lib/tenant-routing"
 
 const stats = [
   { value: "10K+", label: "Students Managed" },
@@ -20,20 +21,15 @@ const stats = [
 
 export default async function LandingPage() {
   const headersList = await headers();
-  const tenantSlug = getTenantFromRequest({ headers: headersList });
+  const tenantSlug = getTenantSubdomain(headersList.get("host"));
 
   if (tenantSlug && tenantSlug !== 'localhost' && tenantSlug !== 'www') {
-    return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
-        <div className="w-full max-w-sm md:max-w-4xl">
-          <RoleSelection />
-        </div>
-      </div>
-    );
+    redirect("/staff");
   }
 
   return (
     <div className="min-h-screen bg-background">
+      <TenantSubdomainRedirect />
       <SiteNav tenantSlug={tenantSlug} />
 
       {/* Hero */}

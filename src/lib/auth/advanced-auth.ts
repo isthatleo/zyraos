@@ -3,7 +3,13 @@
  * Includes audit logging and session management
  */
 
-import { AuthUser } from './permissions';
+export interface AuthUser {
+  id: string;
+  role: string;
+  schoolId?: string;
+  email?: string;
+  permissions?: string[];
+}
 
 export interface AuditLog {
   id: string;

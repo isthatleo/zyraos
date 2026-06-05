@@ -43,6 +43,7 @@ export const subscriptionPlansTable = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull().default("ZAR"),
     features: jsonb("features"),
     maxStudents: integer("max_students"),
     maxStaff: integer("max_staff"),
@@ -1479,6 +1480,63 @@ export const accountTable = pgTable(
   ]
 );
 
+export const passwordSecurityTable = pgTable(
+  "password_security",
+  {
+    userId: text("user_id").primaryKey(),
+    tenantSlug: text("tenant_slug"),
+    forcePasswordChange: boolean("force_password_change").notNull().default(false),
+    temporaryPasswordIssuedAt: timestamp("temporary_password_issued_at"),
+    passwordLastChangedAt: timestamp("password_last_changed_at"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [userTable.id],
+      name: "password_security_user_id_user_id_fk",
+    }).onDelete("cascade"),
+    index("password_security_tenant_slug_idx").on(table.tenantSlug),
+    index("password_security_force_change_idx").on(table.forcePasswordChange),
+  ]
+);
+
+export const userProfilesTable = pgTable(
+  "user_profiles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().unique(),
+    phone: text("phone"),
+    alternateEmail: text("alternate_email"),
+    jobTitle: text("job_title"),
+    department: text("department"),
+    employeeCode: text("employee_code"),
+    admissionNumber: text("admission_number"),
+    guardianContact: text("guardian_contact"),
+    campus: text("campus"),
+    address: text("address"),
+    city: text("city"),
+    country: text("country"),
+    timezone: text("timezone"),
+    language: text("language"),
+    bio: text("bio"),
+    emergencyContactName: text("emergency_contact_name"),
+    emergencyContactPhone: text("emergency_contact_phone"),
+    preferredContactMethod: text("preferred_contact_method"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [userTable.id],
+      name: "user_profiles_user_id_user_id_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const verificationTable = pgTable(
   "verification",
   {
@@ -1538,6 +1596,8 @@ export const masterSchema = {
   userTable,
   sessionTable,
   accountTable,
+  passwordSecurityTable,
+  userProfilesTable,
   verificationTable,
 };
 
@@ -1639,5 +1699,7 @@ export type GradingScale = typeof gradingScalesTable.$inferSelect;
 export type User = typeof userTable.$inferSelect;
 export type Session = typeof sessionTable.$inferSelect;
 export type Account = typeof accountTable.$inferSelect;
+export type PasswordSecurity = typeof passwordSecurityTable.$inferSelect;
+export type UserProfile = typeof userProfilesTable.$inferSelect;
 export type Verification = typeof verificationTable.$inferSelect;
 

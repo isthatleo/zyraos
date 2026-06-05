@@ -29,6 +29,14 @@ interface EmailOptions {
   }>;
 }
 
+const toBlobPart = (content: Buffer | string): BlobPart => {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  return new Uint8Array(content);
+};
+
 export class EmailService {
   private config: EmailConfig;
 
@@ -124,8 +132,8 @@ export class EmailService {
         formData.append('html', options.html);
       }
 
-      options.attachments?.forEach((att, index) => {
-        const blob = new Blob([att.content], { type: att.contentType || 'application/octet-stream' });
+      options.attachments?.forEach((att) => {
+        const blob = new Blob([toBlobPart(att.content)], { type: att.contentType || 'application/octet-stream' });
         formData.append(`attachment`, blob, att.filename);
       });
 

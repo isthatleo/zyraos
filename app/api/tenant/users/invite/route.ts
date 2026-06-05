@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTenantDbBySlug } from '@/lib/db';
-import { userInvitationsTable, tenantUsersTable, rolesTable } from '@/lib/db-schema';
-import { eq } from 'drizzle-orm';
+import { getTenantDbBySlug, masterDb } from '@/lib/db';
+import { userInvitationsTable, tenantUsersTable, rolesTable, schoolsTable } from '@/lib/db-schema';
+import { eq, inArray } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
+import { getTenantRoleDefinitionById, getTenantRoleDefinitions } from '@/lib/roles';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const school = await masterDb
+      .select({ id: schoolsTable.id, type: schoolsTable.type })
+      .from(schoolsTable)
+      .where(eq(schoolsTable.slug, tenantSlug))
+      .limit(1);
+
+    if (!school.length) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+
     const tenantDb = await getTenantDbBySlug(tenantSlug);
     const body = await request.json();
     const { email, name, roleId, departmentId } = body;
@@ -27,6 +38,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const roleDefinitions = getTenantRoleDefinitions(school[0].type);
+    const allowedRoles = new Set(roleDefinitions.map((role) => role.id));
+    const resolvedRole = getTenantRoleDefinitionById(roleId, school[0].type);
+
+    if (!resolvedRole || !allowedRoles.has(resolvedRole.id)) {
+      return NextResponse.json(
+        { error: 'Invalid role for this school portal' },
+        { status: 400 }
+      );
+    }
+
+    for (const role of roleDefinitions) {
+      await tenantDb
+        .insert(rolesTable)
+        .values({ id: role.id, name: role.name, description: role.description, isSystem: role.isSystem })
+        .onConflictDoNothing();
+    }
+
     // Get current user (inviter) from session
     // TODO: Implement proper session validation
     const inviterId = 'current-user-id'; // This should come from auth session
@@ -35,7 +64,7 @@ export async function POST(request: NextRequest) {
     const role = await tenantDb
       .select()
       .from(rolesTable)
-      .where(eq(rolesTable.id, roleId))
+      .where(eq(rolesTable.id, resolvedRole.id))
       .limit(1);
 
     if (!role.length) {
@@ -43,6 +72,23 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid role' },
         { status: 400 }
       );
+    }
+
+    if (resolvedRole.canonicalRole === "owner") {
+      const ownerRoleIds = roleDefinitions
+        .filter((roleDefinition) => roleDefinition.canonicalRole === "owner")
+        .map((roleDefinition) => roleDefinition.id);
+      const owners = await tenantDb
+        .select({ id: tenantUsersTable.id })
+        .from(tenantUsersTable)
+        .where(inArray(tenantUsersTable.roleId, ownerRoleIds));
+
+      if (owners.length >= 2) {
+        return NextResponse.json(
+          { error: 'A school can have at most 2 owner accounts' },
+          { status: 409 }
+        );
+      }
     }
 
     // Check if user already exists
@@ -84,7 +130,7 @@ export async function POST(request: NextRequest) {
         id: crypto.randomUUID(),
         email,
         name,
-        roleId,
+        roleId: resolvedRole.id,
         departmentId,
         invitedBy: inviterId,
         token,

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { ParentSidebarNav } from '@/components/parent/sidebar-nav';
+import { ParentSidebarNav } from '@/src/components/parent/sidebar-nav';
 
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
   return (

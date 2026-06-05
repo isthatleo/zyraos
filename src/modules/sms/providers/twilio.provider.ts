@@ -12,7 +12,7 @@ export class TwilioProvider implements SmsProvider {
     try {
       const accountSid = this.config.apiKey;
       const authToken = this.config.apiSecret;
-      const from = this.config.senderId;
+      const from = this.config.senderId || '';
 
       const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
         method: 'POST',

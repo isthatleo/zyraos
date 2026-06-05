@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTenantFromRequest } from './tenant-middleware';
-import { AuthUser } from '@/lib/guards/permissions';
+import { AuthUser } from '@/src/lib/guards/permissions';
 
 /**
  * Require authentication

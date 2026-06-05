@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageSquare, Send, Phone, Info, Search, Clock, CheckCheck } from 'lucide-react';
-import { useMessaging } from '@/hooks/use-messaging';
+import { useMessaging } from '@/src/hooks/use-messaging';
 
 interface ChatUser {
   id: string;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { examsTable, assessmentsTable, gradesTable } from "@/lib/db-schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { examSchema, assessmentSchema, gradeSchema } from "@/lib/validators";
 import { ZodError } from "zod";
 
@@ -39,13 +39,16 @@ async function createExam(body: any, schoolId: string) {
 
     await db.insert(examsTable).values({
       id: examId,
-      schoolId,
       name: validated.name,
-      examCode: validated.examCode,
       description: validated.description,
-      startDate: new Date(validated.startDate),
-      endDate: new Date(validated.endDate),
+      classId: validated.classIds[0],
       academicYearId: validated.academicYearId,
+      termId: body.termId || "term_default",
+      examDate: new Date(validated.startDate),
+      totalMarks: String(body.totalMarks || 100),
+      passingMarks: body.passingMarks ? String(body.passingMarks) : undefined,
+      examType: body.examType || "exam",
+      status: body.status || "scheduled",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -56,7 +59,7 @@ async function createExam(body: any, schoolId: string) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     throw error;
   }
@@ -69,15 +72,17 @@ async function createAssessment(body: any, schoolId: string) {
 
     await db.insert(assessmentsTable).values({
       id: assessmentId,
-      schoolId,
       name: validated.name,
-      type: validated.type,
+      assessmentType: validated.type,
       subjectId: validated.subjectId,
       classId: validated.classId,
-      totalMarks: validated.totalMarks,
-      weightage: validated.weightage,
+      academicYearId: body.academicYearId || "year_default",
+      termId: body.termId || "term_default",
+      totalScore: String(validated.totalMarks),
       dueDate: new Date(validated.dueDate),
       description: validated.description,
+      createdBy: body.createdBy || "system",
+      status: body.status || "draft",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -88,7 +93,7 @@ async function createAssessment(body: any, schoolId: string) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     throw error;
   }
@@ -101,12 +106,17 @@ async function createGrade(body: any, schoolId: string) {
 
     await db.insert(gradesTable).values({
       id: gradeId,
-      schoolId,
       studentId: validated.studentId,
-      assessmentId: validated.assessmentId,
-      marksObtained: validated.marksObtained,
-      feedback: validated.feedback,
-      submissionDate: validated.submissionDate ? new Date(validated.submissionDate) : null,
+      subjectId: body.subjectId || "subject_default",
+      classId: body.classId || "class_default",
+      academicYearId: body.academicYearId || "year_default",
+      termId: body.termId,
+      assessmentType: body.assessmentType || "assessment",
+      score: String(validated.marksObtained),
+      maxScore: String(body.maxScore || 100),
+      assessmentDate: validated.submissionDate ? new Date(validated.submissionDate) : new Date(),
+      teacherId: body.teacherId || "system",
+      notes: validated.feedback,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -117,7 +127,7 @@ async function createGrade(body: any, schoolId: string) {
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: error.issues }, { status: 400 });
     }
     throw error;
   }
@@ -134,33 +144,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (pathname.includes("/exams")) {
-      const exams = await db.select().from(examsTable).where(eq(examsTable.schoolId, schoolId));
+      const exams = await db.select().from(examsTable);
       return NextResponse.json({ success: true, exams, total: exams.length }, { status: 200 });
     } else if (pathname.includes("/assessments")) {
       const classId = request.nextUrl.searchParams.get("classId");
-      let query = db.select().from(assessmentsTable).where(eq(assessmentsTable.schoolId, schoolId));
-
-      if (classId) {
-        query = db
-          .select()
-          .from(assessmentsTable)
-          .where(and(eq(assessmentsTable.schoolId, schoolId), eq(assessmentsTable.classId, classId)));
-      }
-
-      const assessments = await query;
+      const assessments = classId
+        ? await db.select().from(assessmentsTable).where(eq(assessmentsTable.classId, classId))
+        : await db.select().from(assessmentsTable);
       return NextResponse.json({ success: true, assessments, total: assessments.length }, { status: 200 });
     } else if (pathname.includes("/grades")) {
       const studentId = request.nextUrl.searchParams.get("studentId");
-      let query = db.select().from(gradesTable).where(eq(gradesTable.schoolId, schoolId));
-
-      if (studentId) {
-        query = db
-          .select()
-          .from(gradesTable)
-          .where(and(eq(gradesTable.schoolId, schoolId), eq(gradesTable.studentId, studentId)));
-      }
-
-      const grades = await query;
+      const grades = studentId
+        ? await db.select().from(gradesTable).where(eq(gradesTable.studentId, studentId))
+        : await db.select().from(gradesTable);
       return NextResponse.json({ success: true, grades, total: grades.length }, { status: 200 });
     }
 
