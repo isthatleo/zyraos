@@ -14,9 +14,12 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  UserCog,
   UserCheck,
+  UserPlus,
   Users,
 } from "lucide-react";
+import { isValidPhoneNumber } from "react-phone-number-input";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PhoneNumberField } from "@/components/shared/localized-fields";
 import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
@@ -48,11 +52,12 @@ type StaffMember = {
   position: string;
   hireDate: string | null;
   salary: number;
+  salaryPeriod: string;
   status: string;
 };
 
 type StaffPayload = {
-  school: { name: string; type: string; slug: string };
+  school: { name: string; type: string; slug: string; currencyCode?: string | null };
   staff: StaffMember[];
   roles: Array<{ id: string; name: string; description: string; canonicalRole: string; portal: string; dashboardPath: string }>;
   departments: Array<{ id: string; name: string; headId?: string | null }>;
@@ -61,6 +66,7 @@ type StaffPayload = {
 
 type AccessResult = {
   user: { name: string; email: string; roleId: string; role: string; dashboardPath: string };
+  employeeId: string;
   temporaryPassword: string;
   loginUrl: string;
   delivery: { email?: { ok: boolean; status: string; message: string }; sms?: { ok: boolean; status: string; message: string } | null };
@@ -85,6 +91,37 @@ function statusClass(status: string) {
   if (["active", "approved", "paid"].includes(value)) return "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   if (["pending", "draft"].includes(value)) return "border-primary/25 bg-primary/10 text-primary";
   return "border-destructive/25 bg-destructive/10 text-destructive";
+}
+
+function previewEmployeeId(slug: string, staffCount: number) {
+  const prefix = String(slug || "SCH").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "SCH";
+  return `${prefix}-${new Date().getFullYear()}-${String(staffCount + 1).padStart(6, "0")}`;
+}
+
+function normalizeAmountInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [whole, ...rest] = cleaned.split(".");
+  return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
+}
+
+function formatMoney(amount: string, currency: string) {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "";
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency, maximumFractionDigits: 2 }).format(numeric);
+  } catch {
+    return `${currency} ${numeric.toLocaleString("en", { maximumFractionDigits: 2 })}`;
+  }
+}
+
+const salaryPeriodOptions = [
+  { value: "monthly", label: "Monthly" },
+  { value: "per_term", label: "Per Term" },
+  { value: "per_year", label: "Per Year" },
+];
+
+function salaryPeriodLabel(value: string) {
+  return salaryPeriodOptions.find((option) => option.value === value)?.label || "Monthly";
 }
 
 function LoadingState() {
@@ -120,6 +157,9 @@ export default function OwnerStaffPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [accessResult, setAccessResult] = React.useState<AccessResult | null>(null);
+  const [staffStep, setStaffStep] = React.useState(0);
+  const [manualEmployeeId, setManualEmployeeId] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
   const [departmentFilter, setDepartmentFilter] = React.useState("all");
@@ -133,7 +173,27 @@ export default function OwnerStaffPage() {
     employeeId: "",
     hireDate: new Date().toISOString().slice(0, 10),
     salary: "",
+    salaryPeriod: "monthly",
   });
+
+  const resetStaffForm = React.useCallback(() => {
+    setForm({
+      name: "",
+      email: "",
+      phone: "",
+      roleId: "",
+      departmentId: "",
+      position: "",
+      employeeId: "",
+      hireDate: new Date().toISOString().slice(0, 10),
+      salary: "",
+      salaryPeriod: "monthly",
+    });
+    setManualEmployeeId(false);
+    setStaffStep(0);
+    setFormError(null);
+    setAccessResult(null);
+  }, []);
 
   React.useEffect(() => {
     setIsTenantSubdomain(Boolean(getTenantSubdomain(window.location.hostname)));
@@ -188,10 +248,42 @@ export default function OwnerStaffPage() {
     });
   }, [data?.staff, departmentFilter, query, roleFilter]);
 
+  const validateStep = React.useCallback((step: number) => {
+    if (step === 0) {
+      if (!form.name.trim()) return "Full name is required.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "A valid email address is required.";
+      if (form.phone && !isValidPhoneNumber(form.phone)) return "Enter a valid staff phone number.";
+    }
+    if (step === 1) {
+      if (!form.roleId) return "Role is required.";
+      if (!form.departmentId) return "Department is required.";
+      if (!form.position.trim()) return "Position / job title is required.";
+      if (manualEmployeeId && !form.employeeId.trim()) return "Enter the manual employee ID or switch back to automatic ID.";
+    }
+    return null;
+  }, [form, manualEmployeeId]);
+
+  const goNextStep = () => {
+    const validationError = validateStep(staffStep);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    setFormError(null);
+    setStaffStep((current) => Math.min(2, current + 1));
+  };
+
   const submitStaff = async (event: React.FormEvent) => {
     event.preventDefault();
+    const validationError = validateStep(0) || validateStep(1);
+    if (validationError) {
+      setFormError(validationError);
+      setStaffStep(validationError.includes("name") || validationError.includes("email") || validationError.includes("phone") ? 0 : 1);
+      return;
+    }
     setSaving(true);
     setAccessResult(null);
+    setFormError(null);
     try {
       const response = await fetch(`/api/tenant/owner/staff?tenant=${encodeURIComponent(tenantSlug)}`, {
         method: "POST",
@@ -200,27 +292,21 @@ export default function OwnerStaffPage() {
         body: JSON.stringify({
           ...form,
           departmentId: form.departmentId || undefined,
+          employeeId: manualEmployeeId ? form.employeeId : undefined,
           salary: form.salary ? Number(form.salary) : undefined,
+          salaryPeriod: form.salaryPeriod,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || "Failed to create staff account");
       setAccessResult(payload);
       toast.success("Staff access created");
-      setForm({
-        name: "",
-        email: "",
-        phone: "",
-        roleId: "",
-        departmentId: "",
-        position: "",
-        employeeId: "",
-        hireDate: new Date().toISOString().slice(0, 10),
-        salary: "",
-      });
+      setStaffStep(3);
       await loadStaff(true);
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : "Failed to create staff account");
+      const message = saveError instanceof Error ? saveError.message : "Failed to create staff account";
+      setFormError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -229,7 +315,7 @@ export default function OwnerStaffPage() {
   const copyAccess = async () => {
     if (!accessResult) return;
     await navigator.clipboard.writeText(
-      [`Login: ${accessResult.loginUrl}`, `Email: ${accessResult.user.email}`, `Temporary password: ${accessResult.temporaryPassword}`].join("\n")
+      [`Login: ${accessResult.loginUrl}`, `Email: ${accessResult.user.email}`, `Employee ID: ${accessResult.employeeId}`, `Temporary password: ${accessResult.temporaryPassword}`].join("\n")
     );
     toast.success("Access details copied");
   };
@@ -251,6 +337,8 @@ export default function OwnerStaffPage() {
 
   const roleOptions = data.roles;
   const departmentOptions = data.departments;
+  const salaryCurrency = String(data.school.currencyCode || "UGX").toUpperCase();
+  const salaryPreview = formatMoney(form.salary, salaryCurrency);
 
   return (
     <div className="space-y-6">
@@ -275,96 +363,156 @@ export default function OwnerStaffPage() {
               <ShieldCheck className="size-4" />
               Permissions
             </Button>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (open) resetStaffForm();
+            }}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="size-4" />
                   Create Staff
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+              <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
                 <form onSubmit={submitStaff}>
                   <DialogHeader>
                     <DialogTitle>Create staff access</DialogTitle>
                     <DialogDescription>
-                      A temporary password is generated automatically, sent to the user, and must be changed before dashboard access.
+                      Joan-style staff onboarding: identity, role access, review, then temporary password handoff.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full name</Label>
-                      <Input id="name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="+256..." />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Role</Label>
-                      <Select value={form.roleId} onValueChange={(value) => setForm((current) => ({ ...current, roleId: value }))} required>
-                        <SelectTrigger><SelectValue placeholder="Select staff role" /></SelectTrigger>
-                        <SelectContent>
-                          {roleOptions.map((role) => (
-                            <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Department</Label>
-                      <Select value={form.departmentId || "none"} onValueChange={(value) => setForm((current) => ({ ...current, departmentId: value === "none" ? "" : value }))}>
-                        <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">General Administration</SelectItem>
-                          {departmentOptions.map((department) => (
-                            <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="position">Position / title</Label>
-                      <Input id="position" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: event.target.value }))} placeholder="Teacher, Bursar, Principal..." />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="employeeId">Employee ID</Label>
-                      <Input id="employeeId" value={form.employeeId} onChange={(event) => setForm((current) => ({ ...current, employeeId: event.target.value }))} placeholder="Auto-generated if blank" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="hireDate">Hire date</Label>
-                      <Input id="hireDate" type="date" value={form.hireDate} onChange={(event) => setForm((current) => ({ ...current, hireDate: event.target.value }))} />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="salary">Salary / compensation</Label>
-                      <Input id="salary" type="number" min="0" step="0.01" value={form.salary} onChange={(event) => setForm((current) => ({ ...current, salary: event.target.value }))} placeholder="Optional" />
-                    </div>
+                  <div className="mt-6 grid gap-3 md:grid-cols-4">
+                    {["Identity", "Access", "Review", "Complete"].map((label, index) => (
+                      <div key={label} className={cn("rounded-2xl border p-4", index <= staffStep ? "border-primary/40 bg-primary/10" : "bg-muted/20")}>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Step {index + 1}</p>
+                        <p className="mt-1 font-bold">{label}</p>
+                      </div>
+                    ))}
                   </div>
-                  {accessResult ? (
-                    <div className="mt-5 rounded-2xl border border-primary/25 bg-primary/10 p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-semibold text-primary">Temporary access generated</p>
-                          <p className="mt-1 text-sm text-muted-foreground break-all">{accessResult.loginUrl}</p>
-                          <p className="mt-2 text-sm">Email: <span className="font-medium">{accessResult.user.email}</span></p>
-                          <p className="text-sm">Temporary password: <span className="font-medium">{accessResult.temporaryPassword}</span></p>
+                  {formError ? <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{formError}</div> : null}
+                  {staffStep === 0 ? (
+                    <div className="mt-6 space-y-5 rounded-3xl border bg-muted/10 p-5">
+                      <div className="flex items-center gap-2"><UserPlus className="size-5 text-primary" /><h2 className="text-lg font-bold">Staff Identity</h2></div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2"><Label htmlFor="name">Full name</Label><Input id="name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required /></div>
+                        <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required /></div>
+                        <PhoneNumberField label="Phone" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
+                        <div className="rounded-2xl border bg-background/80 p-4 text-sm text-muted-foreground">Phone numbers use the shared phone library and follow the current light/dark theme.</div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {staffStep === 1 ? (
+                    <div className="mt-6 space-y-5 rounded-3xl border bg-muted/10 p-5">
+                      <div className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" /><h2 className="text-lg font-bold">Role & Employment</h2></div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {roleOptions.map((role) => (
+                          <button key={role.id} type="button" onClick={() => setForm((current) => ({ ...current, roleId: role.id, position: current.position || role.name }))} className={cn("rounded-2xl border p-4 text-left transition-colors", form.roleId === role.id ? "border-primary bg-primary/10" : "bg-background/80 hover:bg-muted/40")}>
+                            <p className="font-bold">{role.name}</p>
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{role.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2"><Label>Department</Label><Select value={form.departmentId || ""} onValueChange={(value) => setForm((current) => ({ ...current, departmentId: value }))}><SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{departmentOptions.map((department) => <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label htmlFor="position">Position / title</Label><Input id="position" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: event.target.value }))} placeholder="Teacher, Bursar, Principal..." /></div>
+                        <div className="space-y-2"><Label htmlFor="hireDate">Hire date</Label><Input id="hireDate" type="date" value={form.hireDate} onChange={(event) => setForm((current) => ({ ...current, hireDate: event.target.value }))} /></div>
+                        <div className="space-y-2">
+                          <Label htmlFor="salary">Salary / compensation</Label>
+                          <div className="flex overflow-hidden rounded-2xl border border-input bg-background focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                            <span className="flex min-w-16 items-center justify-center border-r bg-muted px-3 text-sm font-semibold text-muted-foreground">{salaryCurrency}</span>
+                            <Input
+                              id="salary"
+                              inputMode="decimal"
+                              value={form.salary}
+                              onChange={(event) => setForm((current) => ({ ...current, salary: normalizeAmountInput(event.target.value) }))}
+                              placeholder="0.00"
+                              className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{salaryPreview ? `Formatted: ${salaryPreview}` : `Uses configured tenant currency: ${salaryCurrency}`}</p>
                         </div>
-                        <Button type="button" variant="outline" onClick={copyAccess}>
+                        <div className="space-y-2">
+                          <Label>Compensation period</Label>
+                          <Select value={form.salaryPeriod} onValueChange={(value) => setForm((current) => ({ ...current, salaryPeriod: value }))}>
+                            <SelectTrigger className="rounded-2xl bg-background"><SelectValue placeholder="Select period" /></SelectTrigger>
+                            <SelectContent>
+                              {salaryPeriodOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Defines how the amount is interpreted for payroll and contracts.</p>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border bg-background/80 p-4">
+                        <p className="text-sm font-bold">Employee ID</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Auto-generated on registration unless manually overridden.</p>
+                        <p className="mt-3 font-mono text-lg font-bold">{manualEmployeeId ? form.employeeId || "Manual ID required" : previewEmployeeId(data.school.slug, data.summary.total)}</p>
+                        <Button type="button" variant="link" className="mt-2 h-auto p-0 text-primary" onClick={() => { setManualEmployeeId((current) => !current); setForm((current) => ({ ...current, employeeId: "" })); }}>{manualEmployeeId ? "Use automatic ID instead" : "Override manually"}</Button>
+                        {manualEmployeeId ? <Input className="mt-3 font-mono uppercase" value={form.employeeId} onChange={(event) => setForm((current) => ({ ...current, employeeId: event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 40) }))} placeholder="Manual employee ID" /> : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {staffStep === 2 ? (
+                    <div className="mt-6 space-y-5 rounded-3xl border bg-muted/10 p-5">
+                      <div className="flex items-center gap-2"><UserCog className="size-5 text-primary" /><h2 className="text-lg font-bold">Review Registration</h2></div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {Object.entries({ "Full name": form.name, Email: form.email, Phone: form.phone || "Not provided", Role: roleOptions.find((role) => role.id === form.roleId)?.name || form.roleId, Department: departmentOptions.find((department) => department.id === form.departmentId)?.name || "Not selected", "Job title": form.position, "Salary / compensation": salaryPreview ? `${salaryPreview} · ${salaryPeriodLabel(form.salaryPeriod)}` : "Not provided", "Employee ID": manualEmployeeId ? form.employeeId : `Auto-generate (${previewEmployeeId(data.school.slug, data.summary.total)})`, "Hire date": formatDate(form.hireDate) }).map(([label, value]) => (
+                          <div key={label} className="rounded-2xl border bg-background/80 p-4"><p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div>
+                        ))}
+                      </div>
+                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">A temporary password will be generated. The staff member must set a permanent password before entering their assigned dashboard.</div>
+                    </div>
+                  ) : null}
+                  {staffStep === 3 && accessResult ? (
+                    <div className="mt-5 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className="rounded-full bg-emerald-600 text-white">Access ready</Badge>
+                            <Badge variant="outline" className="rounded-full">{accessResult.user.role}</Badge>
+                          </div>
+                          <p className="mt-3 text-lg font-bold">Temporary credentials generated for {accessResult.user.name}</p>
+                          <div className="mt-4 grid gap-3 rounded-2xl border bg-background/80 p-4 text-sm md:grid-cols-2">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Login URL</p>
+                              <p className="mt-1 break-all font-medium">{accessResult.loginUrl}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Email</p>
+                              <p className="mt-1 break-all font-medium">{accessResult.user.email}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Temporary Password</p>
+                              <p className="mt-1 font-mono text-base font-bold">{accessResult.temporaryPassword}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Employee ID</p>
+                              <p className="mt-1 font-mono text-base font-bold">{accessResult.employeeId}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Delivery</p>
+                              <p className="mt-1 font-medium">
+                                Email: {accessResult.delivery.email?.status || "not sent"} · SMS: {accessResult.delivery.sms?.status || "not sent"}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-sm text-muted-foreground">The user must complete the access page and set a permanent password before entering the dashboard.</p>
+                        </div>
+                        <Button type="button" variant="outline" onClick={copyAccess} className="rounded-full">
                           <Copy className="size-4" />
-                          Copy
+                          Copy access
                         </Button>
                       </div>
                     </div>
                   ) : null}
                   <DialogFooter className="mt-6">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Close</Button>
-                    <Button type="submit" disabled={saving}>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{staffStep === 3 ? "Close" : "Cancel"}</Button>
+                    {staffStep > 0 && staffStep < 3 ? <Button type="button" variant="outline" onClick={() => setStaffStep((current) => Math.max(0, current - 1))}>Back</Button> : null}
+                    {staffStep < 2 ? <Button type="button" onClick={goNextStep}>Continue</Button> : null}
+                    {staffStep === 2 ? <Button type="submit" disabled={saving}>
                       {saving ? <RefreshCw className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
                       Create access
-                    </Button>
+                    </Button> : null}
+                    {staffStep === 3 ? <Button type="button" onClick={resetStaffForm}>Create another</Button> : null}
                   </DialogFooter>
                 </form>
               </DialogContent>

@@ -6,90 +6,26 @@
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/billing/[invoiceId]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/billing/[invoiceId]/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/billing/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/billing/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/finance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/finance/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/hr/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/hr/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/invoices/[invoiceId]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/invoices/[invoiceId]/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/invoices/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/invoices/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/leave/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/leave/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/payments/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/payments/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/payroll/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/payroll/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/reports/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/reports/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/staff-attendance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/staff-attendance/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/layout.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/staff/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/users/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/users/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/auth/password-status/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/auth/password-status/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/activity/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/activity/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/analytics/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/analytics/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/billing/invoices/[invoiceId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/billing/invoices/[invoiceId]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/billing/invoices/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/billing/invoices/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/billing/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/billing/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/integrations/status/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/integrations/status/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/permissions/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/permissions/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/plans/[planId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/plans/[planId]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/plans/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/plans/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/api/master/schools/provision/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/provision/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/schools/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/settings/effective/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/settings/effective/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/settings/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/settings/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/calls/[id]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/calls/[id]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/calls/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/calls/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/presence/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/presence/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/read/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/read/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/typing/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/typing/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/notifications/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/notifications/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/profile/avatar/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/profile/avatar/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/profile/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/profile/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/settings/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/settings/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/billing/[invoiceId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/billing/[invoiceId]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/billing/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/billing/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/canteen/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/canteen/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/hr/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/hr/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/invoices/[invoiceId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/invoices/[invoiceId]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/invoices/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/invoices/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/leave/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/leave/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/payments/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/payments/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/payroll/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/payroll/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/permissions/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/permissions/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/reports/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/reports/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/staff-attendance/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/staff-attendance/route.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/users/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/users/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/activity/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/activity/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/analytics/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/analytics/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/audit/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/audit/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/billing/invoices/[invoiceId]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/billing/invoices/[invoiceId]/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/billing/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/billing/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/permissions/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/permissions/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/plans/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/plans/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/master/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/settings/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/staff/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/complete-access-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/complete-access-form.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/owner-settings-workspace.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/owner-settings-workspace.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/profile-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/profile-form.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/messages-page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/messages-page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/dashboard-comm-store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/dashboard-comm-store.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/dashboard-db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/dashboard-db.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/master-audit.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/master-audit.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/platform-settings-server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-settings-server.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/realtime-socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/realtime-socket.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/server-response-cache.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/server-response-cache.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/socket.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/tenant-owner-auth.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/tenant-owner-auth.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/tenant-routing.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/tenant-routing.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-results/.last-run.json" beforeDir="false" afterPath="$PROJECT_DIR$/test-results/.last-run.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-results/tests-settings.e2e-Owner-s-22e21-oduction-hardening-controls/error-context.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/settings.e2e.spec.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/settings.e2e.spec.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/localized-fields.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/localized-fields.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/tenant-portal-login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-portal-login.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/drizzle/meta/_journal.json" beforeDir="false" afterPath="$PROJECT_DIR$/drizzle/meta/_journal.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/db-schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/db-schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/roles.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/roles.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -278,7 +214,7 @@
       <workItem from="1780574335234" duration="469000" />
       <workItem from="1780575517810" duration="48900000" />
       <workItem from="1780689431707" duration="5023000" />
-      <workItem from="1780695097158" duration="12840000" />
+      <workItem from="1780695097158" duration="17809000" />
     </task>
     <servers />
   </component>

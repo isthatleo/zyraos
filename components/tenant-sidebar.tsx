@@ -724,6 +724,8 @@ export default function TenantSidebar({
   const params = useParams<{ tenant?: string }>()
   const { data: session } = authClient.useSession()
   const user = session?.user
+  const userId = String(user?.id || "")
+  const userEmailIdentity = String(user?.email || "")
   const [profileOverride, setProfileOverride] = React.useState<UserProfileUpdateDetail>({})
   const { tenantSlug, role } = getTenantContext(pathname, params?.tenant, (user as { role?: string } | undefined)?.role)
   const config = roleConfig[role]
@@ -869,18 +871,31 @@ export default function TenantSidebar({
   }, [])
 
   React.useEffect(() => {
-    const cached = readCachedUserProfile()
+    setProfileOverride({})
+    const cached = readCachedUserProfile({ userId, email: userEmailIdentity })
     if (cached) setProfileOverride((current) => ({ ...current, ...cached }))
+
+    const isCurrentUserProfile = (detail: UserProfileUpdateDetail) => {
+      const detailUserId = String(detail.userId || "")
+      const detailEmail = String(detail.email || "").toLowerCase()
+      if (detailUserId || detailEmail) {
+        return Boolean((userId && detailUserId === userId) || (userEmailIdentity && detailEmail === userEmailIdentity.toLowerCase()))
+      }
+      return false
+    }
 
     const handleProfileUpdate = (event: Event) => {
       const detail = (event as CustomEvent<UserProfileUpdateDetail>).detail || {}
+      if (!isCurrentUserProfile(detail)) return
       setProfileOverride((current) => ({ ...current, ...detail }))
     }
     const handleProfileStorage = (event: StorageEvent) => {
       if (event.key !== USER_PROFILE_CACHE_KEY || !event.newValue) return
       const raw = event.newValue
       try {
-        setProfileOverride((current) => ({ ...current, ...JSON.parse(raw) }))
+        const detail = JSON.parse(raw) as UserProfileUpdateDetail
+        if (!isCurrentUserProfile(detail)) return
+        setProfileOverride((current) => ({ ...current, ...detail }))
       } catch {}
     }
     window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate as EventListener)
@@ -889,7 +904,7 @@ export default function TenantSidebar({
       window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate as EventListener)
       window.removeEventListener("storage", handleProfileStorage)
     }
-  }, [])
+  }, [userEmailIdentity, userId])
 
   return (
     <div

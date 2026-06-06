@@ -377,6 +377,7 @@ export const staffTable = pgTable(
     position: text("position").notNull(),
     hireDate: timestamp("hire_date").notNull(),
     salary: decimal("salary", { precision: 10, scale: 2 }),
+    salaryPeriod: text("salary_period").notNull().default("monthly"),
     qualifications: text("qualifications"),
     status: text("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),

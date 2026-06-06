@@ -139,8 +139,9 @@ function getProfilePath() {
 function getSettingsPath() {
   if (typeof window === "undefined") return "/settings"
   const parts = window.location.pathname.split("/").filter(Boolean)
-  if (parts[0] === "master") return "/master/settings"
+  if (parts[0] === "master") return "/master/user-settings"
   if (parts[1] === "owner") return `/${parts[0]}/owner/user-settings`
+  if (parts[1] === "admin") return `/${parts[0]}/admin/user-settings`
   if (parts.length > 1) return `/${parts[0]}/${parts[1]}/settings`
   return "/settings"
 }
@@ -149,16 +150,26 @@ export const USER_PROFILE_UPDATED_EVENT = "roxan:user-profile-updated"
 export const USER_PROFILE_CACHE_KEY = "roxan:user-profile-cache"
 
 export type UserProfileUpdateDetail = {
+  userId?: string
+  email?: string
   name?: string
   image?: string | null
   avatarVersion?: number
 }
 
-export function readCachedUserProfile(): UserProfileUpdateDetail | null {
+export function readCachedUserProfile(identity?: { userId?: string | null; email?: string | null }): UserProfileUpdateDetail | null {
   if (typeof window === "undefined") return null
   try {
     const raw = window.localStorage.getItem(USER_PROFILE_CACHE_KEY)
-    return raw ? JSON.parse(raw) : null
+    const parsed = raw ? (JSON.parse(raw) as UserProfileUpdateDetail) : null
+    if (!parsed || !identity) return parsed
+    const userId = String(identity.userId || "").trim()
+    const email = String(identity.email || "").trim().toLowerCase()
+    const cachedUserId = String(parsed.userId || "").trim()
+    const cachedEmail = String(parsed.email || "").trim().toLowerCase()
+    if (userId && cachedUserId && userId === cachedUserId) return parsed
+    if (email && cachedEmail && email === cachedEmail) return parsed
+    return null
   } catch {
     return null
   }
@@ -333,7 +344,13 @@ export function ProfileForm() {
       }
       const avatarVersion = Date.now()
       const nextImage = data.currentUser?.image || image || null
-      const detail = { name: data.currentUser?.name || name, image: nextImage ? `/api/profile/avatar?v=${avatarVersion}` : null, avatarVersion }
+      const detail = {
+        userId: data.currentUser?.id || user?.id,
+        email: data.currentUser?.email || user?.email,
+        name: data.currentUser?.name || name,
+        image: nextImage ? `/api/profile/avatar?v=${avatarVersion}` : null,
+        avatarVersion,
+      }
       writeCachedUserProfile(detail)
       window.dispatchEvent(new CustomEvent(USER_PROFILE_UPDATED_EVENT, { detail }))
       await refetch().catch(() => undefined)

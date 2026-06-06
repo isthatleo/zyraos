@@ -37,7 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { CityInput, CountrySelect, PhoneNumberField } from "@/components/shared/localized-fields";
+import { CURRENCY_OPTIONS, CityInput, CountrySelect, CurrencySelect, PhoneNumberField } from "@/components/shared/localized-fields";
 import { cn } from "@/lib/utils";
 import { resolveTenantSlug } from "@/lib/tenant-routing";
 
@@ -325,7 +325,7 @@ const selectOptions: Record<string, string[]> = {
   gpaCalculation: ["Weighted Average", "Simple Average", "Cumulative Average (CGPA)"],
   rankingSystem: ["Class-level Ranking", "Grade-level Ranking", "No Ranking"],
   reportCardFormat: ["Standard", "Competency Based", "Transcript Style", "Narrative", "Compact"],
-  currency: ["UGX", "ZAR", "USD", "KES", "NGN", "GBP", "EUR"],
+  currency: CURRENCY_OPTIONS.map((currency) => currency.code),
   backupProvider: ["AWS S3", "Google Cloud Storage", "Azure Blob Storage", "Local encrypted storage", "Custom S3 compatible"],
   feeItemType: ["Academic", "Residential", "Service", "Administrative", "One Time"],
   billingCycle: ["Per Term", "Per Semester", "Per Year", "Per Month", "One Time"],
@@ -1903,7 +1903,7 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
   const stages = asStages(settings.academicHierarchy);
   const configuredLevels = asStringArray(settings.schoolLevels);
   const stageNames = stages.length ? stages.map((stage) => stage.name) : configuredLevels.length ? configuredLevels : ["Nursery / Preschool", "Primary", "Junior High (JHS)", "Secondary School", "High School", "College", "University"];
-  const currencyOptions = Array.from(new Set([...(selectOptions.currency || []), currencies.baseCurrency, paymentInvoice.currency, ...currencies.enabledCurrencies].filter(Boolean)));
+  const currencyOptions = Array.from(new Set([...(selectOptions.currency || []), currencies.baseCurrency, paymentInvoice.currency, ...currencies.enabledCurrencies].filter(Boolean))).sort();
   const [expandedFeeId, setExpandedFeeId] = React.useState(feeItems[0]?.id || "");
   const [addingDiscount, setAddingDiscount] = React.useState(false);
   const [currencySearch, setCurrencySearch] = React.useState("");
@@ -2119,7 +2119,7 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
           <CardHeader className={sectionHeaderClass}><CardTitle className="text-xl font-bold">Payment & Invoice</CardTitle><CardDescription>Set invoice currency, tax policy, and accepted payment channels.</CardDescription></CardHeader>
           <CardContent className="space-y-5 p-6 pt-0">
             <div className="grid gap-4 md:grid-cols-3">
-              <SelectBlock label="Currency" value={paymentInvoice.currency} options={currencyOptions} onChange={(value) => updatePaymentInvoice({ ...paymentInvoice, currency: value })} />
+              <CurrencySelect label="Currency" value={paymentInvoice.currency} onChange={(value) => updatePaymentInvoice({ ...paymentInvoice, currency: value })} />
               <div className="space-y-2"><Label>Invoice Prefix</Label><Input value={paymentInvoice.invoicePrefix} onChange={(event) => updatePaymentInvoice({ ...paymentInvoice, invoicePrefix: event.target.value.toUpperCase() })} className="rounded-2xl" /></div>
               <ProfileNumber label="Tax Rate (%)" value={paymentInvoice.taxRate} onChange={(value) => updatePaymentInvoice({ ...paymentInvoice, taxRate: value })} />
             </div>
@@ -2141,7 +2141,7 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
         <Card className={sectionCardClass}>
           <CardHeader className={sectionHeaderClass}><CardTitle className="text-xl font-bold">Currency & Exchange Rates</CardTitle><CardDescription>Choose the base currency and currencies accepted for payments.</CardDescription></CardHeader>
           <CardContent className="space-y-5 p-6 pt-0">
-            <SelectBlock label="Base Currency" value={currencies.baseCurrency} options={currencyOptions} onChange={(value) => updateCurrencies({ baseCurrency: value, enabledCurrencies: Array.from(new Set([...currencies.enabledCurrencies, value])) })} />
+            <CurrencySelect label="Base Currency" value={currencies.baseCurrency} onChange={(value) => updateCurrencies({ baseCurrency: value, enabledCurrencies: Array.from(new Set([...currencies.enabledCurrencies, value])) })} />
             <div className="space-y-3">
               <Label>Enabled Currencies</Label>
               <div className="grid gap-3 md:grid-cols-2">
@@ -2207,10 +2207,10 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
         <CardContent className="grid gap-4 p-6 pt-0 md:grid-cols-2">
           <AttendanceToggle label="Automatic Currency Sync" description="Use real exchange-rate sync jobs when the rate service is configured." checked={Boolean(exchangeRates.automaticSync ?? true)} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, automaticSync: value })} />
           <AttendanceToggle label="Manual Rate Override" description="Allow finance users to override synced rates where policy permits." checked={Boolean(exchangeRates.manualRateOverride)} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, manualRateOverride: value })} />
-          <SelectBlock label="Financial Reporting Currency" value={String(exchangeRates.reportingCurrency || currencies.baseCurrency)} options={currencyOptions} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, reportingCurrency: value })} />
+          <CurrencySelect label="Financial Reporting Currency" value={String(exchangeRates.reportingCurrency || currencies.baseCurrency)} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, reportingCurrency: value })} />
           <ProfileNumber label="Converter Amount" value={Number(exchangeRates.converterAmount || 1)} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, converterAmount: value })} />
-          <SelectBlock label="Converter From" value={String(exchangeRates.converterFrom || "USD")} options={currencyOptions} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, converterFrom: value })} />
-          <SelectBlock label="Converter To" value={String(exchangeRates.converterTo || currencies.baseCurrency)} options={currencyOptions} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, converterTo: value })} />
+          <CurrencySelect label="Converter From" value={String(exchangeRates.converterFrom || "USD")} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, converterFrom: value })} />
+          <CurrencySelect label="Converter To" value={String(exchangeRates.converterTo || currencies.baseCurrency)} onChange={(value) => setField("financeExchangeRates", { ...exchangeRates, converterTo: value })} />
         </CardContent>
       </Card>
 
@@ -2552,6 +2552,9 @@ function FieldControl({ field, value, onChange }: { field: string; value: Settin
         onChange={onChange}
       />
     );
+  }
+  if (["currency", "baseCurrency", "financialReportingCurrency", "reportingCurrency", "converterFrom", "converterTo"].includes(field)) {
+    return <CurrencySelect label={label} value={String(value || "")} onChange={(nextValue) => onChange(nextValue)} />;
   }
   if (selectOptions[field]) {
     return (

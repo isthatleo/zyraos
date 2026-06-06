@@ -5,9 +5,10 @@ import { eq, sql } from "drizzle-orm";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { departmentsTable, rolesTable, schoolsTable, staffTable, tenantUsersTable, userTable } from "@/lib/db-schema";
 import { generateTemporaryPassword, markForcePasswordChange, upsertCredentialAuthUser, validatePasswordPolicy } from "@/lib/password-access";
-import { getTenantRoleDefinitionById, getTenantRoleDefinitions, roleLoginMeta } from "@/lib/roles";
+import { ASSIGNMENT_ONLY_ROLES, getStaffCreationRoleDefinitions, getTenantRoleDefinitionById, getTenantRoleDefinitions, roleLoginMeta } from "@/lib/roles";
 import { sendPlatformEmail, sendPlatformSms } from "@/lib/platform-integrations";
 import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { REDUNDANT_SCHOOL_DEPARTMENT_IDS, STANDARD_SCHOOL_DEPARTMENTS } from "@/lib/school-departments";
 import { writeTenantAuditLog } from "@/lib/tenant-audit";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 import { getTenantPortalUrl } from "@/lib/tenant-url";
@@ -15,8 +16,36 @@ import { getTenantPortalUrl } from "@/lib/tenant-url";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const assignmentOnlyRoles = new Set<string>(ASSIGNMENT_ONLY_ROLES);
+const departmentOrder = new Map(STANDARD_SCHOOL_DEPARTMENTS.map((department, index) => [department.id, index]));
+const salaryPeriods = new Set(["monthly", "per_term", "per_year"]);
+
 function loginUrl(request: NextRequest, slug: string, portal: string, role: string) {
   return `${getTenantPortalUrl(slug, request)}/${portal}?${new URLSearchParams({ role }).toString()}`;
+}
+
+function employeeIdPrefix(slug: string) {
+  return String(slug || "SCH")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 6) || "SCH";
+}
+
+async function generateEmployeeId(tenantDb: Awaited<ReturnType<typeof getTenantDbBySlug>>, slug: string) {
+  const prefix = employeeIdPrefix(slug);
+  const year = new Date().getFullYear();
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const suffix = String(Date.now() % 1000000 + attempt).padStart(6, "0");
+    const candidate = `${prefix}-${year}-${suffix}`;
+    const existing = await tenantDb
+      .select({ id: staffTable.id })
+      .from(staffTable)
+      .where(eq(staffTable.employeeId, candidate))
+      .limit(1)
+      .catch(() => []);
+    if (!existing.length) return candidate;
+  }
+  return `${prefix}-${year}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
 function staffAccessEmail(input: { schoolName: string; name: string; email: string; roleName: string; temporaryPassword: string; loginUrl: string }) {
@@ -49,7 +78,7 @@ function staffAccessEmail(input: { schoolName: string; name: string; email: stri
 
 async function getSchool(slug: string) {
   const [school] = await masterDb
-    .select({ id: schoolsTable.id, name: schoolsTable.name, type: schoolsTable.type, slug: schoolsTable.slug })
+    .select({ id: schoolsTable.id, name: schoolsTable.name, type: schoolsTable.type, slug: schoolsTable.slug, currencyCode: schoolsTable.currencyCode })
     .from(schoolsTable)
     .where(eq(schoolsTable.slug, slug))
     .limit(1);
@@ -80,10 +109,15 @@ export async function GET(request: NextRequest) {
     const cached = getCachedValue<Record<string, unknown>>(cacheKey);
     if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "HIT" } });
 
-    const roleDefinitions = getTenantRoleDefinitions(school.type).filter(
-      (role) => !["student", "parent", "owner"].includes(role.canonicalRole)
-    );
+    const roleDefinitions = getStaffCreationRoleDefinitions(school.type);
     const tenantDb = await getTenantDbBySlug(slug);
+    for (const department of STANDARD_SCHOOL_DEPARTMENTS) {
+      await tenantDb
+        .insert(departmentsTable)
+        .values(department)
+        .onConflictDoNothing()
+        .catch(() => undefined);
+    }
     const staffRows = await safeRows<Record<string, unknown>>(
       () =>
         tenantDb.execute(sql`
@@ -102,6 +136,7 @@ export async function GET(request: NextRequest) {
             s.position,
             s.hire_date,
             s.salary,
+            s.salary_period,
             s.status as staff_status
           from users u
           left join roles r on r.id = u.role_id
@@ -117,10 +152,13 @@ export async function GET(request: NextRequest) {
         `),
       "directory"
     );
-    const departments = await safeRows<typeof departmentsTable.$inferSelect>(
+    const departmentRows = await safeRows<typeof departmentsTable.$inferSelect>(
       () => tenantDb.select().from(departmentsTable),
       "departments"
     );
+    const departments = departmentRows
+      .filter((department) => !REDUNDANT_SCHOOL_DEPARTMENT_IDS.has(department.id))
+      .sort((a, b) => (departmentOrder.get(a.id) ?? 999) - (departmentOrder.get(b.id) ?? 999) || a.name.localeCompare(b.name));
 
     const staff = staffRows.map((row) => ({
       id: String(row.id),
@@ -138,6 +176,7 @@ export async function GET(request: NextRequest) {
       position: row.position ? String(row.position) : "",
       hireDate: row.hire_date ? new Date(String(row.hire_date)).toISOString() : null,
       salary: Number(row.salary || 0),
+      salaryPeriod: row.salary_period ? String(row.salary_period) : "monthly",
       status: row.staff_status ? String(row.staff_status) : row.is_active === false ? "inactive" : "active",
     }));
 
@@ -183,9 +222,10 @@ export async function POST(request: NextRequest) {
     const roleId = String(body.roleId || "").trim();
     const departmentIdInput = String(body.departmentId || "").trim();
     const position = String(body.position || "").trim();
-    const employeeId = String(body.employeeId || "").trim() || `EMP-${Date.now()}`;
+    const manualEmployeeId = String(body.employeeId || "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 40);
     const hireDate = body.hireDate ? new Date(String(body.hireDate)) : new Date();
     const salary = body.salary ? String(body.salary) : null;
+    const salaryPeriod = salaryPeriods.has(String(body.salaryPeriod || "")) ? String(body.salaryPeriod) : "monthly";
     const temporaryPassword = typeof body.temporaryPassword === "string" && body.temporaryPassword ? body.temporaryPassword : generateTemporaryPassword();
 
     if (!name || !email || !roleId) return NextResponse.json({ error: "Name, email, and role are required" }, { status: 400 });
@@ -193,11 +233,22 @@ export async function POST(request: NextRequest) {
     if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 });
 
     const resolvedRole = getTenantRoleDefinitionById(roleId, school.type);
-    if (!resolvedRole || ["student", "parent", "owner"].includes(resolvedRole.canonicalRole)) {
+    const allowedRoles = getStaffCreationRoleDefinitions(school.type);
+    const selectedRoleAllowed = allowedRoles.some((role) => role.id === resolvedRole?.id || role.canonicalRole === resolvedRole?.canonicalRole);
+    if (!resolvedRole || !selectedRoleAllowed || ["student", "parent", "owner"].includes(resolvedRole.canonicalRole) || assignmentOnlyRoles.has(resolvedRole.canonicalRole)) {
       return NextResponse.json({ error: "Select a valid staff or school admin role" }, { status: 400 });
     }
 
     const tenantDb = await getTenantDbBySlug(slug);
+    const employeeId = manualEmployeeId || await generateEmployeeId(tenantDb, slug);
+    const duplicateEmployeeId = await tenantDb
+      .select({ id: staffTable.id })
+      .from(staffTable)
+      .where(eq(staffTable.employeeId, employeeId))
+      .limit(1)
+      .catch(() => []);
+    if (duplicateEmployeeId.length) return NextResponse.json({ error: "Employee ID already exists in this tenant" }, { status: 409 });
+
     const roleDefinitions = getTenantRoleDefinitions(school.type);
     for (const role of roleDefinitions) {
       await tenantDb
@@ -208,12 +259,13 @@ export async function POST(request: NextRequest) {
 
     let departmentId = departmentIdInput;
     if (!departmentId) {
-      departmentId = "general_administration";
+      departmentId = "administration";
       await tenantDb
         .insert(departmentsTable)
-        .values({ id: departmentId, name: "General Administration" })
+        .values({ id: departmentId, name: "Administration" })
         .onConflictDoNothing();
     } else {
+      if (REDUNDANT_SCHOOL_DEPARTMENT_IDS.has(departmentId)) return NextResponse.json({ error: "Selected department has been consolidated. Choose one of the active departments." }, { status: 400 });
       const [department] = await tenantDb
         .select({ id: departmentsTable.id })
         .from(departmentsTable)
@@ -264,6 +316,7 @@ export async function POST(request: NextRequest) {
         position: position || resolvedRole.name,
         hireDate,
         salary,
+        salaryPeriod,
         status: "active",
       })
       .onConflictDoNothing();
@@ -321,6 +374,8 @@ export async function POST(request: NextRequest) {
         departmentId,
         position: position || resolvedRole.name,
         employeeId,
+        salary,
+        salaryPeriod,
         delivery: {
           email: delivery.email?.status,
           sms: delivery.sms?.status || null,
@@ -339,6 +394,7 @@ export async function POST(request: NextRequest) {
         dashboardPath: roleLoginMeta[resolvedRole.canonicalRole]?.redirectPath || resolvedRole.dashboardPath,
       },
       temporaryPassword,
+      employeeId,
       loginUrl: url,
       delivery,
     });

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, KeyRound, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, LockKeyhole, ShieldCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -88,25 +88,28 @@ export function CompleteAccessForm({ defaultRedirect = "/" }: { defaultRedirect?
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-xl border-border/70 bg-card/95 shadow-xl backdrop-blur">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
+      <Card className="w-full max-w-lg rounded-2xl border-border bg-card p-2 shadow-lg">
+        <CardHeader className="pb-4 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <CardTitle className="text-2xl">Set Your New Password</CardTitle>
-          <CardDescription>
-            Your temporary password unlocked the account once. Create a permanent password before continuing to the dashboard.
+          <CardTitle className="text-2xl font-semibold tracking-tight">Set Your New Password</CardTitle>
+          <CardDescription className="mx-auto max-w-md text-sm">
+            Your temporary password cannot be reused. Set a permanent password before entering your dashboard.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="rounded-2xl border bg-background/70 p-4 text-sm">
-            <p className="font-medium text-foreground">Password requirements</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <CardContent className="space-y-5 px-6 pb-6">
+          <div className="rounded-xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <LockKeyhole className="size-4 text-primary" />
+              <p className="font-semibold text-foreground">Password requirements</p>
+            </div>
+            <div className="mt-3 space-y-2">
               {passwordChecks.map((check) => (
                 <div
                   key={check.key}
-                  className={check.met ? "flex items-center gap-2 text-emerald-600" : "flex items-center gap-2 text-muted-foreground"}
+                  className={check.met ? "flex items-center gap-2 text-emerald-600 dark:text-emerald-300" : "flex items-center gap-2 text-muted-foreground"}
                 >
                   {check.met ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
                   <span>{check.label}</span>
@@ -130,7 +133,7 @@ export function CompleteAccessForm({ defaultRedirect = "/" }: { defaultRedirect?
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="pl-10"
+                  className="h-11 rounded-lg pl-10"
                   placeholder="Enter a permanent password"
                   autoComplete="new-password"
                   required
@@ -146,7 +149,7 @@ export function CompleteAccessForm({ defaultRedirect = "/" }: { defaultRedirect?
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="pl-10"
+                  className="h-11 rounded-lg pl-10"
                   placeholder="Re-enter the permanent password"
                   autoComplete="new-password"
                   required
@@ -154,9 +157,9 @@ export function CompleteAccessForm({ defaultRedirect = "/" }: { defaultRedirect?
               </div>
             </label>
 
-            <Button type="submit" className="w-full" disabled={loading || !passwordReady}>
+            <Button type="submit" className="h-11 w-full rounded-lg font-semibold" disabled={loading || !passwordReady}>
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save Password & Continue
+              Save new password
             </Button>
           </form>
         </CardContent>

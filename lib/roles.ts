@@ -120,15 +120,10 @@ export const rolePortalGroups = {
   admins: ["owner", "school_admin"],
   staff: [
     "teacher",
+    "hr",
     "finance",
     "librarian",
-    "hr",
     "canteen",
-    "admissions_officer",
-    "registrar",
-    "exam_officer",
-    "department_head",
-    "class_teacher",
     "nurse",
     "transport_manager",
     "hostel_warden",
@@ -136,7 +131,6 @@ export const rolePortalGroups = {
     "procurement",
     "inventory_manager",
     "counselor",
-    "alumni_officer",
   ],
   studentParent: ["student", "parent"],
 } satisfies Record<string, CanonicalRole[]>;
@@ -214,51 +208,6 @@ const universalTenantRoles: TenantRoleDefinition[] = [
     isSystem: true,
   },
   {
-    id: "admissions_officer",
-    canonicalRole: "admissions_officer",
-    name: "Admissions Officer",
-    description: "Applications, admissions, enrollment workflows, interview decisions, and intake reporting",
-    portal: "staff",
-    dashboardPath: "/admin/dashboard",
-    isSystem: true,
-  },
-  {
-    id: "registrar",
-    canonicalRole: "registrar",
-    name: "Registrar",
-    description: "Academic records, student registry, transcripts, promotions, and certification controls",
-    portal: "staff",
-    dashboardPath: "/admin/dashboard",
-    isSystem: true,
-  },
-  {
-    id: "exam_officer",
-    canonicalRole: "exam_officer",
-    name: "Exam Officer",
-    description: "Exam setup, assessment calendars, grading controls, result publishing, and report cards",
-    portal: "staff",
-    dashboardPath: "/admin/dashboard",
-    isSystem: true,
-  },
-  {
-    id: "department_head",
-    canonicalRole: "department_head",
-    name: "Department Head / Faculty Head",
-    description: "Department oversight, teacher coordination, curriculum quality, and academic performance",
-    portal: "staff",
-    dashboardPath: "/teacher/dashboard",
-    isSystem: true,
-  },
-  {
-    id: "class_teacher",
-    canonicalRole: "class_teacher",
-    name: "Class Teacher",
-    description: "Class attendance, learner follow-up, class reports, and parent communication",
-    portal: "staff",
-    dashboardPath: "/teacher/dashboard",
-    isSystem: true,
-  },
-  {
     id: "nurse",
     canonicalRole: "nurse",
     name: "School Nurse / Health Officer",
@@ -321,15 +270,31 @@ const universalTenantRoles: TenantRoleDefinition[] = [
     dashboardPath: "/wellbeing/dashboard",
     isSystem: true,
   },
-  {
-    id: "alumni_officer",
-    canonicalRole: "alumni_officer",
-    name: "Alumni Officer",
-    description: "Alumni records, engagement, events, campaigns, and alumni communication",
-    portal: "staff",
-    dashboardPath: "/alumni/dashboard",
-    isSystem: true,
-  },
+];
+
+export const STAFF_CREATION_ROLE_ORDER: CanonicalRole[] = [
+  "school_admin",
+  "hr",
+  "finance",
+  "teacher",
+  "librarian",
+  "canteen",
+  "nurse",
+  "transport_manager",
+  "hostel_warden",
+  "security",
+  "procurement",
+  "inventory_manager",
+  "counselor",
+];
+
+export const ASSIGNMENT_ONLY_ROLES: CanonicalRole[] = [
+  "admissions_officer",
+  "registrar",
+  "exam_officer",
+  "department_head",
+  "class_teacher",
+  "alumni_officer",
 ];
 
 const levelSpecificRoles: Record<EducationLevel, TenantRoleDefinition[]> = {
@@ -368,6 +333,17 @@ const levelSpecificRoles: Record<EducationLevel, TenantRoleDefinition[]> = {
 export function getTenantRoleDefinitions(type?: string | null): TenantRoleDefinition[] {
   const level = normalizeEducationLevel(type);
   return [...universalTenantRoles, ...levelSpecificRoles[level]];
+}
+
+export function getStaffCreationRoleDefinitions(type?: string | null): TenantRoleDefinition[] {
+  const roles = getTenantRoleDefinitions(type).filter(
+    (role) => !["owner", "student", "parent"].includes(role.canonicalRole) && !ASSIGNMENT_ONLY_ROLES.includes(role.canonicalRole)
+  );
+  return roles.sort((a, b) => {
+    const aIndex = STAFF_CREATION_ROLE_ORDER.indexOf(a.canonicalRole);
+    const bIndex = STAFF_CREATION_ROLE_ORDER.indexOf(b.canonicalRole);
+    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex) || a.name.localeCompare(b.name);
+  });
 }
 
 export function getTenantRoleDefinitionById(roleId: string, type?: string | null) {

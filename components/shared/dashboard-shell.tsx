@@ -276,48 +276,48 @@ const teacherSections: NavSection[] = [
     items: [
       {
         name: "Classes",
-        href: "/staff/classes",
+        href: "/teacher/classes",
         icon: Users,
         children: [
-          { name: "My Classes", href: "/staff/classes", icon: Users },
-          { name: "Lesson Plans", href: "/staff/lesson-plans", icon: ClipboardList },
-          { name: "Learning Content", href: "/staff/resources", icon: BookOpen },
-          { name: "Class Insights", href: "/staff/class-insights", icon: BarChart3 },
-          { name: "My Schedule", href: "/staff/timetable", icon: CalendarCheck },
+          { name: "My Classes", href: "/teacher/classes", icon: Users },
+          { name: "Lesson Plans", href: "/teacher/lesson-plans", icon: ClipboardList },
+          { name: "Learning Content", href: "/teacher/resources", icon: BookOpen },
+          { name: "Class Insights", href: "/teacher/class-insights", icon: BarChart3 },
+          { name: "My Schedule", href: "/teacher/timetable", icon: CalendarCheck },
         ],
       },
       {
         name: "Grading & Tasks",
-        href: "/staff/assignments",
+        href: "/teacher/assignments",
         icon: ClipboardCheck,
         children: [
-          { name: "Assignments", href: "/staff/assignments", icon: ClipboardList },
-          { name: "Grading Hub", href: "/staff/grades", icon: BarChart3 },
+          { name: "Assignments", href: "/teacher/assignments", icon: ClipboardList },
+          { name: "Grading Hub", href: "/teacher/grades", icon: BarChart3 },
         ],
       },
-      { name: "Messages", href: "/staff/messages", icon: MessageSquare },
-      { name: "My Profile", href: "/staff/profile", icon: Users },
+      { name: "Messages", href: "/teacher/messages", icon: MessageSquare },
+      { name: "My Profile", href: "/teacher/profile", icon: Users },
       {
         name: "Attendance",
-        href: "/staff/attendance",
+        href: "/teacher/attendance",
         icon: CalendarCheck,
         children: [
-          { name: "Mark Attendance", href: "/staff/attendance", icon: CalendarCheck },
-          { name: "Daily Tracking", href: "/staff/attendance/daily", icon: Activity },
-          { name: "Biometric Hub", href: "/staff/attendance/biometric", icon: Shield },
-          { name: "Alerts", href: "/staff/attendance/alerts", icon: Bell },
+          { name: "Mark Attendance", href: "/teacher/attendance", icon: CalendarCheck },
+          { name: "Daily Tracking", href: "/teacher/attendance/daily", icon: Activity },
+          { name: "Biometric Hub", href: "/teacher/attendance/biometric", icon: Shield },
+          { name: "Alerts", href: "/teacher/attendance/alerts", icon: Bell },
         ],
       },
       {
         name: "Exams",
-        href: "/staff/exams",
+        href: "/teacher/exams",
         icon: ClipboardCheck,
         children: [
-          { name: "Scheduling", href: "/staff/exams/scheduling", icon: CalendarCheck },
-          { name: "Assessments", href: "/staff/exams/assessments", icon: ClipboardList },
-          { name: "Results", href: "/staff/exams/results", icon: BarChart3 },
-          { name: "Report Cards", href: "/staff/exams/report-cards", icon: FileText },
-          { name: "Exam Analytics", href: "/staff/exams/analytics", icon: BarChart3 },
+          { name: "Scheduling", href: "/teacher/exams/scheduling", icon: CalendarCheck },
+          { name: "Assessments", href: "/teacher/exams/assessments", icon: ClipboardList },
+          { name: "Results", href: "/teacher/exams/results", icon: BarChart3 },
+          { name: "Report Cards", href: "/teacher/exams/report-cards", icon: FileText },
+          { name: "Exam Analytics", href: "/teacher/exams/analytics", icon: BarChart3 },
         ],
       },
     ],
@@ -562,19 +562,19 @@ const roleConfig: Record<DashboardRole, { label: string; home: string; icon: Nav
   },
   staff: {
     label: "Teacher Portal",
-    home: "/staff/dashboard",
+    home: "/teacher/dashboard",
     icon: Users,
     sections: teacherSections,
   },
   teacher: {
     label: "Teacher Portal",
-    home: "/staff/dashboard",
+    home: "/teacher/dashboard",
     icon: Users,
     sections: teacherSections,
   },
   lecturer: {
     label: "Teacher Portal",
-    home: "/staff/dashboard",
+    home: "/teacher/dashboard",
     icon: Users,
     sections: teacherSections,
   },
@@ -725,13 +725,13 @@ const roleConfig: Record<DashboardRole, { label: string; home: string; icon: Nav
   },
   department_head: {
     label: "Department Head Portal",
-    home: "/staff/dashboard",
+    home: "/teacher/dashboard",
     icon: Briefcase,
     sections: teacherSections,
   },
   class_teacher: {
     label: "Class Teacher Portal",
-    home: "/staff/dashboard",
+    home: "/teacher/dashboard",
     icon: Users,
     sections: teacherSections,
   },
@@ -884,16 +884,18 @@ export function DashboardShell({
   const effectiveTheme = mounted ? resolvedTheme : "light";
   const isPlatformBrand = role === "master" || role === "super_admin";
   const accountUser = isPlatformBrand && verifiedMasterUser ? verifiedMasterUser : user;
+  const accountUserId = String(accountUser?.id || "");
+  const accountEmail = String(accountUser?.email || "");
   const displayRole = String((accountUser as { role?: string } | undefined)?.role || role).replace(/_/g, " ");
   const brandTitle = isPlatformBrand ? platformSettings.platformShortName || "Roxan" : tenantBranding.name;
   const brandSubtitle = isPlatformBrand ? platformSettings.platformSubtitle || "Education System" : "Roxan Education System";
   const scopedAccountPath = (page: "profile" | "settings") => {
     const first = routeBreadcrumbs[0];
-    if (first === "master") return `/master/${page}`;
+    if (first === "master") return page === "settings" ? "/master/user-settings" : "/master/profile";
     if (first === "owner") return withTenantPath(page === "settings" ? "/owner/user-settings" : "/owner/profile");
+    if (first === "admin") return withTenantPath(page === "settings" ? "/admin/user-settings" : "/admin/profile");
     if (
       [
-        "admin",
         "staff",
         "student",
         "parent",
@@ -924,7 +926,7 @@ export function DashboardShell({
       : user?.image
         ? `/api/profile/avatar?v=${profileOverride.avatarVersion || "session"}`
         : undefined;
-  const displayEmail = accountUser?.email || "";
+  const displayEmail = accountEmail;
   const showDashboardGreeting = pathname === withTenantPath(config.home) || pathname.endsWith("/dashboard");
   const maintenanceActive = Boolean(platformSettings.maintenanceMode && !isPlatformBrand);
   const announcementBanner = String(platformSettings.announcementBanner || "").trim();
@@ -1071,18 +1073,31 @@ export function DashboardShell({
   }, [isTenantShell, tenantSlug]);
 
   React.useEffect(() => {
-    const cached = readCachedUserProfile();
+    setProfileOverride({});
+    const cached = readCachedUserProfile({ userId: accountUserId, email: accountEmail });
     if (cached) setProfileOverride((current) => ({ ...current, ...cached }));
+
+    const isCurrentUserProfile = (detail: UserProfileUpdateDetail) => {
+      const detailUserId = String(detail.userId || "");
+      const detailEmail = String(detail.email || "").toLowerCase();
+      if (detailUserId || detailEmail) {
+        return Boolean((accountUserId && detailUserId === accountUserId) || (accountEmail && detailEmail === accountEmail.toLowerCase()));
+      }
+      return false;
+    };
 
     const handleProfileUpdate = (event: Event) => {
       const detail = (event as CustomEvent<UserProfileUpdateDetail>).detail || {};
+      if (!isCurrentUserProfile(detail)) return;
       setProfileOverride((current) => ({ ...current, ...detail }));
     };
     const handleProfileStorage = (event: StorageEvent) => {
       if (event.key !== USER_PROFILE_CACHE_KEY || !event.newValue) return;
       const raw = event.newValue;
       try {
-        setProfileOverride((current) => ({ ...current, ...JSON.parse(raw) }));
+        const detail = JSON.parse(raw) as UserProfileUpdateDetail;
+        if (!isCurrentUserProfile(detail)) return;
+        setProfileOverride((current) => ({ ...current, ...detail }));
       } catch {}
     };
     window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate as EventListener);
@@ -1091,7 +1106,7 @@ export function DashboardShell({
       window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate as EventListener);
       window.removeEventListener("storage", handleProfileStorage);
     };
-  }, []);
+  }, [accountEmail, accountUserId]);
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {

@@ -152,6 +152,11 @@ export function TenantPortalLogin({
   const dashboardPath = selectedRole ? getTenantPath(tenantSlug, roleConfig?.redirectPath || roleLoginMeta[defaultRole].redirectPath, isTenantSubdomain) : "";
   const roleSelectionHref = getTenantPath(tenantSlug, "/login", isTenantSubdomain);
   const adminHref = getTenantPath(tenantSlug, "/admins", isTenantSubdomain);
+  const isStaffPortal = showAdminShortcut && roles.length > 2;
+  const roleGridClass =
+    roleOptions.length <= 2
+      ? "mx-auto grid w-full max-w-3xl grid-cols-1 place-items-stretch gap-4 sm:grid-cols-2"
+      : "mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
 
   const openRole = (role: TenantRoleDefinition) => {
     setSelectedRole(role.canonicalRole);
@@ -170,6 +175,7 @@ export function TenantPortalLogin({
     setLoading(true);
     setError("");
     try {
+      await authClient.signOut().catch(() => null);
       const result = await authClient.signIn.email({ email, password });
       if (result.error) {
         setError(result.error.message || "Invalid login credentials.");
@@ -189,6 +195,12 @@ export function TenantPortalLogin({
         return;
       }
 
+      const verifiedDashboardPath = getTenantPath(
+        tenantSlug,
+        String(roleData.dashboardPath || dashboardPath),
+        isTenantSubdomain
+      );
+
       const passwordStatus = await fetch("/api/auth/password-status", {
         cache: "no-store",
         credentials: "include",
@@ -196,13 +208,13 @@ export function TenantPortalLogin({
 
       if (passwordStatus?.mustChangePassword) {
         const completeAccessPath = getTenantPath(tenantSlug, "/complete-access", isTenantSubdomain);
-        const params = new URLSearchParams({ redirect: dashboardPath, role: roleData.role || selectedRole });
+        const params = new URLSearchParams({ redirect: verifiedDashboardPath, role: roleData.roleId || roleData.role || selectedRole });
         window.location.assign(`${completeAccessPath}?${params.toString()}`);
         return;
       }
 
       toast.success("Signed in successfully");
-      window.location.assign(dashboardPath);
+      window.location.assign(verifiedDashboardPath);
     } catch (loginError: any) {
       setError(loginError?.message || "Sign-in failed.");
     } finally {
@@ -213,10 +225,16 @@ export function TenantPortalLogin({
   if (!selectedRole || !roleConfig) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6">
-        <div className="mb-10 text-center">
+        <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
             <GraduationCap className="size-7" />
           </div>
+          {isStaffPortal ? (
+            <div className="mx-auto mb-3 flex w-fit items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Active staff roles
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{roleOptions.length}</span>
+            </div>
+          ) : null}
           <h1 className="text-3xl font-bold text-foreground">{tenantName || title}</h1>
           <p className="mt-2 text-lg text-muted-foreground">Select your role to continue</p>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{description}</p>
@@ -228,7 +246,7 @@ export function TenantPortalLogin({
           </div>
         ) : null}
 
-        <div className="grid w-full max-w-5xl grid-cols-2 gap-3 md:grid-cols-3">
+        <div className={roleGridClass}>
           {roleOptions.map((role) => {
             const Icon = roleLoginMeta[role.canonicalRole].icon;
             const visual = roleVisuals[role.canonicalRole] || {
@@ -238,18 +256,18 @@ export function TenantPortalLogin({
             return (
               <Card
                 key={role.id}
-                className="group cursor-pointer border-2 transition-all duration-200 hover:border-primary/40 hover:shadow-lg"
+                className="group flex h-full cursor-pointer flex-col rounded-3xl border-2 bg-card/95 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-lg"
                 onClick={() => openRole(role)}
               >
-                <CardHeader className="pb-1 pt-4 text-center">
-                  <div className={`mx-auto mb-1.5 rounded-xl p-2.5 transition-colors ${visual.bg} ${visual.color}`}>
+                <CardHeader className="pb-2 pt-5 text-center">
+                  <div className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${visual.bg} ${visual.color}`}>
                     <Icon className="size-6" />
                   </div>
-                  <CardTitle className="text-base font-bold">{role.name}</CardTitle>
+                  <CardTitle className="text-base font-bold leading-tight">{role.name}</CardTitle>
                 </CardHeader>
-                <CardContent className="pb-4">
-                  <CardDescription className="mb-2 min-h-[28px] text-center text-xs">{role.description}</CardDescription>
-                  <Button type="button" variant="outline" className="w-full text-xs font-semibold">
+                <CardContent className="flex flex-1 flex-col pb-5">
+                  <CardDescription className="mb-4 flex-1 text-center text-xs leading-5">{role.description}</CardDescription>
+                  <Button type="button" variant="outline" className="h-10 w-full rounded-xl text-xs font-semibold">
                     Login as {role.name}
                   </Button>
                 </CardContent>

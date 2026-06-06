@@ -104,7 +104,7 @@ function resolveSessionDashboardRole(role?: string | null): DashboardRole | null
 
 const routeFallbackRoles: Record<string, DashboardRole> = {
   owner: "owner",
-  admin: "owner",
+  admin: "school_admin",
   staff: "teacher",
   teacher: "teacher",
   student: "student",
@@ -130,6 +130,7 @@ function resolveDashboardRole(pathname: string, tenantSlug: string, userRole?: s
   const userCanonical = resolveSessionDashboardRole(userRole);
 
   if (first === "owner") return "owner";
+  if (routeFallbackRoles[first]) return routeFallbackRoles[first];
 
   if (userCanonical) {
     return userCanonical;

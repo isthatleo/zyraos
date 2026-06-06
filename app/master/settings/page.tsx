@@ -35,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { CityInput, CountrySelect, PhoneNumberField } from "@/components/shared/localized-fields";
+import { CityInput, CountrySelect, CurrencySelect, PhoneNumberField } from "@/components/shared/localized-fields";
 import { publishPlatformSettings, type PublicPlatformSettings } from "@/lib/platform-settings-sync";
 import { cn } from "@/lib/utils";
 
@@ -886,20 +886,7 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field label="Default Currency">
-                    <Select value={settings.currency} onValueChange={(value) => setField("currency", value)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ZAR">ZAR - South African Rand</SelectItem>
-                        <SelectItem value="USD">USD - US Dollar</SelectItem>
-                        <SelectItem value="UGX">UGX - Ugandan Shilling</SelectItem>
-                        <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
-                        <SelectItem value="NGN">NGN - Nigerian Naira</SelectItem>
-                        <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                        <SelectItem value="EUR">EUR - Euro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <CurrencySelect label="Default Currency" value={settings.currency} onChange={(value) => setField("currency", value)} />
                 </div>
                 <Field label="Platform Announcement Banner">
                   <Textarea

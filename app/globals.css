@@ -126,6 +126,58 @@
   html {
     @apply font-sans;
   }
+
+  .roxan-phone-field {
+    --PhoneInputCountryFlag-borderColor: var(--border);
+    --PhoneInputCountrySelectArrow-color: var(--muted-foreground);
+    --PhoneInputCountrySelectArrow-opacity: 1;
+    --PhoneInput-color--focus: var(--ring);
+    color-scheme: light;
+  }
+
+  .dark .roxan-phone-field {
+    color-scheme: dark;
+  }
+
+  .roxan-phone-field .PhoneInputInput {
+    background: transparent;
+    color: var(--foreground);
+    border: 0;
+    outline: 0;
+    min-width: 0;
+  }
+
+  .roxan-phone-field .PhoneInputInput::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .roxan-phone-field .PhoneInputCountry {
+    color: var(--foreground);
+  }
+
+  .roxan-phone-field .PhoneInputCountrySelect {
+    color: var(--foreground);
+    background: var(--popover);
+    border-color: var(--border);
+    border-radius: var(--radius-md);
+    outline-color: var(--ring);
+  }
+
+  .roxan-phone-field .PhoneInputCountrySelect option {
+    color: var(--popover-foreground);
+    background: var(--popover);
+  }
+
+  .roxan-phone-field .PhoneInputCountrySelect option:checked,
+  .roxan-phone-field .PhoneInputCountrySelect option:hover {
+    color: var(--accent-foreground);
+    background: var(--accent);
+  }
+
+  .roxan-phone-field:focus-within .PhoneInputCountrySelect {
+    color: var(--foreground);
+    background: var(--popover);
+  }
 }
 
 @layer utilities {

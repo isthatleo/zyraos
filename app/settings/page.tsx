@@ -132,8 +132,9 @@ function initials(name?: string | null, email?: string | null) {
 function getScopedPath(target: "profile" | "settings") {
   if (typeof window === "undefined") return `/${target}`;
   const parts = window.location.pathname.split("/").filter(Boolean);
-  if (parts[0] === "master") return `/master/${target}`;
+  if (parts[0] === "master") return target === "settings" ? "/master/user-settings" : "/master/profile";
   if (parts[1] === "owner") return `/${parts[0]}/owner/${target === "settings" ? "user-settings" : "profile"}`;
+  if (parts[1] === "admin") return `/${parts[0]}/admin/${target === "settings" ? "user-settings" : "profile"}`;
   if (parts.length > 1) return `/${parts[0]}/${parts[1]}/${target}`;
   return `/${target}`;
 }

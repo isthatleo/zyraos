@@ -23,6 +23,7 @@ import { getTenantPortalUrl, validateTenantSlug } from '@/lib/tenant-url';
 import { provisionTenantDatabase } from '@/lib/tenant-database-provisioning';
 import { deliverProvisioningHandoff } from '@/lib/provisioning-delivery';
 import { deleteCachedValue } from '@/lib/server-response-cache';
+import { standardSchoolDepartments } from '@/lib/school-departments';
 
 interface ProvisioningRequest {
   schoolInfo: {
@@ -249,14 +250,14 @@ export async function POST(request: NextRequest) {
           .onConflictDoNothing();
       }
 
-      // 5. Create default department
+      // 5. Create default departments
       const adminDeptId = crypto.randomUUID();
-      await tx
-        .insert(departmentsTable)
-        .values({
-          id: adminDeptId,
-          name: 'Administration',
-        });
+      for (const department of standardSchoolDepartments(adminDeptId)) {
+        await tx
+          .insert(departmentsTable)
+          .values(department)
+          .onConflictDoNothing();
+      }
 
       // 6. Create the platform-wide auth user
       const hashedPassword = await hashCredentialPassword(temporaryPassword);
@@ -393,13 +394,18 @@ export async function POST(request: NextRequest) {
           });
       }
 
-      await tx
-        .insert(departmentsTable)
-        .values({
-          id: result.tenantSeed.adminDeptId,
-          name: 'Administration',
-        })
-        .onConflictDoNothing();
+      for (const department of standardSchoolDepartments(result.tenantSeed.adminDeptId)) {
+        await tx
+          .insert(departmentsTable)
+          .values(department)
+          .onConflictDoUpdate({
+            target: departmentsTable.id,
+            set: {
+              name: department.name,
+              updatedAt: new Date(),
+            },
+          });
+      }
 
       await tx
         .insert(tenantUsersTable)

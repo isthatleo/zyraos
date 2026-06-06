@@ -14,7 +14,7 @@ export default async function SubdomainStaffPortalPage() {
   return (
     <TenantPortalLogin
       title="Staff Portal"
-      description="For academic, finance, library, HR, operations, welfare, transport, hostel, security, procurement, inventory, alumni, and canteen teams."
+      description="For teachers, HR, finance, library, canteen, health, transport, hostel, security, procurement, inventory, and wellbeing teams."
       roles={rolePortalGroups.staff}
       defaultRole="teacher"
       showAdminShortcut

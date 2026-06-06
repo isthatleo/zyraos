@@ -226,7 +226,7 @@ function LoadingDashboard() {
   );
 }
 
-export default function OwnerDashboardPage() {
+export default function SchoolAdminDashboardPage() {
   const router = useRouter();
   const params = useParams<{ tenant?: string }>();
   const tenantSlug = String(params?.tenant || "");
@@ -259,11 +259,11 @@ export default function OwnerDashboardPage() {
           cache: "no-store",
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload?.error || "Failed to load owner dashboard.");
+        if (!response.ok) throw new Error(payload?.error || "Failed to load school admin dashboard.");
         setData(payload as OwnerDashboardData);
-        if (mode === "refresh") toast.success("Owner dashboard refreshed");
+        if (mode === "refresh") toast.success("School admin dashboard refreshed");
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Failed to load owner dashboard.");
+        setError(loadError instanceof Error ? loadError.message : "Failed to load school admin dashboard.");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -292,7 +292,7 @@ export default function OwnerDashboardPage() {
     return (
       <Alert variant="destructive" className="rounded-3xl">
         <AlertCircle className="size-4" />
-        <AlertTitle>Owner dashboard failed to load</AlertTitle>
+        <AlertTitle>School admin dashboard failed to load</AlertTitle>
         <AlertDescription className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <span>{error || "No dashboard data was returned."}</span>
           <Button variant="secondary" onClick={() => loadDashboard()}>
@@ -353,7 +353,7 @@ export default function OwnerDashboardPage() {
               <Badge variant="outline" className="rounded-full capitalize">{data.school.type.replace(/_/g, " ")}</Badge>
               <Badge variant="outline" className="rounded-full">{data.school.currencyCode}</Badge>
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">{data.school.name} Owner Dashboard</h1>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">{data.school.name} School Admin Dashboard</h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
               Live operational control for enrollment, academics, attendance, finance, communications, staffing, and platform billing.
             </p>
@@ -401,7 +401,7 @@ export default function OwnerDashboardPage() {
                   <p className="text-xs text-muted-foreground">Plan window: {formatDate(data.subscription.startDate)} - {formatDate(data.subscription.endDate)}</p>
                 </>
               ) : (
-                <EmptyState title="No subscription linked" description="Assign a plan from the super admin billing tools to activate owner-level plan reporting." />
+              <EmptyState title="No subscription linked" description="Assign a plan from the super admin billing tools to activate tenant-level plan reporting." />
               )}
             </CardContent>
           </Card>
@@ -533,7 +533,7 @@ export default function OwnerDashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Owner shortcuts routed inside this tenant dashboard.</CardDescription>
+                <CardDescription>School admin shortcuts routed inside this tenant dashboard.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
                 {quickActions.map((action) => {
@@ -600,7 +600,7 @@ export default function OwnerDashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Billing Alerts</CardTitle>
-                <CardDescription>Finance records requiring owner review.</CardDescription>
+                <CardDescription>Finance records requiring school admin review.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-2xl border bg-muted/30 p-4">
@@ -694,9 +694,9 @@ export default function OwnerDashboardPage() {
 
           <Alert className="rounded-3xl">
             <Bell className="size-4" />
-            <AlertTitle>Owner review workflow</AlertTitle>
+            <AlertTitle>School admin review workflow</AlertTitle>
             <AlertDescription>
-              These cards are calculated from real tenant records. As we implement each owner dashboard module, this section will become the central triage queue for billing, HR, communication, and academic risks.
+              These cards are calculated from real tenant records. As we implement each school admin dashboard module, this section will become the central triage queue for billing, HR, communication, and academic risks.
             </AlertDescription>
           </Alert>
         </TabsContent>

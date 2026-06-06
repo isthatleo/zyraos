@@ -4,7 +4,7 @@ import { eq, ilike, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { rolesTable, schoolsTable, tenantUsersTable, userTable } from "@/lib/db-schema";
-import { normalizeRole } from "@/lib/roles";
+import { getTenantRoleDefinitionById, normalizeRole, roleLoginMeta } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,7 +109,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const tenantSlug = String(body.tenantSlug || "").trim().toLowerCase();
-    const requestedRole = normalizeRole(String(body.requestedRole || ""));
+    const requestedRoleId = String(body.requestedRole || "").trim();
+    const requestedRole = normalizeRole(requestedRoleId);
     const email = String(body.email || session.user.email || "").trim().toLowerCase();
 
     if (!tenantSlug) {
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [school] = await masterDb
-      .select({ id: schoolsTable.id, slug: schoolsTable.slug, status: schoolsTable.status })
+      .select({ id: schoolsTable.id, slug: schoolsTable.slug, status: schoolsTable.status, type: schoolsTable.type })
       .from(schoolsTable)
       .where(eq(schoolsTable.slug, tenantSlug))
       .limit(1);
@@ -181,6 +182,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const requestedDefinition = requestedRoleId ? getTenantRoleDefinitionById(requestedRoleId, school.type) : null;
+    const verifiedDashboardPath =
+      requestedDefinition?.canonicalRole === actualRole
+        ? requestedDefinition.dashboardPath
+        : roleLoginMeta[actualRole]?.redirectPath || "/dashboard";
+
     await masterDb
       .update(userTable)
       .set({ role: actualRole, updatedAt: new Date() })
@@ -190,6 +197,8 @@ export async function POST(request: NextRequest) {
       ok: true,
       tenantSlug,
       role: actualRole,
+      roleId: requestedDefinition?.id || actualRole,
+      dashboardPath: verifiedDashboardPath,
       userId: session.user.id,
       source,
     });
