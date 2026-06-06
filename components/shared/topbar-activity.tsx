@@ -153,7 +153,7 @@ export function TopbarActivityButtons() {
         "transport",
         "hostel",
         "security",
-        "procurement",
+        "reception",
         "inventory",
         "wellbeing",
         "alumni",

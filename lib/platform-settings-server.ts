@@ -75,6 +75,14 @@ export const PLATFORM_SETTING_DEFAULTS = {
   neonApiKey: "",
   neonProjectId: "",
   neonBranchId: "",
+  auditArchiveProvider: "local",
+  auditArchiveS3Bucket: "",
+  auditArchiveS3Region: "us-east-1",
+  auditArchiveS3Endpoint: "",
+  auditArchiveS3AccessKeyId: "",
+  auditArchiveS3SecretAccessKey: "",
+  auditArchiveGcsBucket: "",
+  auditArchiveAzureContainer: "",
   defaultLanguage: "en",
   dateFormat: "dd MMM yyyy",
   timeFormat: "12h",
@@ -117,6 +125,8 @@ export const SECRET_SETTING_KEYS = new Set([
   "ssoClientSecret",
   "lmsApiKey",
   "neonApiKey",
+  "auditArchiveS3AccessKeyId",
+  "auditArchiveS3SecretAccessKey",
   "tenantDatabaseUrlTemplate",
 ]);
 

@@ -5,6 +5,7 @@ import { getTenantDb, masterDb } from "@/lib/db";
 import { getTenantSubdomain } from "@/lib/tenant-routing";
 import { convertMoney } from "@/lib/currency-conversion";
 import { getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { isTenantAdminResponse, requireTenantAdmin } from "@/lib/tenant-admin-auth";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,9 @@ export async function GET(request: NextRequest) {
   if (portal === "owner") {
     const owner = await requireTenantOwner(request, slug);
     if (isTenantOwnerResponse(owner)) return owner;
+  } else {
+    const admin = await requireTenantAdmin(request, slug);
+    if (isTenantAdminResponse(admin)) return admin;
   }
 
   const cacheKey = `tenant-dashboard:${slug}:${portal}`;
@@ -282,7 +286,7 @@ export async function GET(request: NextRequest) {
   const ownerCount = normalizedUsers.filter((user) => roleMatches(user.roleId, ["owner"])).length;
   const adminCount = normalizedUsers.filter((user) => roleMatches(user.roleId, ["school_admin", "admin", "principal", "headteacher"])).length;
   const teacherCount = normalizedUsers.filter((user) =>
-    roleMatches(user.roleId, ["teacher", "lecturer", "professor", "instructor", "trainer", "class_teacher", "department_head"])
+    roleMatches(user.roleId, ["teacher", "lecturer", "professor", "instructor", "trainer"])
   ).length;
   const parentCount = normalizedUsers.filter((user) => roleMatches(user.roleId, ["parent", "guardian", "sponsor"])).length;
   const activeUsers = normalizedUsers.filter((user) => user.isActive).length;
@@ -367,7 +371,7 @@ export async function GET(request: NextRequest) {
       amount: numberValue(row.amount),
       status: stringValue(row.status, "pending"),
       timestamp: isoDate(row.created_at),
-      href: "/admin/finance/payments",
+      href: "/admin/billing",
     })),
     ...recentInvoices.map((row) => ({
       type: "invoice",
@@ -376,7 +380,7 @@ export async function GET(request: NextRequest) {
       amount: numberValue(row.outstanding_balance || row.total_amount),
       status: stringValue(row.status, "unpaid"),
       timestamp: isoDate(row.created_at),
-      href: "/admin/finance/invoices",
+      href: "/admin/billing",
     })),
     ...recentAnnouncements.map((row) => ({
       type: "announcement",
@@ -478,7 +482,7 @@ export async function GET(request: NextRequest) {
           label: "Overdue or unpaid student invoices",
           value: numberValue(studentInvoiceSummary.attention),
           severity: numberValue(studentInvoiceSummary.attention) > 0 ? "warning" : "healthy",
-          href: "/admin/finance/invoices",
+          href: "/admin/billing",
         },
         {
           label: "Pending platform invoices",
@@ -490,13 +494,13 @@ export async function GET(request: NextRequest) {
           label: "Pending leave requests",
           value: numberValue(pendingLeave.total),
           severity: numberValue(pendingLeave.total) > 0 ? "info" : "healthy",
-          href: "/hr/leave",
+          href: "/admin/staff",
         },
         {
           label: "Failed broadcasts",
           value: numberValue(broadcastsSummary.failed),
           severity: numberValue(broadcastsSummary.failed) > 0 ? "critical" : "healthy",
-          href: "/broadcasts",
+          href: "/admin/broadcasts",
         },
       ],
     };

@@ -7,13 +7,34 @@ export type MessagingPolicyUser = { id: string; role: string };
 const platformAdminRoles = ["master", "super_admin"];
 const platformAllowedMessageRoles = ["owner", "school_admin", "admin"];
 const ownerAllowedMessageRoles = ["master", "super_admin", "school_admin", "admin"];
+const schoolAdminAllowedMessageRoles = [
+  "master",
+  "super_admin",
+  "platform_admin",
+  "owner",
+  "tenant_owner",
+  "school_admin",
+  "admin",
+  "teacher",
+  "student",
+  "parent",
+  "guardian",
+  "hr",
+  "finance",
+  "librarian",
+  "canteen",
+  "receptionist",
+  "staff",
+  "nurse",
+  "transport",
+];
 
 export function isPlatformMessagingAdmin(role: string) {
   return platformAdminRoles.includes(role);
 }
 
 export async function canDashboardUserMessage(currentUser: MessagingPolicyUser, otherUserId: string) {
-  if (!isPlatformMessagingAdmin(currentUser.role) && currentUser.role !== "owner") return true;
+  if (!isPlatformMessagingAdmin(currentUser.role) && currentUser.role !== "owner" && currentUser.role !== "school_admin") return true;
   const result = await db.execute(sql`
     select role_id as role
     from users
@@ -33,11 +54,13 @@ export async function canDashboardUserMessage(currentUser: MessagingPolicyUser, 
   }
   if (!role) return false;
   if (isPlatformMessagingAdmin(currentUser.role)) return platformAllowedMessageRoles.includes(role);
+  if (currentUser.role === "school_admin") return schoolAdminAllowedMessageRoles.includes(role);
   return ownerAllowedMessageRoles.includes(role);
 }
 
 export function allowedMessagingRolesFor(role: string) {
   if (isPlatformMessagingAdmin(role)) return platformAllowedMessageRoles;
   if (role === "owner") return ownerAllowedMessageRoles;
+  if (role === "school_admin") return schoolAdminAllowedMessageRoles;
   return [];
 }

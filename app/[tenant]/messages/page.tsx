@@ -1,5 +1,3 @@
-import { CommunicationsPage } from "@/components/shared/communications-page";
+import { AdminMessagesPage } from "@/components/admin/admin-communications-pages";
 
-export default function TenantMessagesPage() {
-  return <CommunicationsPage />;
-}
+export default AdminMessagesPage;

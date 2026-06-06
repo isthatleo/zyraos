@@ -5,27 +5,39 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/app/[tenant]/admin/admissions/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/messages/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/settings/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/owner/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/owner/staff/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/messages/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/dashboard/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/messages/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/notifications/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/profile/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/settings/page.tsx" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/schools/provision/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/provision/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/messages/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/settings/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/master/schools/[schoolId]/edit/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/edit/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/staff/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/complete-access-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/complete-access-form.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/owner-settings-workspace.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/owner-settings-workspace.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/profile-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/profile-form.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/localized-fields.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/localized-fields.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/tenant-portal-login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-portal-login.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/drizzle/meta/_journal.json" beforeDir="false" afterPath="$PROJECT_DIR$/drizzle/meta/_journal.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/db-schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/db-schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/tenant-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/message-policy.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/message-policy.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/platform-billing-invoice-document.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-billing-invoice-document.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/platform-integrations.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-integrations.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/platform-settings-server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-settings-server.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/roles.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/roles.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/school-departments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/school-departments.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,7 +59,7 @@
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="886" />
+    <option name="cachedIndexableFilesCount" value="927" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -215,6 +227,8 @@
       <workItem from="1780575517810" duration="48900000" />
       <workItem from="1780689431707" duration="5023000" />
       <workItem from="1780695097158" duration="17809000" />
+      <workItem from="1780717046641" duration="9149000" />
+      <workItem from="1780745380766" duration="19457000" />
     </task>
     <servers />
   </component>

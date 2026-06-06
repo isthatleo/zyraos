@@ -29,7 +29,6 @@ import {
   Receipt,
   Settings,
   Shield,
-  ShoppingCart,
   UserCheck,
   Users,
   Utensils,
@@ -61,19 +60,13 @@ type TenantRole =
   | "teacher"
   | "librarian"
   | "canteen"
-  | "admissions_officer"
-  | "registrar"
-  | "exam_officer"
-  | "department_head"
-  | "class_teacher"
   | "nurse"
   | "transport_manager"
   | "hostel_warden"
   | "security"
-  | "procurement"
+  | "receptionist"
   | "inventory_manager"
   | "counselor"
-  | "alumni_officer"
 
 type NavItem = {
   name: string
@@ -108,7 +101,6 @@ const adminSections: NavSection[] = [
     title: "Operations",
     items: [
       { name: "Dashboard", href: "/admin/dashboard", icon: Home },
-      { name: "Canteen", href: "/canteen/dashboard", icon: Utensils },
     ],
   },
   {
@@ -143,39 +135,12 @@ const adminSections: NavSection[] = [
     ],
   },
   {
-    title: "Finance",
-    items: [
-      { name: "Dashboard", href: "/finance/dashboard", icon: BarChart3 },
-      { name: "Payments", href: "/finance/payments", icon: CreditCard },
-      { name: "Invoices", href: "/finance/invoices", icon: FileText },
-      { name: "Receipts", href: "/finance/receipts", icon: Receipt },
-      { name: "Refunds", href: "/finance/refunds", icon: Wallet },
-      { name: "Expenses", href: "/finance/expenses", icon: DollarSign },
-      { name: "Scholarships", href: "/finance/scholarships", icon: GraduationCap },
-      { name: "Reports", href: "/finance/reports", icon: BarChart3 },
-      { name: "Settings", href: "/finance/settings", icon: Settings },
-    ],
-  },
-  {
     title: "Communication",
     items: [
-      { name: "Messages", href: "/messages", icon: MessageSquare },
-      { name: "Broadcasts", href: "/broadcasts", icon: Megaphone },
+      { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+      { name: "Broadcasts", href: "/admin/broadcasts", icon: Megaphone },
       { name: "Announcements", href: "/admin/announcements", icon: Bell },
       { name: "SMS Reports", href: "/admin/sms-reports", icon: FileText },
-    ],
-  },
-  {
-    title: "HR",
-    items: [
-      { name: "HR Dashboard", href: "/hr/dashboard", icon: Briefcase },
-      { name: "Staff", href: "/hr/staff", icon: Users },
-      { name: "Staff Attendance", href: "/hr/attendance", icon: CalendarCheck },
-      { name: "Leave", href: "/hr/leave", icon: ClipboardList },
-      { name: "Payroll", href: "/hr/payroll", icon: CreditCard },
-      { name: "Documents", href: "/hr/documents", icon: FileText },
-      { name: "Reports", href: "/hr/reports", icon: BarChart3 },
-      { name: "Settings", href: "/hr/settings", icon: Settings },
     ],
   },
   {
@@ -194,6 +159,41 @@ const adminSections: NavSection[] = [
       { name: "Settings", href: "/admin/settings", icon: Settings },
     ],
   },
+]
+
+const financeSections: NavSection[] = [
+  {
+    title: "Finance",
+    items: [
+      { name: "Dashboard", href: "/finance/dashboard", icon: BarChart3 },
+      { name: "Payments", href: "/finance/payments", icon: CreditCard },
+      { name: "Invoices", href: "/finance/invoices", icon: FileText },
+      { name: "Receipts", href: "/finance/receipts", icon: Receipt },
+      { name: "Refunds", href: "/finance/refunds", icon: Wallet },
+      { name: "Expenses", href: "/finance/expenses", icon: DollarSign },
+      { name: "Scholarships", href: "/finance/scholarships", icon: GraduationCap },
+      { name: "Reports", href: "/finance/reports", icon: BarChart3 },
+      { name: "Settings", href: "/finance/settings", icon: Settings },
+    ],
+  },
+  { title: "Communication", items: [{ name: "Messages", href: "/finance/messages", icon: MessageSquare }] },
+]
+
+const hrSections: NavSection[] = [
+  {
+    title: "HR",
+    items: [
+      { name: "HR Dashboard", href: "/hr/dashboard", icon: Briefcase },
+      { name: "Staff", href: "/hr/staff", icon: Users },
+      { name: "Staff Attendance", href: "/hr/attendance", icon: CalendarCheck },
+      { name: "Leave", href: "/hr/leave", icon: ClipboardList },
+      { name: "Payroll", href: "/hr/payroll", icon: CreditCard },
+      { name: "Documents", href: "/hr/documents", icon: FileText },
+      { name: "Reports", href: "/hr/reports", icon: BarChart3 },
+      { name: "Settings", href: "/hr/settings", icon: Settings },
+    ],
+  },
+  { title: "Communication", items: [{ name: "Messages", href: "/hr/messages", icon: MessageSquare }] },
 ]
 
 const teacherSections: NavSection[] = [
@@ -279,49 +279,6 @@ const canteenSections: NavSection[] = [
   { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
 ]
 
-const admissionsSections: NavSection[] = [
-  {
-    title: "Admissions",
-    items: [
-      { name: "Dashboard", href: "/admin/dashboard", icon: Home },
-      { name: "Applications", href: "/admin/sis/admissions", icon: ClipboardList },
-      { name: "Student Profiles", href: "/admin/sis/student-profiles", icon: Users },
-      { name: "Documentation", href: "/admin/sis/documentation", icon: FileText },
-      { name: "Promotion", href: "/admin/sis/promotion", icon: Activity },
-    ],
-  },
-  { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
-]
-
-const registrarSections: NavSection[] = [
-  {
-    title: "Registry",
-    items: [
-      { name: "Dashboard", href: "/admin/dashboard", icon: Home },
-      { name: "Student Profiles", href: "/admin/sis/student-profiles", icon: Users },
-      { name: "Documentation", href: "/admin/sis/documentation", icon: FileText },
-      { name: "Promotion", href: "/admin/sis/promotion", icon: Activity },
-      { name: "Alumni", href: "/admin/sis/alumni", icon: GraduationCap },
-    ],
-  },
-  { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
-]
-
-const examOfficerSections: NavSection[] = [
-  {
-    title: "Examinations",
-    items: [
-      { name: "Dashboard", href: "/admin/dashboard", icon: Home },
-      { name: "Exams", href: "/admin/exams", icon: ClipboardCheck },
-      { name: "Assessments", href: "/teacher/exams/assessments", icon: ClipboardList },
-      { name: "Results", href: "/teacher/exams/results", icon: BarChart3 },
-      { name: "Report Cards", href: "/teacher/exams/report-cards", icon: FileText },
-      { name: "Exam Analytics", href: "/teacher/exams/analytics", icon: BarChart3 },
-    ],
-  },
-  { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
-]
-
 const healthSections: NavSection[] = [
   {
     title: "Health",
@@ -384,16 +341,15 @@ const securitySections: NavSection[] = [
   { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
 ]
 
-const procurementSections: NavSection[] = [
+const receptionSections: NavSection[] = [
   {
-    title: "Procurement",
+    title: "Reception",
     items: [
-      { name: "Procurement Dashboard", href: "/procurement/dashboard", icon: Home },
-      { name: "Purchase Requests", href: "/procurement/requests", icon: ClipboardList },
-      { name: "Suppliers", href: "/procurement/suppliers", icon: Users },
-      { name: "Purchase Orders", href: "/procurement/orders", icon: ShoppingCart },
-      { name: "Approvals", href: "/procurement/approvals", icon: Shield },
-      { name: "Reports", href: "/procurement/reports", icon: BarChart3 },
+      { name: "Reception Dashboard", href: "/reception/dashboard", icon: Home },
+      { name: "Visitors", href: "/reception/visitors", icon: Users },
+      { name: "Appointments", href: "/reception/appointments", icon: CalendarCheck },
+      { name: "Enquiries", href: "/reception/enquiries", icon: ClipboardList },
+      { name: "Reports", href: "/reception/reports", icon: BarChart3 },
     ],
   },
   { title: "Communication", items: [{ name: "Messages", href: "/messages", icon: MessageSquare }] },
@@ -467,39 +423,13 @@ const roleConfig: Record<TenantRole, RoleConfig> = {
     label: "Finance Portal",
     home: "/finance/dashboard",
     icon: Wallet,
-    sections: [
-      {
-        title: "Finance",
-        items: [
-          { name: "Dashboard", href: "/finance/dashboard", icon: Home },
-          { name: "Finance", href: "/finance", icon: Wallet },
-        ],
-      },
-      {
-        title: "Communication",
-        items: [{ name: "Messages & Broadcasts", href: "/finance/messages", icon: MessageSquare }],
-      },
-    ],
+    sections: financeSections,
   },
   hr: {
     label: "HR Portal",
     home: "/hr/dashboard",
     icon: Briefcase,
-    sections: [
-      {
-        title: "HR",
-        items: [
-          { name: "HR Dashboard", href: "/hr/dashboard", icon: Home },
-          { name: "Staff", href: "/hr/staff", icon: Users },
-          { name: "Staff Attendance", href: "/hr/attendance", icon: CalendarCheck },
-          { name: "Leave", href: "/hr/leave", icon: ClipboardList },
-          { name: "Payroll", href: "/hr/payroll", icon: CreditCard },
-          { name: "Documents", href: "/hr/documents", icon: FileText },
-          { name: "Reports", href: "/hr/reports", icon: BarChart3 },
-          { name: "Settings", href: "/hr/settings", icon: Settings },
-        ],
-      },
-    ],
+    sections: hrSections,
   },
   parent: {
     label: "Parent Portal",
@@ -589,36 +519,6 @@ const roleConfig: Record<TenantRole, RoleConfig> = {
     icon: Utensils,
     sections: canteenSections,
   },
-  admissions_officer: {
-    label: "Admissions Portal",
-    home: "/admin/dashboard",
-    icon: UserCheck,
-    sections: admissionsSections,
-  },
-  registrar: {
-    label: "Registrar Portal",
-    home: "/admin/dashboard",
-    icon: ClipboardList,
-    sections: registrarSections,
-  },
-  exam_officer: {
-    label: "Exam Officer Portal",
-    home: "/admin/dashboard",
-    icon: ClipboardCheck,
-    sections: examOfficerSections,
-  },
-  department_head: {
-    label: "Department Head Portal",
-    home: "/teacher/dashboard",
-    icon: Briefcase,
-    sections: teacherSections,
-  },
-  class_teacher: {
-    label: "Class Teacher Portal",
-    home: "/teacher/dashboard",
-    icon: Users,
-    sections: teacherSections,
-  },
   nurse: {
     label: "Health Portal",
     home: "/health/dashboard",
@@ -643,11 +543,11 @@ const roleConfig: Record<TenantRole, RoleConfig> = {
     icon: Shield,
     sections: securitySections,
   },
-  procurement: {
-    label: "Procurement Portal",
-    home: "/procurement/dashboard",
-    icon: ShoppingCart,
-    sections: procurementSections,
+  receptionist: {
+    label: "Reception Portal",
+    home: "/reception/dashboard",
+    icon: ClipboardList,
+    sections: receptionSections,
   },
   inventory_manager: {
     label: "Inventory Portal",
@@ -660,12 +560,6 @@ const roleConfig: Record<TenantRole, RoleConfig> = {
     home: "/wellbeing/dashboard",
     icon: HandHeart,
     sections: wellbeingSections,
-  },
-  alumni_officer: {
-    label: "Alumni Portal",
-    home: "/alumni/dashboard",
-    icon: GraduationCap,
-    sections: alumniSections,
   },
 }
 
@@ -680,10 +574,9 @@ function getTenantContext(pathname: string, tenantParam?: string | null, userRol
     transport: "transport_manager",
     hostel: "hostel_warden",
     security: "security",
-    procurement: "procurement",
+    reception: "receptionist",
     inventory: "inventory_manager",
     wellbeing: "counselor",
-    alumni: "alumni_officer",
   }
   const universalSegments = new Set(["messages", "notifications", "profile", "settings", "complete-access"])
   const normalized = universalSegments.has(roleSegment)

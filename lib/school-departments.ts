@@ -15,25 +15,9 @@ export const STANDARD_SCHOOL_DEPARTMENTS: SchoolDepartmentSeed[] = [
   { id: "health_wellbeing", name: "Health & Wellbeing" },
   { id: "transport_boarding", name: "Transport & Boarding" },
   { id: "security_facilities", name: "Security & Facilities" },
-  { id: "procurement_stores", name: "Procurement & Stores" },
+  { id: "stores_inventory", name: "Stores & Inventory" },
   { id: "ict", name: "ICT" },
 ];
-
-export const REDUNDANT_SCHOOL_DEPARTMENT_IDS = new Set([
-  "admissions",
-  "examinations",
-  "registry",
-  "health",
-  "transport",
-  "boarding",
-  "security",
-  "procurement",
-  "inventory",
-  "counseling",
-  "sports",
-  "maintenance",
-  "alumni",
-]);
 
 export function standardSchoolDepartments(adminDepartmentId?: string): SchoolDepartmentSeed[] {
   if (!adminDepartmentId) return STANDARD_SCHOOL_DEPARTMENTS;

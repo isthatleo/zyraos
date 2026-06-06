@@ -46,19 +46,13 @@ const roleVisuals: Partial<Record<CanonicalRole, { color: string; bg: string }>>
   librarian: { color: "text-purple-600", bg: "bg-purple-50 group-hover:bg-purple-100 dark:bg-purple-950/40 dark:group-hover:bg-purple-900/50" },
   hr: { color: "text-cyan-600", bg: "bg-cyan-50 group-hover:bg-cyan-100 dark:bg-cyan-950/40 dark:group-hover:bg-cyan-900/50" },
   canteen: { color: "text-orange-600", bg: "bg-orange-50 group-hover:bg-orange-100 dark:bg-orange-950/40 dark:group-hover:bg-orange-900/50" },
-  admissions_officer: { color: "text-teal-600", bg: "bg-teal-50 group-hover:bg-teal-100 dark:bg-teal-950/40 dark:group-hover:bg-teal-900/50" },
-  registrar: { color: "text-violet-600", bg: "bg-violet-50 group-hover:bg-violet-100 dark:bg-violet-950/40 dark:group-hover:bg-violet-900/50" },
-  exam_officer: { color: "text-rose-600", bg: "bg-rose-50 group-hover:bg-rose-100 dark:bg-rose-950/40 dark:group-hover:bg-rose-900/50" },
-  department_head: { color: "text-slate-600", bg: "bg-slate-100 group-hover:bg-slate-200 dark:bg-slate-800 dark:group-hover:bg-slate-700" },
-  class_teacher: { color: "text-lime-600", bg: "bg-lime-50 group-hover:bg-lime-100 dark:bg-lime-950/40 dark:group-hover:bg-lime-900/50" },
   nurse: { color: "text-red-600", bg: "bg-red-50 group-hover:bg-red-100 dark:bg-red-950/40 dark:group-hover:bg-red-900/50" },
   transport_manager: { color: "text-yellow-600", bg: "bg-yellow-50 group-hover:bg-yellow-100 dark:bg-yellow-950/40 dark:group-hover:bg-yellow-900/50" },
   hostel_warden: { color: "text-fuchsia-600", bg: "bg-fuchsia-50 group-hover:bg-fuchsia-100 dark:bg-fuchsia-950/40 dark:group-hover:bg-fuchsia-900/50" },
   security: { color: "text-zinc-600", bg: "bg-zinc-100 group-hover:bg-zinc-200 dark:bg-zinc-800 dark:group-hover:bg-zinc-700" },
-  procurement: { color: "text-green-600", bg: "bg-green-50 group-hover:bg-green-100 dark:bg-green-950/40 dark:group-hover:bg-green-900/50" },
+  receptionist: { color: "text-green-600", bg: "bg-green-50 group-hover:bg-green-100 dark:bg-green-950/40 dark:group-hover:bg-green-900/50" },
   inventory_manager: { color: "text-stone-600", bg: "bg-stone-100 group-hover:bg-stone-200 dark:bg-stone-800 dark:group-hover:bg-stone-700" },
   counselor: { color: "text-emerald-600", bg: "bg-emerald-50 group-hover:bg-emerald-100 dark:bg-emerald-950/40 dark:group-hover:bg-emerald-900/50" },
-  alumni_officer: { color: "text-blue-600", bg: "bg-blue-50 group-hover:bg-blue-100 dark:bg-blue-950/40 dark:group-hover:bg-blue-900/50" },
 };
 
 export function TenantPortalLogin({

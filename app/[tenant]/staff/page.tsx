@@ -5,7 +5,7 @@ export default function TenantStaffPortalPage() {
   return (
     <TenantPortalLogin
       title="Staff Portal"
-      description="For teachers, HR, finance, library, canteen, health, transport, hostel, security, procurement, inventory, and wellbeing teams."
+      description="For teachers, HR, finance, library, canteen, reception, health, transport, hostel, security, inventory, and wellbeing teams."
       roles={rolePortalGroups.staff}
       defaultRole="teacher"
       showAdminShortcut

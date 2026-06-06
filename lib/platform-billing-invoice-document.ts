@@ -137,54 +137,55 @@ export function buildPlatformBillingInvoiceHtml(invoice: PlatformBillingInvoiceD
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(invoice.invoiceNumber)} - Platform Invoice</title>
   <style>
-    @page { size: A4 portrait; margin: 14mm; }
+    @page { size: A4 portrait; margin: 10mm; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #e9eef5; color: #111827; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
     .print-actions { position: fixed; top: 20px; right: 20px; z-index: 10; display: flex; gap: 8px; }
     .print-actions button { border: 0; border-radius: 999px; background: ${primaryColor}; color: #fff; padding: 10px 16px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 30px rgba(15, 23, 42, .18); }
-    .sheet { position: relative; width: 210mm; min-height: 297mm; margin: 24px auto; overflow: hidden; background: #fff; box-shadow: 0 24px 80px rgba(15, 23, 42, .16); }
-    .topbar { height: 9px; background: linear-gradient(90deg, ${primaryColor}, ${secondaryColor}); }
-    .page { position: relative; z-index: 1; padding: 17mm 17mm 25mm; }
+    .sheet { position: relative; width: 210mm; min-height: 297mm; margin: 18px auto; overflow: hidden; background: #fff; box-shadow: 0 24px 80px rgba(15, 23, 42, .16); }
+    .topbar { height: 7px; background: linear-gradient(90deg, ${primaryColor}, ${secondaryColor}); }
+    .page { position: relative; z-index: 1; padding: 12mm 13mm 18mm; }
     .watermark { position: absolute; inset: 36% 22%; z-index: 0; opacity: .045; pointer-events: none; }
     .watermark img { width: 100%; height: 100%; object-fit: contain; }
-    .letterhead { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; border-bottom: 2px solid #e2e8f0; padding-bottom: 22px; }
+    .letterhead { display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: start; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; }
     .brand { display: flex; gap: 15px; align-items: center; min-width: 0; }
-    .brand img, .brandmark { width: 76px; height: 76px; border-radius: 20px; border: 1px solid #d8e0eb; background: #fff; object-fit: contain; padding: 7px; }
-    .brandmark { display: flex; align-items: center; justify-content: center; padding: 0; background: ${primaryColor}; color: #fff; font-size: 24px; font-weight: 900; letter-spacing: .04em; }
+    .brand img, .brandmark { width: 72px; height: 72px; border-radius: 18px; border: 1px solid #d8e0eb; background: #fff; object-fit: contain; padding: 7px; }
+    .brandmark { display: flex; align-items: center; justify-content: center; padding: 0; background: ${primaryColor}; color: #fff; font-size: 23px; font-weight: 900; letter-spacing: .04em; }
     h1, h2, h3, p { margin: 0; }
-    .brand h1 { color: ${primaryColor}; font-size: 27px; line-height: 1.08; letter-spacing: -.03em; }
-    .muted { color: #64748b; font-size: 12px; line-height: 1.55; }
-    .brand .muted { margin-top: 7px; max-width: 410px; }
+    .brand h1 { color: ${primaryColor}; font-size: 26px; line-height: 1.07; letter-spacing: -.03em; }
+    .muted { color: #64748b; font-size: 12px; line-height: 1.45; }
+    .brand .muted { margin-top: 6px; max-width: 450px; }
     .invoice-title { text-align: right; }
-    .invoice-title h2 { margin-top: 9px; color: #0f172a; font-size: 32px; letter-spacing: .08em; }
-    .invoice-title .number { margin-top: 5px; color: #475569; font-size: 13px; font-weight: 700; }
-    .badge { display: inline-flex; align-items: center; border: 1px solid ${primaryColor}40; border-radius: 999px; background: ${primaryColor}16; color: ${primaryColor}; padding: 7px 13px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
-    .section { margin-top: 24px; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-    .box { border: 1px solid #dbe3ef; border-radius: 18px; background: #f8fafc; padding: 16px; }
+    .invoice-title h2 { margin-top: 7px; color: #0f172a; font-size: 28px; letter-spacing: .08em; }
+    .invoice-title .number { margin-top: 4px; color: #475569; font-size: 12.5px; font-weight: 700; }
+    .badge { display: inline-flex; align-items: center; border: 1px solid ${primaryColor}40; border-radius: 999px; background: ${primaryColor}16; color: ${primaryColor}; padding: 6px 11px; font-size: 10.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+    .section { margin-top: 15px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .box { border: 1px solid #dbe3ef; border-radius: 15px; background: #f8fafc; padding: 12px; }
     .box.white { background: #fff; }
-    .box h3, .label { margin-bottom: 8px; color: #64748b; font-size: 11px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+    .box h3, .label { margin-bottom: 6px; color: #64748b; font-size: 10.5px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
     .box strong { color: #111827; }
-    .amount { margin-top: 4px; color: #0f172a; font-size: 29px; font-weight: 950; letter-spacing: -.04em; }
-    .small { color: #64748b; font-size: 12px; line-height: 1.6; }
-    table { width: 100%; margin-top: 10px; border: 1px solid #dbe3ef; border-collapse: separate; border-spacing: 0; border-radius: 18px; overflow: hidden; }
-    th, td { padding: 13px 14px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 12px; vertical-align: top; }
-    th { background: #111827; color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+    .amount { margin-top: 3px; color: #0f172a; font-size: 25px; font-weight: 950; letter-spacing: -.04em; }
+    .small { color: #64748b; font-size: 11.5px; line-height: 1.5; }
+    table { width: 100%; margin-top: 8px; border: 1px solid #dbe3ef; border-collapse: separate; border-spacing: 0; border-radius: 14px; overflow: hidden; }
+    th, td { padding: 10px 11px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 11.5px; vertical-align: top; }
+    th { background: #111827; color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
     tr:last-child td { border-bottom: 0; }
     .right { text-align: right; }
-    .totals { width: 370px; max-width: 100%; margin-top: 18px; margin-left: auto; border: 1px solid #dbe3ef; border-radius: 18px; overflow: hidden; background: #fff; }
-    .totals div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    .totals { width: 340px; max-width: 100%; margin-top: 11px; margin-left: auto; border: 1px solid #dbe3ef; border-radius: 15px; overflow: hidden; background: #fff; }
+    .totals div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 11px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
     .totals div:last-child { border-bottom: 0; background: ${primaryColor}14; color: ${primaryColor}; font-weight: 950; }
-    .notes { border-left: 4px solid ${primaryColor}; border-radius: 16px; background: #f8fafc; padding: 14px 16px; color: #475569; font-size: 12px; line-height: 1.65; }
-    .payment-box { display: grid; grid-template-columns: 1.05fr .95fr; gap: 14px; }
-    footer { position: absolute; left: 17mm; right: 17mm; bottom: 11mm; display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #e2e8f0; padding-top: 12px; color: #64748b; font-size: 10.5px; line-height: 1.45; }
+    .notes { border-left: 3px solid ${primaryColor}; border-radius: 14px; background: #f8fafc; padding: 10px 12px; color: #475569; font-size: 11.5px; line-height: 1.5; }
+    .payment-box { display: grid; grid-template-columns: 1.05fr .95fr; gap: 11px; }
+    footer { position: absolute; left: 13mm; right: 13mm; bottom: 8mm; display: flex; justify-content: space-between; gap: 14px; border-top: 1px solid #e2e8f0; padding-top: 8px; color: #64748b; font-size: 10px; line-height: 1.35; }
     @media print {
       body { background: #fff; }
       .print-actions { display: none; }
-      .sheet { width: auto; min-height: auto; margin: 0; box-shadow: none; }
-      .page { padding: 0 0 18mm; }
-      .topbar { margin: -14mm -14mm 13mm; }
+      .sheet { width: auto; min-height: 277mm; margin: 0; box-shadow: none; page-break-after: avoid; }
+      .page { padding: 0 0 14mm; }
+      .topbar { margin: -10mm -10mm 8mm; }
+      .section, .box, table, .totals, .notes { break-inside: avoid; page-break-inside: avoid; }
       footer { left: 0; right: 0; bottom: 0; }
     }
   </style>

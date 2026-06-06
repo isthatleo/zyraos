@@ -65,6 +65,51 @@ function toJoanUser(row: { id: string; name: string; email: string; role: string
   };
 }
 
+async function ensurePlatformContact(userId: string) {
+  const result = await db.execute(sql`
+    select id, coalesce(name, email) as name, email, coalesce(role, 'super_admin') as role, image
+    from "user"
+    where id = ${userId}
+      and coalesce(role, '') in ('master', 'super_admin')
+    limit 1
+  `).catch(() => ({ rows: [] as unknown[] }));
+  const row = result.rows[0] as { id?: string; name?: string; email?: string; role?: string; image?: string | null } | undefined;
+  if (!row?.id || !row.email) return null;
+  const role = row.role || "super_admin";
+  await db.execute(sql`
+    insert into roles (id, name, description, is_system, created_at, updated_at)
+    values (${role}, ${role.replace(/_/g, " ")}, 'Platform messaging contact', true, now(), now())
+    on conflict (id) do nothing
+  `).catch(() => undefined);
+  await db.execute(sql`
+    insert into users (id, email, email_verified, name, image, role_id, is_active, created_at, updated_at)
+    values (${row.id}, ${row.email}, true, ${row.name || row.email}, ${row.image || null}, ${role}, true, now(), now())
+    on conflict (id) do update set email = excluded.email, name = excluded.name, image = excluded.image, role_id = excluded.role_id, is_active = true, updated_at = now()
+  `).catch(() => undefined);
+  return toJoanUser({ id: row.id, name: row.name || row.email, email: row.email, role, image: row.image });
+}
+
+async function ensurePlatformContactsForRole(role: string) {
+  if (!["school_admin", "owner"].includes(role)) return;
+  const admins = await safeExecute<{ id: string; name: string | null; email: string; role: string | null; image?: string | null }>(sql`
+    select id, coalesce(name, email) as name, email, coalesce(role, 'super_admin') as role, image
+    from "user"
+    where coalesce(role, '') in ('master', 'super_admin')
+    order by email asc
+    limit 25
+  `, "platform contacts");
+  for (const admin of admins) {
+    await ensurePlatformContact(admin.id);
+  }
+}
+
+async function writeMessageAudit(actorId: string, action: string, resourceId: string, changes: Record<string, unknown> = {}) {
+  await db.execute(sql`
+    insert into audit_logs (id, admin_id, action, resource, resource_id, changes, status, created_at)
+    values (${newId("audit")}, ${actorId}, ${action}, 'messages', ${resourceId}, ${JSON.stringify(changes)}::jsonb, 'success', now())
+  `).catch(() => undefined);
+}
+
 function roleInSql(column: ReturnType<typeof sql>, roles: string[]) {
   if (!roles.length) return sql`true`;
   return sql`${column} in (${sql.join(roles.map((role) => sql`${role}`), sql`, `)})`;
@@ -93,7 +138,7 @@ async function getUser(userId: string) {
     limit 1
   `);
   const row = result.rows[0] as { id: string; name: string; email: string; role: string; image?: string | null } | undefined;
-  return row ? toJoanUser(row) : null;
+  return row ? toJoanUser(row) : ensurePlatformContact(userId);
 }
 
 async function findOrCreateDirectConversation(currentUserId: string, otherUserId: string) {
@@ -318,6 +363,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "available-users") {
+      await ensurePlatformContactsForRole(currentUser.role);
       const search = `%${(searchParams.get("search") || "").toLowerCase()}%`;
       const allowedRoles = allowedMessagingRolesFor(currentUser.role);
       const tenantUsers = await safeExecute<{ id: string; name: string; email: string; role: string; image?: string | null }>(sql`
@@ -409,6 +455,7 @@ export async function POST(request: NextRequest) {
     on conflict (message_id, user_id) do nothing
   `);
   await db.execute(sql`update conversations set updated_at = now() where id = ${conversationId}`);
+  await writeMessageAudit(currentUser.id, "admin.message.sent", messageId, { receiverId, conversationId, role: currentUser.role });
 
   const sender = { id: currentUser.id, fullName: currentUser.name, email: currentUser.email, role: currentUser.role, avatar: currentUser.image || null };
   return NextResponse.json(

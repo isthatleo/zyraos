@@ -26,19 +26,13 @@ const dashboardRoles = new Set<DashboardRole>([
   "hr",
   "canteen",
   "lecturer",
-  "admissions_officer",
-  "registrar",
-  "exam_officer",
-  "department_head",
-  "class_teacher",
   "nurse",
   "transport_manager",
   "hostel_warden",
   "security",
-  "procurement",
+  "receptionist",
   "inventory_manager",
   "counselor",
-  "alumni_officer",
 ]);
 
 function isDashboardRole(role: string): role is DashboardRole {
@@ -71,21 +65,15 @@ const dashboardRoleAliases: Record<string, DashboardRole> = {
   hostel: "hostel_warden",
   boarding_warden: "hostel_warden",
   gate_officer: "security",
-  admissions: "admissions_officer",
-  admission_officer: "admissions_officer",
-  academic_registrar: "registrar",
-  exams_officer: "exam_officer",
-  examination_officer: "exam_officer",
-  faculty_head: "department_head",
-  hod: "department_head",
-  head_of_department: "department_head",
-  form_teacher: "class_teacher",
   school_nurse: "nurse",
   health_officer: "nurse",
   counsellor: "counselor",
   welfare_officer: "counselor",
   wellbeing: "counselor",
-  alumni: "alumni_officer",
+  reception: "receptionist",
+  receptionist: "receptionist",
+  front_desk: "receptionist",
+  front_office: "receptionist",
 };
 
 function resolveSessionDashboardRole(role?: string | null): DashboardRole | null {
@@ -117,10 +105,9 @@ const routeFallbackRoles: Record<string, DashboardRole> = {
   transport: "transport_manager",
   hostel: "hostel_warden",
   security: "security",
-  procurement: "procurement",
+  reception: "receptionist",
   inventory: "inventory_manager",
   wellbeing: "counselor",
-  alumni: "alumni_officer",
 };
 
 function resolveDashboardRole(pathname: string, tenantSlug: string, userRole?: string | null): DashboardRole {

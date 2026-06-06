@@ -11,7 +11,6 @@ import {
   PackageSearch,
   Shield,
   ShieldCheck,
-  ShoppingCart,
   UserCheck,
   Users,
   Utensils,
@@ -29,19 +28,13 @@ export const CANONICAL_ROLES = [
   "librarian",
   "hr",
   "canteen",
-  "admissions_officer",
-  "registrar",
-  "exam_officer",
-  "department_head",
-  "class_teacher",
   "nurse",
   "transport_manager",
   "hostel_warden",
   "security",
-  "procurement",
+  "receptionist",
   "inventory_manager",
   "counselor",
-  "alumni_officer",
 ] as const;
 
 export type CanonicalRole = (typeof CANONICAL_ROLES)[number];
@@ -78,19 +71,13 @@ export function normalizeRole(role?: string | null): CanonicalRole {
   if (value.endsWith("_librarian")) return "librarian";
   if (value.endsWith("_hr")) return "hr";
   if (value.endsWith("_canteen")) return "canteen";
-  if (value.endsWith("_admissions_officer")) return "admissions_officer";
-  if (value.endsWith("_registrar")) return "registrar";
-  if (value.endsWith("_exam_officer")) return "exam_officer";
-  if (value.endsWith("_department_head") || value.endsWith("_faculty_head") || value.endsWith("_hod")) return "department_head";
-  if (value.endsWith("_class_teacher") || value.endsWith("_form_teacher")) return "class_teacher";
   if (value.endsWith("_nurse") || value.endsWith("_health_officer")) return "nurse";
   if (value.endsWith("_transport_manager")) return "transport_manager";
   if (value.endsWith("_hostel_warden") || value.endsWith("_boarding_warden")) return "hostel_warden";
   if (value.endsWith("_security") || value.endsWith("_gate_officer")) return "security";
-  if (value.endsWith("_procurement") || value.endsWith("_procurement_officer")) return "procurement";
+  if (value.endsWith("_receptionist") || value.endsWith("_front_desk") || value.endsWith("_front_desk_officer")) return "receptionist";
   if (value.endsWith("_inventory_manager") || value.endsWith("_stores_manager")) return "inventory_manager";
   if (value.endsWith("_counselor") || value.endsWith("_welfare_officer")) return "counselor";
-  if (value.endsWith("_alumni_officer")) return "alumni_officer";
   if (["master", "platform_admin", "superadmin"].includes(value)) return "super_admin";
   if (["admin", "principal", "headteacher", "head_teacher"].includes(value)) return "school_admin";
   if (["lecturer", "professor", "staff", "instructor", "trainer", "tutor"].includes(value)) return "teacher";
@@ -99,19 +86,13 @@ export function normalizeRole(role?: string | null): CanonicalRole {
   if (["accountant", "accounting", "account", "accounts", "bursar"].includes(value)) return "finance";
   if (["library"].includes(value)) return "librarian";
   if (["cafeteria", "kitchen"].includes(value)) return "canteen";
-  if (["admissions", "admission_officer", "admissions_officer"].includes(value)) return "admissions_officer";
-  if (["registrar", "academic_registrar"].includes(value)) return "registrar";
-  if (["exam_officer", "exams_officer", "examination_officer"].includes(value)) return "exam_officer";
-  if (["department_head", "faculty_head", "hod", "head_of_department"].includes(value)) return "department_head";
-  if (["class_teacher", "form_teacher"].includes(value)) return "class_teacher";
   if (["nurse", "school_nurse", "health_officer"].includes(value)) return "nurse";
   if (["transport", "transport_manager"].includes(value)) return "transport_manager";
   if (["hostel", "hostel_warden", "boarding_warden"].includes(value)) return "hostel_warden";
   if (["security", "gate_officer"].includes(value)) return "security";
-  if (["procurement", "procurement_officer"].includes(value)) return "procurement";
+  if (["receptionist", "front_desk", "front_desk_officer", "front_office"].includes(value)) return "receptionist";
   if (["inventory", "inventory_manager", "stores_manager"].includes(value)) return "inventory_manager";
   if (["counselor", "counsellor", "welfare_officer", "wellbeing"].includes(value)) return "counselor";
-  if (["alumni", "alumni_officer"].includes(value)) return "alumni_officer";
   if ((CANONICAL_ROLES as readonly string[]).includes(value)) return value as CanonicalRole;
   return "student";
 }
@@ -128,7 +109,7 @@ export const rolePortalGroups = {
     "transport_manager",
     "hostel_warden",
     "security",
-    "procurement",
+    "receptionist",
     "inventory_manager",
     "counselor",
   ],
@@ -146,19 +127,13 @@ export const roleLabels: Record<CanonicalRole, string> = {
   librarian: "Librarian",
   hr: "HR",
   canteen: "Canteen",
-  admissions_officer: "Admissions Officer",
-  registrar: "Registrar",
-  exam_officer: "Exam Officer",
-  department_head: "Department Head / Faculty Head",
-  class_teacher: "Class Teacher",
   nurse: "School Nurse / Health Officer",
   transport_manager: "Transport Manager",
   hostel_warden: "Hostel / Boarding Warden",
   security: "Security / Gate Officer",
-  procurement: "Procurement Officer",
+  receptionist: "Receptionist",
   inventory_manager: "Inventory / Stores Manager",
   counselor: "Counselor / Welfare Officer",
-  alumni_officer: "Alumni Officer",
 };
 
 const universalTenantRoles: TenantRoleDefinition[] = [
@@ -244,12 +219,12 @@ const universalTenantRoles: TenantRoleDefinition[] = [
     isSystem: true,
   },
   {
-    id: "procurement",
-    canonicalRole: "procurement",
-    name: "Procurement Officer",
-    description: "Purchase requests, supplier management, approvals, purchase orders, and procurement reports",
+    id: "receptionist",
+    canonicalRole: "receptionist",
+    name: "Receptionist",
+    description: "Front desk, visitor reception, call handling, appointments, enquiries, and access handoff",
     portal: "staff",
-    dashboardPath: "/procurement/dashboard",
+    dashboardPath: "/reception/dashboard",
     isSystem: true,
   },
   {
@@ -283,18 +258,9 @@ export const STAFF_CREATION_ROLE_ORDER: CanonicalRole[] = [
   "transport_manager",
   "hostel_warden",
   "security",
-  "procurement",
+  "receptionist",
   "inventory_manager",
   "counselor",
-];
-
-export const ASSIGNMENT_ONLY_ROLES: CanonicalRole[] = [
-  "admissions_officer",
-  "registrar",
-  "exam_officer",
-  "department_head",
-  "class_teacher",
-  "alumni_officer",
 ];
 
 const levelSpecificRoles: Record<EducationLevel, TenantRoleDefinition[]> = {
@@ -337,7 +303,7 @@ export function getTenantRoleDefinitions(type?: string | null): TenantRoleDefini
 
 export function getStaffCreationRoleDefinitions(type?: string | null): TenantRoleDefinition[] {
   const roles = getTenantRoleDefinitions(type).filter(
-    (role) => !["owner", "student", "parent"].includes(role.canonicalRole) && !ASSIGNMENT_ONLY_ROLES.includes(role.canonicalRole)
+    (role) => !["owner", "student", "parent"].includes(role.canonicalRole)
   );
   return roles.sort((a, b) => {
     const aIndex = STAFF_CREATION_ROLE_ORDER.indexOf(a.canonicalRole);
@@ -416,36 +382,6 @@ export const roleLoginMeta = {
     icon: Utensils,
     redirectPath: "/canteen/dashboard",
   },
-  admissions_officer: {
-    title: "Admissions Login",
-    subtitle: "Applications, interviews, admissions decisions, and enrollment",
-    icon: UserCheck,
-    redirectPath: "/admin/dashboard",
-  },
-  registrar: {
-    title: "Registrar Login",
-    subtitle: "Student registry, transcripts, records, and academic certification",
-    icon: ClipboardList,
-    redirectPath: "/admin/dashboard",
-  },
-  exam_officer: {
-    title: "Exam Officer Login",
-    subtitle: "Exam setup, grading controls, results, and report cards",
-    icon: ShieldCheck,
-    redirectPath: "/admin/dashboard",
-  },
-  department_head: {
-    title: "Department Head Login",
-    subtitle: "Department oversight, staff coordination, and academic performance",
-    icon: Briefcase,
-    redirectPath: "/teacher/dashboard",
-  },
-  class_teacher: {
-    title: "Class Teacher Login",
-    subtitle: "Class attendance, reports, pastoral follow-up, and parent communication",
-    icon: Users,
-    redirectPath: "/teacher/dashboard",
-  },
   nurse: {
     title: "Health Login",
     subtitle: "Sick bay, student health records, medication, and incidents",
@@ -470,11 +406,11 @@ export const roleLoginMeta = {
     icon: Shield,
     redirectPath: "/security/dashboard",
   },
-  procurement: {
-    title: "Procurement Login",
-    subtitle: "Purchase requests, suppliers, approvals, and procurement reports",
-    icon: ShoppingCart,
-    redirectPath: "/procurement/dashboard",
+  receptionist: {
+    title: "Receptionist Login",
+    subtitle: "Front desk, visitors, appointments, calls, and enquiries",
+    icon: ClipboardList,
+    redirectPath: "/reception/dashboard",
   },
   inventory_manager: {
     title: "Inventory Login",
@@ -487,12 +423,6 @@ export const roleLoginMeta = {
     subtitle: "Counseling, welfare, safeguarding, and behavior support",
     icon: HandHeart,
     redirectPath: "/wellbeing/dashboard",
-  },
-  alumni_officer: {
-    title: "Alumni Login",
-    subtitle: "Alumni records, engagement, events, and campaigns",
-    icon: GraduationCap,
-    redirectPath: "/alumni/dashboard",
   },
 } satisfies Record<CanonicalRole, { title: string; subtitle: string; icon: ComponentType<{ className?: string }>; redirectPath: string }>;
 

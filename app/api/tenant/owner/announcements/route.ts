@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
 
 const AUDIENCE_ROLES: Record<string, string[]> = {
-  all_staff: ["owner", "school_admin", "admin", "teacher", "lecturer", "professor", "accountant", "finance", "librarian", "hr", "canteen", "registrar", "admissions_officer", "exam_officer", "department_head", "class_teacher", "nurse", "transport_manager", "hostel_warden", "security", "procurement", "inventory_manager", "counselor"],
-  school_leadership: ["owner", "school_admin", "admin", "registrar", "department_head"],
-  academic_staff: ["teacher", "lecturer", "professor", "class_teacher", "department_head", "exam_officer"],
+  all_staff: ["owner", "school_admin", "admin", "teacher", "lecturer", "professor", "accountant", "finance", "librarian", "hr", "canteen", "nurse", "transport_manager", "hostel_warden", "security", "receptionist", "inventory_manager", "counselor"],
+  school_leadership: ["owner", "school_admin", "admin"],
+  academic_staff: ["teacher", "lecturer", "professor"],
   finance_hr: ["accountant", "finance", "hr"],
-  support_staff: ["librarian", "canteen", "nurse", "transport_manager", "hostel_warden", "security", "procurement", "inventory_manager", "counselor"],
+  support_staff: ["librarian", "canteen", "nurse", "transport_manager", "hostel_warden", "security", "receptionist", "inventory_manager", "counselor"],
 };
 
 function asString(value: unknown, fallback = "") {

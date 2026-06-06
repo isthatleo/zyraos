@@ -173,8 +173,17 @@ export async function PUT(
     if (response) return response;
 
     const { schoolId } = await params;
-    const body = await request.json();
-    const { name, country, type, status } = body;
+    const body = await request.json().catch(() => ({}));
+    const {
+      name,
+      slug,
+      country,
+      countryCode,
+      currencyCode,
+      currencyName,
+      type,
+      status,
+    } = body;
 
     // Check if school exists
     const existingSchool = await masterDb
@@ -190,21 +199,46 @@ export async function PUT(
       );
     }
 
-    // Update school
+    const nextSlug = typeof slug === "string" ? slug.trim().toLowerCase() : undefined;
+    if (nextSlug !== undefined) {
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(nextSlug)) {
+        return NextResponse.json({ error: "Slug can only contain lowercase letters, numbers, and hyphens" }, { status: 400 });
+      }
+      const duplicate = await masterDb
+        .select({ id: schoolsTable.id })
+        .from(schoolsTable)
+        .where(eq(schoolsTable.slug, nextSlug))
+        .limit(1);
+      if (duplicate.length && duplicate[0].id !== schoolId) {
+        return NextResponse.json({ error: "Another school already uses this slug" }, { status: 409 });
+      }
+    }
+
     const updateData: any = {
       updatedAt: new Date(),
     };
 
-    if (name !== undefined) updateData.name = name;
-    if (country !== undefined) updateData.country = country;
-    if (type !== undefined) updateData.type = type;
-    if (status !== undefined) updateData.status = status;
+    if (name !== undefined) updateData.name = String(name).trim();
+    if (nextSlug !== undefined) updateData.slug = nextSlug;
+    if (country !== undefined) updateData.country = String(country).trim();
+    if (countryCode !== undefined) updateData.countryCode = String(countryCode || "").trim().toUpperCase() || null;
+    if (currencyCode !== undefined) updateData.currencyCode = String(currencyCode || "").trim().toUpperCase() || null;
+    if (currencyName !== undefined) updateData.currencyName = String(currencyName || "").trim() || null;
+    if (type !== undefined) updateData.type = String(type).trim();
+    if (status !== undefined) updateData.status = String(status).trim();
 
     const updatedSchool = await masterDb
       .update(schoolsTable)
       .set(updateData)
       .where(eq(schoolsTable.id, schoolId))
       .returning();
+
+    if (nextSlug && nextSlug !== existingSchool[0].slug) {
+      await masterDb
+        .update(passwordSecurityTable)
+        .set({ tenantSlug: nextSlug, updatedAt: new Date() })
+        .where(eq(passwordSecurityTable.tenantSlug, existingSchool[0].slug));
+    }
 
     await writeMasterAudit(request, {
       adminId: admin.adminId,
@@ -214,13 +248,21 @@ export async function PUT(
       changes: {
         before: {
           name: existingSchool[0].name,
+          slug: existingSchool[0].slug,
           country: existingSchool[0].country,
+          countryCode: existingSchool[0].countryCode,
+          currencyCode: existingSchool[0].currencyCode,
+          currencyName: existingSchool[0].currencyName,
           type: existingSchool[0].type,
           status: existingSchool[0].status,
         },
         after: {
           name: updatedSchool[0].name,
+          slug: updatedSchool[0].slug,
           country: updatedSchool[0].country,
+          countryCode: updatedSchool[0].countryCode,
+          currencyCode: updatedSchool[0].currencyCode,
+          currencyName: updatedSchool[0].currencyName,
           type: updatedSchool[0].type,
           status: updatedSchool[0].status,
         },

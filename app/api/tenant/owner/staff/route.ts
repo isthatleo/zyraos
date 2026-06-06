@@ -5,10 +5,10 @@ import { eq, sql } from "drizzle-orm";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { departmentsTable, rolesTable, schoolsTable, staffTable, tenantUsersTable, userTable } from "@/lib/db-schema";
 import { generateTemporaryPassword, markForcePasswordChange, upsertCredentialAuthUser, validatePasswordPolicy } from "@/lib/password-access";
-import { ASSIGNMENT_ONLY_ROLES, getStaffCreationRoleDefinitions, getTenantRoleDefinitionById, getTenantRoleDefinitions, roleLoginMeta } from "@/lib/roles";
+import { getStaffCreationRoleDefinitions, getTenantRoleDefinitionById, getTenantRoleDefinitions, roleLoginMeta } from "@/lib/roles";
 import { sendPlatformEmail, sendPlatformSms } from "@/lib/platform-integrations";
 import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
-import { REDUNDANT_SCHOOL_DEPARTMENT_IDS, STANDARD_SCHOOL_DEPARTMENTS } from "@/lib/school-departments";
+import { STANDARD_SCHOOL_DEPARTMENTS } from "@/lib/school-departments";
 import { writeTenantAuditLog } from "@/lib/tenant-audit";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 import { getTenantPortalUrl } from "@/lib/tenant-url";
@@ -16,8 +16,8 @@ import { getTenantPortalUrl } from "@/lib/tenant-url";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const assignmentOnlyRoles = new Set<string>(ASSIGNMENT_ONLY_ROLES);
 const departmentOrder = new Map(STANDARD_SCHOOL_DEPARTMENTS.map((department, index) => [department.id, index]));
+const activeDepartmentIds = new Set(STANDARD_SCHOOL_DEPARTMENTS.map((department) => department.id));
 const salaryPeriods = new Set(["monthly", "per_term", "per_year"]);
 
 function loginUrl(request: NextRequest, slug: string, portal: string, role: string) {
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
       "departments"
     );
     const departments = departmentRows
-      .filter((department) => !REDUNDANT_SCHOOL_DEPARTMENT_IDS.has(department.id))
+      .filter((department) => activeDepartmentIds.has(department.id))
       .sort((a, b) => (departmentOrder.get(a.id) ?? 999) - (departmentOrder.get(b.id) ?? 999) || a.name.localeCompare(b.name));
 
     const staff = staffRows.map((row) => ({
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     const resolvedRole = getTenantRoleDefinitionById(roleId, school.type);
     const allowedRoles = getStaffCreationRoleDefinitions(school.type);
     const selectedRoleAllowed = allowedRoles.some((role) => role.id === resolvedRole?.id || role.canonicalRole === resolvedRole?.canonicalRole);
-    if (!resolvedRole || !selectedRoleAllowed || ["student", "parent", "owner"].includes(resolvedRole.canonicalRole) || assignmentOnlyRoles.has(resolvedRole.canonicalRole)) {
+    if (!resolvedRole || !selectedRoleAllowed || ["student", "parent", "owner"].includes(resolvedRole.canonicalRole)) {
       return NextResponse.json({ error: "Select a valid staff or school admin role" }, { status: 400 });
     }
 
@@ -265,7 +265,6 @@ export async function POST(request: NextRequest) {
         .values({ id: departmentId, name: "Administration" })
         .onConflictDoNothing();
     } else {
-      if (REDUNDANT_SCHOOL_DEPARTMENT_IDS.has(departmentId)) return NextResponse.json({ error: "Selected department has been consolidated. Choose one of the active departments." }, { status: 400 });
       const [department] = await tenantDb
         .select({ id: departmentsTable.id })
         .from(departmentsTable)

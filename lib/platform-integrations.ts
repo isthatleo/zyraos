@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { asBoolean, asNumber, asString, getPlatformSettings } from "@/lib/platform-settings-server";
 
@@ -9,6 +11,15 @@ type IntegrationResult<T = unknown> = {
   message: string;
   data?: T;
   checkedAt: string;
+};
+
+type AuditArchivePayload = {
+  tenant: string;
+  filename: string;
+  contentType: string;
+  body: string;
+  retentionDays: number;
+  metadata?: Record<string, string | number | boolean | null>;
 };
 
 type EmailPayload = {
@@ -61,6 +72,102 @@ function redact(value?: string | null) {
   if (!value) return null;
   if (value.length <= 8) return "********";
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function hmac(key: Buffer | string, value: string) {
+  return crypto.createHmac("sha256", key).update(value).digest();
+}
+
+function hashHex(value: string) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function awsDate(date = new Date()) {
+  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  return { amzDate: iso, dateStamp: iso.slice(0, 8) };
+}
+
+function s3Credentials(settings: Record<string, unknown>) {
+  return {
+    bucket: asString(settings.auditArchiveS3Bucket) || process.env.AUDIT_ARCHIVE_S3_BUCKET || "",
+    region: asString(settings.auditArchiveS3Region, "us-east-1") || process.env.AUDIT_ARCHIVE_S3_REGION || "us-east-1",
+    endpoint: asString(settings.auditArchiveS3Endpoint) || process.env.AUDIT_ARCHIVE_S3_ENDPOINT || "",
+    accessKeyId: secretSetting(settings, "auditArchiveS3AccessKeyId", "AUDIT_ARCHIVE_S3_ACCESS_KEY_ID"),
+    secretAccessKey: secretSetting(settings, "auditArchiveS3SecretAccessKey", "AUDIT_ARCHIVE_S3_SECRET_ACCESS_KEY"),
+  };
+}
+
+function s3ObjectUrl(bucket: string, region: string, key: string, endpoint?: string) {
+  if (endpoint) return `${endpoint.replace(/\/$/, "")}/${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+async function putS3Object(input: AuditArchivePayload, settings: Record<string, unknown>) {
+  const { bucket, region, endpoint, accessKeyId, secretAccessKey } = s3Credentials(settings);
+  if (!bucket || !region || !accessKeyId || !secretAccessKey) {
+    return result({
+      ok: false,
+      provider: "s3",
+      status: "missing_credentials",
+      message: "AUDIT_ARCHIVE_S3_BUCKET, AUDIT_ARCHIVE_S3_REGION, AUDIT_ARCHIVE_S3_ACCESS_KEY_ID, and AUDIT_ARCHIVE_S3_SECRET_ACCESS_KEY are required.",
+    });
+  }
+  const key = `tenants/${input.tenant}/audit/${input.filename}`;
+  const url = s3ObjectUrl(bucket, region, key, endpoint);
+  const host = new URL(url).host;
+  const { amzDate, dateStamp } = awsDate();
+  const payloadHash = hashHex(input.body);
+  const canonicalHeaders = `content-type:${input.contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
+  const canonicalRequest = ["PUT", new URL(url).pathname, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, hashHex(canonicalRequest)].join("\n");
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secretAccessKey}`, dateStamp), region), "s3"), "aws4_request");
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  const response = await fetchWithTimeout(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+      "Content-Type": input.contentType,
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+    },
+    body: input.body,
+  }, 30000);
+  const text = await response.text().catch(() => "");
+  return result({
+    ok: response.ok,
+    provider: "s3",
+    status: response.ok ? "healthy" : "failed",
+    message: response.ok ? "Audit archive uploaded to S3-compatible storage." : text || `S3 upload failed with HTTP ${response.status}.`,
+    data: { bucket, key, url, bytes: Buffer.byteLength(input.body), sha256: payloadHash },
+  });
+}
+
+export async function archiveAuditLogs(input: AuditArchivePayload): Promise<IntegrationResult> {
+  const settings = await getPlatformSettings();
+  const provider = asString(settings.auditArchiveProvider, "local");
+  if (provider === "disabled") {
+    return result({ ok: false, provider: "audit_archive", status: "disabled", message: "Audit cold archival is disabled." });
+  }
+  if (provider === "s3") return putS3Object(input, settings);
+  if (provider === "gcs") {
+    return result({ ok: false, provider: "gcs", status: "missing_credentials", message: "GCS archive executor is not installed. Configure S3-compatible storage or add a GCS executor." });
+  }
+  if (provider === "azure") {
+    return result({ ok: false, provider: "azure", status: "missing_credentials", message: "Azure Blob archive executor is not installed. Configure S3-compatible storage or add an Azure executor." });
+  }
+  const directory = path.join(process.cwd(), ".archives", "audit", input.tenant);
+  const filePath = path.join(directory, input.filename);
+  await mkdir(directory, { recursive: true });
+  await writeFile(filePath, input.body, "utf8");
+  return result({
+    ok: true,
+    provider: "local",
+    status: "healthy",
+    message: "Audit archive written to local archive storage.",
+    data: { path: filePath, bytes: Buffer.byteLength(input.body), sha256: hashHex(input.body) },
+  });
 }
 
 export async function getEmailProviderStatus(): Promise<IntegrationResult> {
