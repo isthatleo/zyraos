@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -38,7 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type HrPayload = {
@@ -132,7 +132,14 @@ function statusClass(status: string) {
 function LoadingState() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-56 rounded-3xl" />
+      <section className="rounded-3xl border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Briefcase className="size-6" />
+        </div>
+        <Badge variant="outline" className="rounded-full">Owner HR</Badge>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Owner HR Dashboard</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Loading workforce capacity, leave decisions, payroll exposure, and department analytics.</p>
+      </section>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}
       </div>
@@ -143,8 +150,10 @@ function LoadingState() {
 
 export default function OwnerHrPage() {
   const params = useParams<{ tenant?: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [isTenantSubdomain, setIsTenantSubdomain] = React.useState(false);
   const [data, setData] = React.useState<HrPayload | null>(null);
   const [loading, setLoading] = React.useState(true);

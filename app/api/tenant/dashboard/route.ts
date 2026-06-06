@@ -5,6 +5,7 @@ import { getTenantDb, masterDb } from "@/lib/db";
 import { getTenantSubdomain } from "@/lib/tenant-routing";
 import { convertMoney } from "@/lib/currency-conversion";
 import { getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,17 +77,7 @@ export async function GET(request: NextRequest) {
   if (!slug) {
     return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
   }
-
-  const cacheKey = `tenant-dashboard:${slug}`;
-  const cached = getCachedValue<Record<string, unknown>>(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached, {
-      headers: {
-        "Cache-Control": "private, max-age=30",
-        "X-Roxan-Cache": "HIT",
-      },
-    });
-  }
+  const portal = request.nextUrl.searchParams.get("portal")?.trim().toLowerCase() || "tenant";
 
   const schoolResult = await masterDb.execute(sql`
     select id, name, slug, type, status, country, currency_code, currency_name, subscription_id, created_at, updated_at, database_url
@@ -97,6 +88,22 @@ export async function GET(request: NextRequest) {
   const school = schoolResult.rows[0] as Row | undefined;
   if (!school) {
     return NextResponse.json({ error: "School not found" }, { status: 404 });
+  }
+
+  if (portal === "owner") {
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
+  }
+
+  const cacheKey = `tenant-dashboard:${slug}:${portal}`;
+  const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+        "X-Roxan-Cache": "HIT",
+      },
+    });
   }
 
   const tenantDb = getTenantDb(String(school.database_url || ""));
@@ -134,6 +141,7 @@ export async function GET(request: NextRequest) {
     rows(tenantDb, sql`
       select id, name, email, role_id, is_active, created_at
       from users
+      where lower(coalesce(role_id, '')) not in ('super_admin', 'master', 'platform_admin')
     `),
     rows(tenantDb, sql`
       select id, name, grade, section, capacity, teacher_id, created_at

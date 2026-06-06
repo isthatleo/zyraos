@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { masterDb } from "@/lib/db";
 import { passwordSecurityTable } from "@/lib/db-schema";
+import { getCurrentMasterAdmin } from "@/lib/master-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,17 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user?.id) {
+    const masterAdmin = await getCurrentMasterAdmin(request);
+    if (masterAdmin) {
+      return NextResponse.json({
+        authenticated: true,
+        mustChangePassword: false,
+        tenantSlug: null,
+        temporaryPasswordIssuedAt: null,
+        passwordLastChangedAt: null,
+        reason: null,
+      });
+    }
     return NextResponse.json({ authenticated: false, mustChangePassword: false }, { status: 401 });
   }
 

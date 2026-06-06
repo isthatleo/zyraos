@@ -16,7 +16,26 @@ export function resolveTenantSlug(pathname?: string | null, hostname?: string | 
 
   const firstSegment = (pathname || "").split("/").filter(Boolean)[0];
   if (!firstSegment) return null;
-  if (["api", "messages", "profile", "settings", "notifications", "super-admin"].includes(firstSegment)) return null;
+  if (
+    [
+      "api",
+      "messages",
+      "profile",
+      "settings",
+      "notifications",
+      "super-admin",
+      "master",
+      "admin",
+      "admins",
+      "staff",
+      "student",
+      "parent",
+      "finance",
+      "librarian",
+      "hr",
+      "canteen",
+    ].includes(firstSegment)
+  ) return null;
   return firstSegment;
 }
 

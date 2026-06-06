@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getRequiredDashboardUser, isNextResponse } from "@/lib/dashboard-db";
 import { getDashboardStore } from "@/lib/dashboard-comm-store";
+import { canDashboardUserMessage } from "@/lib/message-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,11 @@ export async function GET(request: NextRequest) {
     .map((id) => id.trim())
     .filter(Boolean);
   const presence = getDashboardStore().presence;
-  const onlineUserIds = userIds.filter((id) => presence[id]?.status === "online");
+  const allowedUserIds = [];
+  for (const id of userIds) {
+    if (await canDashboardUserMessage(currentUser, id)) allowedUserIds.push(id);
+  }
+  const onlineUserIds = allowedUserIds.filter((id) => presence[id]?.status === "online");
 
   return NextResponse.json({ onlineUserIds, currentUserId: currentUser.id }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }

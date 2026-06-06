@@ -88,7 +88,10 @@ function money(amount: number, currency = "ZAR") {
 }
 
 function dateLabel(date?: string | null) {
-  return date ? new Date(date).toLocaleDateString() : "Not set";
+  if (!date) return "Not set";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "Not set";
+  return new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(parsed);
 }
 
 function MetricCard({
@@ -280,14 +283,6 @@ export default function BillingPage() {
     void load();
   }, [load]);
 
-  if (loading && !data) {
-    return (
-      <div className="flex min-h-[55vh] items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   const metrics = data?.metrics;
 
   return (
@@ -322,7 +317,21 @@ export default function BillingPage() {
           <MetricCard title="Overdue Risk" value={money(metrics.overdue)} subtitle={`${metrics.statusCounts.overdue || 0} overdue invoices`} icon={AlertTriangle} tone="danger" />
           <MetricCard title="MRR" value={money(metrics.mrr)} subtitle={`${metrics.activeSubscriptions} active subscriptions`} icon={TrendingUp} />
         </div>
-      ) : null}
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {["Total Collected", "Outstanding", "Overdue Risk", "MRR"].map((title) => (
+            <Card key={title} className="border-border/70 bg-card/95 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardDescription>{title}</CardDescription>
+                <CardTitle className="mt-2 text-2xl">Loading...</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Loading platform billing data</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
         <Card className="border-border/70 bg-card/95 shadow-sm">
@@ -412,7 +421,7 @@ export default function BillingPage() {
                 <Link key={invoice.id} href={`/master/billing/invoices/${invoice.id}`} className="flex items-center justify-between rounded-2xl border bg-background/60 p-4 transition-colors hover:bg-muted/60">
                   <div className="min-w-0">
                     <p className="truncate font-medium">{invoice.school}</p>
-                    <p className="text-sm text-muted-foreground">{invoice.invoiceNumber} · Due {dateLabel(invoice.dueDate)}</p>
+                    <p className="text-sm text-muted-foreground">{invoice.invoiceNumber} - Due {dateLabel(invoice.dueDate)}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-destructive">{money(invoice.amount, invoice.currency)}</p>
@@ -450,7 +459,7 @@ export default function BillingPage() {
               <Link key={invoice.id} href={`/master/billing/invoices/${invoice.id}`} className="grid gap-3 rounded-2xl border bg-background/60 p-4 transition-colors hover:bg-muted/60 md:grid-cols-[1fr_auto_auto] md:items-center">
                 <div>
                   <p className="font-semibold">{invoice.school}</p>
-                  <p className="text-sm text-muted-foreground">{invoice.invoiceNumber} · {invoice.plan}</p>
+                  <p className="text-sm text-muted-foreground">{invoice.invoiceNumber} - {invoice.plan}</p>
                 </div>
                 <StatusPill status={invoice.status} text={invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)} />
                 <div className="font-semibold">{money(invoice.amount, invoice.currency)}</div>

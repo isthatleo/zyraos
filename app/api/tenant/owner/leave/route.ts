@@ -3,6 +3,9 @@ import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { leaveTable, schoolsTable } from "@/lib/db-schema";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +40,43 @@ function monthKey(value: unknown) {
   const date = value ? new Date(String(value)) : null;
   if (!date || Number.isNaN(date.getTime())) return "Unscheduled";
   return new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(date);
+}
+
+async function findTenantStaff(tenantDb: Awaited<ReturnType<typeof getTenantDbBySlug>>, staffId: string) {
+  const [staff] = await safeRows<Row>(
+    () =>
+      tenantDb.execute(sql`
+        select s.id, u.name, u.email, u.role_id
+        from staff s
+        join users u on u.id = s.user_id
+        where s.id = ${staffId}
+          and lower(u.role_id) not like '%student%'
+          and lower(u.role_id) not like '%parent%'
+          and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
+        limit 1
+      `),
+    "staff ownership"
+  );
+  return staff || null;
+}
+
+async function findTenantLeave(tenantDb: Awaited<ReturnType<typeof getTenantDbBySlug>>, id: string) {
+  const [leave] = await safeRows<Row>(
+    () =>
+      tenantDb.execute(sql`
+        select l.id, l.status
+        from leave l
+        join staff s on s.id = l.staff_id
+        join users u on u.id = s.user_id
+        where l.id = ${id}
+          and lower(u.role_id) not like '%student%'
+          and lower(u.role_id) not like '%parent%'
+          and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
+        limit 1
+      `),
+    "leave ownership"
+  );
+  return leave || null;
 }
 
 async function safeRows<T = Row>(operation: () => Promise<{ rows?: unknown[] } | T[]>, label: string): Promise<T[]> {
@@ -88,6 +128,7 @@ async function buildPayload(slug: string) {
             and lower(u.role_id) not like '%learner%'
             and lower(u.role_id) not like '%parent%'
             and lower(u.role_id) not like '%guardian%'
+            and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
           order by u.name asc
         `),
       "staff"
@@ -242,9 +283,17 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const school = await getSchool(slug);
+    if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
+    const cacheKey = `owner-leave:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "HIT" } });
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    return NextResponse.json(payload);
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "MISS" } });
   } catch (error) {
     console.error("Owner leave GET failed:", error);
     return NextResponse.json({ error: "Failed to load owner leave data" }, { status: 500 });
@@ -257,6 +306,8 @@ export async function POST(request: NextRequest) {
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
 
     const body = await request.json().catch(() => ({}));
     const staffId = asString(body.staffId);
@@ -284,8 +335,11 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantDb = await getTenantDbBySlug(slug);
+    const staff = await findTenantStaff(tenantDb, staffId);
+    if (!staff) return NextResponse.json({ error: "Selected staff member was not found in this tenant" }, { status: 404 });
+    const id = crypto.randomUUID();
     await tenantDb.insert(leaveTable).values({
-      id: crypto.randomUUID(),
+      id,
       staffId,
       leaveType,
       startDate: start,
@@ -297,6 +351,18 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     });
 
+    deleteCachedValue(`owner-leave:${slug}`);
+    deleteCachedValue(`owner-hr:${slug}`);
+    deleteCachedValue(`owner-staff-attendance:${slug}`);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: owner.userId,
+      action: "leave.created",
+      resource: "leave",
+      resourceId: id,
+      changes: { staffId, staffName: staff.name, leaveType, startDate, endDate, days: daysBetween(startDate, endDate), status },
+    }).catch((error) => console.warn("Owner leave create audit log skipped:", error instanceof Error ? error.message : error));
     return NextResponse.json({ success: true, message: "Leave record created" }, { status: 201 });
   } catch (error) {
     console.error("Owner leave POST failed:", error);
@@ -310,6 +376,8 @@ export async function PATCH(request: NextRequest) {
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
 
     const body = await request.json().catch(() => ({}));
     const id = asString(body.id);
@@ -320,11 +388,25 @@ export async function PATCH(request: NextRequest) {
     }
 
     const tenantDb = await getTenantDbBySlug(slug);
+    const record = await findTenantLeave(tenantDb, id);
+    if (!record) return NextResponse.json({ error: "Leave record not found in this tenant" }, { status: 404 });
     await tenantDb
       .update(leaveTable)
       .set({ status, remarks, updatedAt: new Date() })
       .where(eq(leaveTable.id, id));
 
+    deleteCachedValue(`owner-leave:${slug}`);
+    deleteCachedValue(`owner-hr:${slug}`);
+    deleteCachedValue(`owner-staff-attendance:${slug}`);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: owner.userId,
+      action: "leave.status_updated",
+      resource: "leave",
+      resourceId: id,
+      changes: { from: record.status, to: status, remarks: remarks || null, source: "owner_leave" },
+    }).catch((error) => console.warn("Owner leave update audit log skipped:", error instanceof Error ? error.message : error));
     return NextResponse.json({ success: true, message: "Leave status updated" });
   } catch (error) {
     console.error("Owner leave PATCH failed:", error);

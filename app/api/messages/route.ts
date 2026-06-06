@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm";
 
 import { getRequiredDashboardUser, isNextResponse, newId, type DashboardDbUser } from "@/lib/dashboard-db";
 import { db } from "@/lib/db";
+import { getCurrentMasterAdmin } from "@/lib/master-audit";
+import { allowedMessagingRolesFor, canDashboardUserMessage, isPlatformMessagingAdmin } from "@/lib/message-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,16 +17,42 @@ type JoanMessage = {
   read: boolean;
   senderId: string;
   type?: string;
+  callType?: "audio" | "video";
+  callStatus?: string;
+  durationSeconds?: number;
+  missed?: boolean;
   sender: DbUser;
   receiver: DbUser;
 };
 
-const platformAdminRoles = ["master", "super_admin"];
-const platformAllowedMessageRoles = ["owner", "school_admin", "admin"];
-const ownerAllowedMessageRoles = ["master", "super_admin", "school_admin", "admin"];
+const CALL_EVENT_PREFIX = "__call_event__:";
+type ParsedMessageContent = Pick<JoanMessage, "message" | "type" | "callType" | "callStatus" | "durationSeconds" | "missed">;
 
-function isPlatformAdmin(role: string) {
-  return platformAdminRoles.includes(role);
+function parseMessageContent(content: unknown): ParsedMessageContent {
+  const raw = String(content || "");
+  if (!raw.startsWith(CALL_EVENT_PREFIX)) {
+    return { message: raw, type: "direct" };
+  }
+
+  try {
+    const payload = JSON.parse(raw.slice(CALL_EVENT_PREFIX.length)) as {
+      message?: string;
+      callType?: "audio" | "video";
+      callStatus?: string;
+      durationSeconds?: number;
+      missed?: boolean;
+    };
+    return {
+      message: payload.message || "Call",
+      type: "call_event",
+      callType: payload.callType === "video" ? "video" : "audio" as "audio",
+      callStatus: payload.callStatus || "answered",
+      durationSeconds: Number.isFinite(Number(payload.durationSeconds)) ? Number(payload.durationSeconds) : 0,
+      missed: Boolean(payload.missed),
+    };
+  } catch {
+    return { message: "Call", type: "call_event", callType: "audio", callStatus: "unknown" };
+  }
 }
 
 function toJoanUser(row: { id: string; name: string; email: string; role: string; image?: string | null }): DbUser {
@@ -37,19 +65,23 @@ function toJoanUser(row: { id: string; name: string; email: string; role: string
   };
 }
 
+function roleInSql(column: ReturnType<typeof sql>, roles: string[]) {
+  if (!roles.length) return sql`true`;
+  return sql`${column} in (${sql.join(roles.map((role) => sql`${role}`), sql`, `)})`;
+}
+
 async function canMessageUser(currentUser: DashboardDbUser, otherUserId: string) {
-  if (!isPlatformAdmin(currentUser.role) && currentUser.role !== "owner") return true;
-  const result = await db.execute(sql`
-    select role_id as role
-    from users
-    where id = ${otherUserId}
-      and is_active = true
-    limit 1
-  `);
-  const role = (result.rows[0] as { role?: string } | undefined)?.role;
-  if (!role) return false;
-  if (isPlatformAdmin(currentUser.role)) return platformAllowedMessageRoles.includes(role);
-  return ownerAllowedMessageRoles.includes(role);
+  return canDashboardUserMessage(currentUser, otherUserId);
+}
+
+async function safeExecute<T = Record<string, unknown>>(query: ReturnType<typeof sql>, label: string): Promise<T[]> {
+  try {
+    const result = await db.execute(query);
+    return (result.rows || []) as T[];
+  } catch (error) {
+    console.warn(`Messages ${label} query skipped:`, error instanceof Error ? error.message : error);
+    return [];
+  }
 }
 
 async function getUser(userId: string) {
@@ -129,13 +161,13 @@ async function getPairMessages(currentUserId: string, otherUserId: string) {
 
   const messages = result.rows.map((row) => {
     const item = row as Record<string, unknown>;
+    const parsedContent = parseMessageContent(item.message);
     return {
       id: String(item.id),
-      message: String(item.message || ""),
+      ...parsedContent,
       createdAt: new Date(String(item.createdAt)).toISOString(),
       read: Boolean(item.read),
       senderId: String(item.senderId),
-      type: "direct",
       sender: {
         id: String(item.senderUserId),
         fullName: String(item.senderName || item.senderEmail || "User"),
@@ -157,6 +189,7 @@ async function getPairMessages(currentUserId: string, otherUserId: string) {
 }
 
 async function getConversations(currentUser: DashboardDbUser) {
+  const allowedRoles = allowedMessagingRolesFor(currentUser.role);
   const result = await db.execute(sql`
     select distinct on (other_user.id)
       c.id as "conversationId",
@@ -198,12 +231,12 @@ async function getConversations(currentUser: DashboardDbUser) {
     where c.type = 'direct'
       and c.is_archived = false
       and (
-        ${!isPlatformAdmin(currentUser.role)}
-        or other_user.role_id = any(${platformAllowedMessageRoles}::text[])
+        ${!isPlatformMessagingAdmin(currentUser.role)}
+        or ${roleInSql(sql`other_user.role_id`, allowedRoles)}
       )
       and (
         ${currentUser.role !== "owner"}
-        or other_user.role_id = any(${ownerAllowedMessageRoles}::text[])
+        or ${roleInSql(sql`other_user.role_id`, allowedRoles)}
       )
     order by other_user.id, c.updated_at desc
   `);
@@ -219,15 +252,17 @@ async function getConversations(currentUser: DashboardDbUser) {
         avatar: (item.otherImage as string | null) || null,
       };
       const lastMessage = item.lastMessageId
-        ? {
+        ? (() => {
+            const parsedContent = parseMessageContent(item.lastMessageContent);
+            return {
             id: String(item.lastMessageId),
-            message: String(item.lastMessageContent || ""),
-            content: String(item.lastMessageContent || ""),
+            ...parsedContent,
+            content: parsedContent.message,
             createdAt: new Date(String(item.lastMessageCreatedAt)).toISOString(),
             read: Boolean(item.lastMessageRead),
             senderId: String(item.lastMessageSenderId),
-            type: "direct",
-          }
+            };
+          })()
         : {
             id: String(item.conversationId),
             message: "No messages yet",
@@ -251,66 +286,98 @@ async function getConversations(currentUser: DashboardDbUser) {
 }
 
 export async function GET(request: NextRequest) {
-  const currentUser = await getRequiredDashboardUser(request.headers);
-  if (isNextResponse(currentUser)) return currentUser;
-
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type") || "conversations";
-
-  if (type === "self") {
-    return NextResponse.json(
-      { currentUser: { id: currentUser.id, tenantId: null, fullName: currentUser.name, email: currentUser.email, role: currentUser.role, avatar: currentUser.image } },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
-    );
-  }
-
-  if (type === "available-users") {
-    const search = `%${(searchParams.get("search") || "").toLowerCase()}%`;
-    const allowedRoles = isPlatformAdmin(currentUser.role)
-      ? platformAllowedMessageRoles
-      : currentUser.role === "owner"
-        ? ownerAllowedMessageRoles
-        : [];
-    const result = await db.execute(sql`
-      select id, name, email, role_id as role, image
-      from users
-      where id <> ${currentUser.id}
-        and is_active = true
-        and (${allowedRoles.length === 0} or role_id = any(${allowedRoles}::text[]))
-        and (lower(name) like ${search} or lower(email) like ${search})
-      order by name asc
-      limit 50
-    `);
-    return NextResponse.json({ users: result.rows.map((row) => toJoanUser(row as Parameters<typeof toJoanUser>[0])), currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-  }
-
-  if (type === "unread") {
-    const conversations = (await getConversations(currentUser)).filter((conversation) => conversation.unreadCount > 0).slice(0, 8);
-    return NextResponse.json(
-      {
-        unreadCount: conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
-        latestConversationId: conversations[0]?.id,
-        conversations,
-        currentUser,
-      },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
-    );
-  }
-
-  if (type === "chat") {
-    const otherUserId = searchParams.get("otherUserId") || searchParams.get("userId");
-    if (!otherUserId) return NextResponse.json({ error: "otherUserId is required" }, { status: 400 });
-    if (!(await canMessageUser(currentUser, otherUserId))) {
-      return NextResponse.json({ error: "Your role cannot message this user." }, { status: 403 });
+  try {
+    const currentUser = await getRequiredDashboardUser(request.headers);
+    if (isNextResponse(currentUser)) {
+      const masterAdmin = await getCurrentMasterAdmin(request);
+      if (!masterAdmin) return currentUser;
+      const { searchParams } = new URL(request.url);
+      const type = searchParams.get("type") || "conversations";
+      const masterUser = {
+        id: masterAdmin.adminId,
+        tenantId: null,
+        fullName: masterAdmin.name,
+        email: masterAdmin.email,
+        role: "super_admin",
+        avatar: null,
+      };
+      if (type === "unread") return NextResponse.json({ unreadCount: 0, latestConversationId: null, conversations: [], currentUser: masterUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+      if (type === "self") return NextResponse.json({ currentUser: masterUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+      if (type === "available-users") return NextResponse.json({ users: [], currentUser: masterUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+      return NextResponse.json({ conversations: [], currentUser: masterUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
-    const otherUser = await getUser(otherUserId);
-    if (!otherUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
-    const { messages } = await getPairMessages(currentUser.id, otherUserId);
-    return NextResponse.json({ messages, otherUser, currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-  }
 
-  const conversations = await getConversations(currentUser);
-  return NextResponse.json({ conversations, currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get("type") || "conversations";
+
+    if (type === "self") {
+      return NextResponse.json(
+        { currentUser: { id: currentUser.id, tenantId: null, fullName: currentUser.name, email: currentUser.email, role: currentUser.role, avatar: currentUser.image } },
+        { headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
+    if (type === "available-users") {
+      const search = `%${(searchParams.get("search") || "").toLowerCase()}%`;
+      const allowedRoles = allowedMessagingRolesFor(currentUser.role);
+      const tenantUsers = await safeExecute<{ id: string; name: string; email: string; role: string; image?: string | null }>(sql`
+        select id, name, email, role_id as role, image
+        from users
+        where id <> ${currentUser.id}
+          and is_active = true
+          and ${roleInSql(sql`role_id`, allowedRoles)}
+          and (lower(coalesce(name, '')) like ${search} or lower(coalesce(email, '')) like ${search})
+        order by name asc
+        limit 50
+      `, "tenant available users");
+      const authUsers = await safeExecute<{ id: string; name: string | null; email: string; role: string | null; image?: string | null }>(sql`
+        select id, coalesce(name, email) as name, email, role, image
+        from "user"
+        where id <> ${currentUser.id}
+          and coalesce(role, 'user') <> 'user'
+          and ${roleInSql(sql`coalesce(role, 'user')`, allowedRoles)}
+          and (lower(coalesce(name, '')) like ${search} or lower(coalesce(email, '')) like ${search})
+        order by name asc
+        limit 50
+      `, "auth available users");
+      const byId = new Map<string, DbUser>();
+      for (const row of [...tenantUsers, ...authUsers]) {
+        byId.set(row.id, toJoanUser({ id: row.id, name: row.name || row.email, email: row.email, role: row.role || "user", image: row.image }));
+      }
+      return NextResponse.json({ users: Array.from(byId.values()), currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
+
+    if (type === "unread") {
+      const conversations = (await getConversations(currentUser)).filter((conversation) => conversation.unreadCount > 0).slice(0, 8);
+      return NextResponse.json(
+        {
+          unreadCount: conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
+          latestConversationId: conversations[0]?.id,
+          conversations,
+          currentUser,
+        },
+        { headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
+    if (type === "chat") {
+      const otherUserId = searchParams.get("otherUserId") || searchParams.get("userId");
+      if (!otherUserId) return NextResponse.json({ error: "otherUserId is required" }, { status: 400 });
+      if (!(await canMessageUser(currentUser, otherUserId))) {
+        return NextResponse.json({ error: "Your role cannot message this user." }, { status: 403 });
+      }
+      const otherUser = await getUser(otherUserId);
+      if (!otherUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      const { messages } = await getPairMessages(currentUser.id, otherUserId);
+      return NextResponse.json({ messages, otherUser, currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
+
+    const conversations = await getConversations(currentUser);
+    return NextResponse.json({ conversations, currentUser }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  } catch (error) {
+    console.error("Messages GET failed:", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load messages" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

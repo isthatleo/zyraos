@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
-import { paymentsTable, schoolsTable } from "@/lib/db-schema";
+import { paymentsTable, schoolsTable, studentFeesTable } from "@/lib/db-schema";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,10 @@ function asDate(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function hasValidMoneyPrecision(value: number) {
+  return Number.isFinite(value) && value > 0 && Math.round(value * 100) === value * 100;
 }
 
 async function safeRows<T = Row>(operation: () => Promise<{ rows?: unknown[] } | T[]>, label: string): Promise<T[]> {
@@ -265,9 +270,25 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const cacheKey = `owner-payments:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          "Cache-Control": "private, max-age=30",
+          "X-Roxan-Cache": "HIT",
+        },
+      });
+    }
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    return NextResponse.json(payload);
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+        "X-Roxan-Cache": "MISS",
+      },
+    });
   } catch (error) {
     console.error("Owner payments GET failed:", error);
     return NextResponse.json({ error: "Failed to load owner payments data" }, { status: 500 });
@@ -300,8 +321,28 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantDb = await getTenantDbBySlug(slug);
+    if (!hasValidMoneyPrecision(amount)) {
+      return NextResponse.json({ error: "Payment amount must be a positive amount with at most 2 decimal places" }, { status: 400 });
+    }
+
+    const [studentFee] = await tenantDb.select().from(studentFeesTable).where(eq(studentFeesTable.id, studentFeeId)).limit(1);
+    if (!studentFee || studentFee.studentId !== studentId) {
+      return NextResponse.json({ error: "Selected fee does not belong to the selected student" }, { status: 400 });
+    }
+    const outstandingBalance = asNumber(studentFee.outstandingBalance);
+    if (outstandingBalance <= 0) {
+      return NextResponse.json({ error: "Selected student fee is already fully paid" }, { status: 409 });
+    }
+    if (amount > outstandingBalance) {
+      return NextResponse.json({ error: "Payment amount cannot exceed the outstanding balance" }, { status: 400 });
+    }
+
     const id = crypto.randomUUID();
     const reference = asString(body.paymentReference, `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+    const [existingReference] = await tenantDb.select({ id: paymentsTable.id }).from(paymentsTable).where(eq(paymentsTable.paymentReference, reference)).limit(1);
+    if (existingReference) {
+      return NextResponse.json({ error: "Payment reference already exists" }, { status: 409 });
+    }
     await tenantDb.insert(paymentsTable).values({
       id,
       studentId,
@@ -316,6 +357,8 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     });
     await refreshStudentFeeBalance(tenantDb, studentFeeId);
+    deleteCachedValue(`owner-payments:${slug}`);
+    deleteCachedValue(`owner-finance:${slug}`);
     return NextResponse.json({ success: true, id, paymentReference: reference }, { status: 201 });
   } catch (error) {
     console.error("Owner payments POST failed:", error);
@@ -340,6 +383,16 @@ export async function PATCH(request: NextRequest) {
     const tenantDb = await getTenantDbBySlug(slug);
     const [payment] = await tenantDb.select().from(paymentsTable).where(eq(paymentsTable.id, id)).limit(1);
     if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+    const currentStatus = asString(payment.status, "pending").toLowerCase();
+    if (currentStatus === "refunded") {
+      return NextResponse.json({ error: "Refunded payments cannot be changed" }, { status: 409 });
+    }
+    if (status === "refunded" && !["completed", "paid", "success"].includes(currentStatus)) {
+      return NextResponse.json({ error: "Only completed payments can be refunded" }, { status: 409 });
+    }
+    if (status === "completed" && currentStatus === "failed") {
+      return NextResponse.json({ error: "Failed payments cannot be completed; record a new payment instead" }, { status: 409 });
+    }
 
     await tenantDb
       .update(paymentsTable)
@@ -352,6 +405,8 @@ export async function PATCH(request: NextRequest) {
       })
       .where(eq(paymentsTable.id, id));
     await refreshStudentFeeBalance(tenantDb, payment.studentFeeId);
+    deleteCachedValue(`owner-payments:${slug}`);
+    deleteCachedValue(`owner-finance:${slug}`);
     return NextResponse.json({ success: true, message: "Payment status updated" });
   } catch (error) {
     console.error("Owner payments PATCH failed:", error);

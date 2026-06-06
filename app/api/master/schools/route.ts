@@ -7,6 +7,7 @@ import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
 import { convertMoney } from '@/lib/currency-conversion';
 import { getPlatformSetting } from '@/lib/platform-settings-server';
 import { getTenantPortalUrl, resolveTenantDatabaseUrl } from '@/lib/tenant-url';
+import { deleteCachedValue, getCachedValue, setCachedValue } from '@/lib/server-response-cache';
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,19 @@ function getPlanCurrency(features: unknown, fallback: string) {
     if (/^[A-Z]{3}$/.test(currency)) return currency;
   }
   return fallback;
+}
+
+function schoolsCacheKey(input: { status: string | null; limit: number; offset: number }) {
+  return `master-schools:${input.status || "all"}:${input.limit}:${input.offset}`;
+}
+
+function invalidateSchoolsCaches() {
+  deleteCachedValue("master-dashboard");
+  for (const status of ["all", "active", "inactive", "trial", "deactivated"]) {
+    for (const limit of [25, 50, 100]) {
+      deleteCachedValue(schoolsCacheKey({ status: status === "all" ? null : status, limit, offset: 0 }));
+    }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -123,6 +137,7 @@ export async function POST(request: NextRequest) {
         subscriptionId,
       },
     });
+    invalidateSchoolsCaches();
 
     return NextResponse.json({
       success: true,
@@ -146,8 +161,18 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50));
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0);
+    const cacheKey = schoolsCacheKey({ status, limit, offset });
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          "Cache-Control": "private, max-age=30",
+          "X-Roxan-Cache": "HIT",
+        },
+      });
+    }
 
     const platformCurrency = String(await getPlatformSetting("currency") || "ZAR").toUpperCase();
 
@@ -196,7 +221,7 @@ export async function GET(request: NextRequest) {
       .from(schoolsTable)
       .where(status ? eq(schoolsTable.status, status) : undefined);
 
-    const total = totalResult[0].count;
+    const total = Number(totalResult[0].count || 0);
     const statsRows = await masterDb
       .select({
         status: schoolsTable.status,
@@ -233,7 +258,7 @@ export async function GET(request: NextRequest) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const newThisMonth = schools.filter((school) => new Date(school.createdAt) >= monthStart).length;
 
-    return NextResponse.json({
+    const payload = {
       schools: convertedSchools,
       stats: {
         total,
@@ -250,6 +275,13 @@ export async function GET(request: NextRequest) {
         offset,
         hasMore: offset + limit < total,
       }
+    };
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+        "X-Roxan-Cache": "MISS",
+      },
     });
   } catch (error) {
     console.error('Error fetching schools:', error);

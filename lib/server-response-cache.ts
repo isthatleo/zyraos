@@ -26,6 +26,12 @@ export function deleteCachedValue(key: string) {
   CACHE.delete(key);
 }
 
+export function deleteCachedValuesByPrefix(prefix: string) {
+  for (const key of CACHE.keys()) {
+    if (key.startsWith(prefix)) CACHE.delete(key);
+  }
+}
+
 export async function withTimeBudget<T>(task: Promise<T>, timeoutMs: number, fallback: () => T | Promise<T>): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   try {

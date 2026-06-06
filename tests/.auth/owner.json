@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "x-tenant-slug",
+      "value": "asake",
+      "domain": "asake.localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "better-auth.session_token",
+      "value": "QfQa8f2XGx2ZqZstMpqiuU3krd4wAHbv.PsCA93pIl15nd%2B3QD67qElKlu2NNnP8nAky8TsYZYak%3D",
+      "domain": "asake.localhost",
+      "path": "/",
+      "expires": 1781298956.157419,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

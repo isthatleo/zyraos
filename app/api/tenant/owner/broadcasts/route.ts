@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
-import { getRequiredDashboardUser, isNextResponse } from "@/lib/dashboard-db";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable } from "@/lib/db-schema";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -180,6 +181,8 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store, max-age=0" } });
@@ -191,12 +194,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getRequiredDashboardUser(request.headers);
-    if (isNextResponse(currentUser)) return currentUser;
-    if (currentUser.role !== "owner") return NextResponse.json({ error: "Only owners can create owner broadcasts" }, { status: 403 });
-
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     if (!title || !content) return NextResponse.json({ error: "Title and message are required" }, { status: 400 });
 
     const tenantDb = await getTenantDbBySlug(slug);
-    await ensureTenantUser(tenantDb, currentUser);
+    await ensureTenantUser(tenantDb, { id: currentUser.userId, email: currentUser.email, name: currentUser.name, role: "owner" });
     const recipients = await getRecipients(tenantDb, targetAudience);
     if (!recipients.length) return NextResponse.json({ error: "No staff recipients matched this audience" }, { status: 400 });
 
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
       insert into broadcasts (id, created_by, title, content, channel, target_audience, target_audience_ids, status, scheduled_at, sent_at, metadata, created_at, updated_at)
       values (
         ${broadcastId},
-        ${currentUser.id},
+        ${currentUser.userId},
         ${title},
         ${content},
         ${channel},
@@ -254,6 +255,16 @@ export async function POST(request: NextRequest) {
         )
       `);
     }
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: scheduledAt ? "Owner Broadcast Scheduled" : "Owner Broadcast Sent",
+      resource: "broadcasts",
+      resourceId: broadcastId,
+      changes: { title, channel, targetAudience, category, priority, recipientCount: recipients.length, scheduledAt: scheduledAt || null },
+      status: "success",
+    });
 
     const payload = await buildPayload(slug);
     return NextResponse.json({ broadcastId, recipientCount: recipients.length, payload }, { status: 201 });

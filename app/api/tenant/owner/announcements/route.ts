@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 
-import { getRequiredDashboardUser, isNextResponse } from "@/lib/dashboard-db";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable } from "@/lib/db-schema";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,7 +121,8 @@ async function buildPayload(slug: string) {
             u.role_id as author_role
           from announcements a
           left join users u on u.id = a.author_id
-          where u.role_id = 'owner' or a.target_roles ?| ${AUDIENCE_ROLES.all_staff}
+          where u.role_id = 'owner'
+            and not (a.target_roles ?| ${["student", "pupil", "learner", "parent", "guardian"]}::text[])
           order by a.created_at desc
           limit 200
         `),
@@ -181,6 +183,8 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store, max-age=0" } });
@@ -192,12 +196,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getRequiredDashboardUser(request.headers);
-    if (isNextResponse(currentUser)) return currentUser;
-    if (currentUser.role !== "owner") return NextResponse.json({ error: "Only owners can create announcements" }, { status: 403 });
-
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
@@ -213,14 +215,15 @@ export async function POST(request: NextRequest) {
     if (!title || !content) return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
 
     const tenantDb = await getTenantDbBySlug(slug);
-    await ensureTenantUser(tenantDb, currentUser);
+    await ensureTenantUser(tenantDb, { id: currentUser.userId, email: currentUser.email, name: currentUser.name, role: "owner" });
+    const announcementId = crypto.randomUUID();
     await tenantDb.execute(sql`
       insert into announcements (id, title, content, author_id, target_roles, is_published, publish_date, expiry_date, created_at, updated_at)
       values (
-        ${crypto.randomUUID()},
+        ${announcementId},
         ${title},
         ${content},
-        ${currentUser.id},
+        ${currentUser.userId},
         ${JSON.stringify(targetRoles)}::jsonb,
         ${isPublished},
         ${publishDate ? new Date(publishDate) : isPublished ? new Date() : null},
@@ -229,6 +232,16 @@ export async function POST(request: NextRequest) {
         now()
       )
     `);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: isPublished ? "Owner Announcement Published" : "Owner Announcement Draft Created",
+      resource: "announcements",
+      resourceId: announcementId,
+      changes: { title, audience: normalizeAudience(body.audience), publishMode, publishDate: publishDate || null, expiryDate: expiryDate || null },
+      status: "success",
+    });
 
     return NextResponse.json(await buildPayload(slug), { status: 201 });
   } catch (error) {
@@ -239,19 +252,17 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const currentUser = await getRequiredDashboardUser(request.headers);
-    if (isNextResponse(currentUser)) return currentUser;
-    if (currentUser.role !== "owner") return NextResponse.json({ error: "Only owners can update announcements" }, { status: 403 });
-
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const body = (await request.json().catch(() => ({}))) as Row;
     const announcementId = asString(body.id);
     const action = asString(body.action, "update");
     if (!announcementId) return NextResponse.json({ error: "Announcement id is required" }, { status: 400 });
 
     const tenantDb = await getTenantDbBySlug(slug);
-    await ensureTenantUser(tenantDb, currentUser);
+    await ensureTenantUser(tenantDb, { id: currentUser.userId, email: currentUser.email, name: currentUser.name, role: "owner" });
 
     if (action === "publish") {
       await tenantDb.execute(sql`update announcements set is_published = true, publish_date = coalesce(publish_date, now()), updated_at = now() where id = ${announcementId}`);
@@ -274,6 +285,16 @@ export async function PATCH(request: NextRequest) {
         where id = ${announcementId}
       `);
     }
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: `Owner Announcement ${action === "update" ? "Updated" : action.charAt(0).toUpperCase() + action.slice(1)}`,
+      resource: "announcements",
+      resourceId: announcementId,
+      changes: { action, title: asString(body.title), audience: asString(body.audience), publishDate: asString(body.publishDate), expiryDate: asString(body.expiryDate) },
+      status: "success",
+    });
 
     return NextResponse.json(await buildPayload(slug));
   } catch (error) {
@@ -284,14 +305,24 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const currentUser = await getRequiredDashboardUser(request.headers);
-    if (isNextResponse(currentUser)) return currentUser;
-    if (currentUser.role !== "owner") return NextResponse.json({ error: "Only owners can delete announcements" }, { status: 403 });
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     const id = request.nextUrl.searchParams.get("id")?.trim();
     if (!slug || !id) return NextResponse.json({ error: "Tenant slug and announcement id are required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const tenantDb = await getTenantDbBySlug(slug);
+    const before = await safeRows<Row>(() => tenantDb.execute(sql`select title from announcements where id = ${id} limit 1`), "announcement before delete");
     await tenantDb.execute(sql`delete from announcements where id = ${id}`);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: "Owner Announcement Deleted",
+      resource: "announcements",
+      resourceId: id,
+      changes: { title: asString(before[0]?.title) },
+      status: "success",
+    });
     return NextResponse.json(await buildPayload(slug));
   } catch (error) {
     console.error("Owner announcements DELETE failed:", error);

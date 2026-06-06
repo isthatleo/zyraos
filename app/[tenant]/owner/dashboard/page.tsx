@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -38,7 +38,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type OwnerDashboardData = {
@@ -149,7 +149,16 @@ function EmptyState({ title, description }: { title: string; description: string
 function LoadingState() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-56 rounded-3xl" />
+      <section className="rounded-3xl border bg-card p-6 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="rounded-full">Owner dashboard</Badge>
+          <Badge variant="outline" className="rounded-full">Loading tenant analytics</Badge>
+        </div>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">Owner Command Centre</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          Loading tenant-scoped analytics, staff governance, finance, platform billing, and operational risk.
+        </p>
+      </section>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 rounded-3xl" />)}
       </div>
@@ -161,27 +170,31 @@ function LoadingState() {
 export default function OwnerDashboardPage() {
   const router = useRouter();
   const params = useParams<{ tenant?: string }>();
-  const tenantSlug = String(params?.tenant || "");
+  const pathname = usePathname();
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [isTenantSubdomain, setIsTenantSubdomain] = React.useState(false);
-  const [data, setData] = React.useState<OwnerDashboardData | null>(() => {
-    if (typeof window === "undefined" || !tenantSlug) return null;
-    try {
-      const cached = window.sessionStorage.getItem(ownerDashboardCacheKey(tenantSlug));
-      return cached ? (JSON.parse(cached) as OwnerDashboardData) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [loading, setLoading] = React.useState(() => {
-    if (typeof window === "undefined" || !tenantSlug) return true;
-    return !window.sessionStorage.getItem(ownerDashboardCacheKey(tenantSlug));
-  });
+  const [data, setData] = React.useState<OwnerDashboardData | null>(null);
+  const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setIsTenantSubdomain(Boolean(getTenantSubdomain(window.location.hostname)));
   }, []);
+
+  React.useEffect(() => {
+    if (!tenantSlug) return;
+    try {
+      const cached = window.sessionStorage.getItem(ownerDashboardCacheKey(tenantSlug));
+      if (cached) {
+        setData(JSON.parse(cached) as OwnerDashboardData);
+        setLoading(false);
+      }
+    } catch {
+      window.sessionStorage.removeItem(ownerDashboardCacheKey(tenantSlug));
+    }
+  }, [tenantSlug]);
 
   const tenantHref = React.useCallback(
     (href: string) => (isTenantSubdomain || !tenantSlug ? href : href.startsWith("/") ? `/${tenantSlug}${href}` : `/${tenantSlug}/${href}`),
@@ -216,7 +229,8 @@ export default function OwnerDashboardPage() {
       else setLoading(true);
 
       try {
-        const response = await fetch(`/api/tenant/dashboard?slug=${encodeURIComponent(tenantSlug)}`, {
+        if (!tenantSlug) throw new Error("Tenant slug is required");
+        const response = await fetch(`/api/tenant/dashboard?slug=${encodeURIComponent(tenantSlug)}&portal=owner`, {
           credentials: "include",
           cache: "no-store",
         });
@@ -330,7 +344,7 @@ export default function OwnerDashboardPage() {
                   <p className="text-sm text-muted-foreground">Current plan</p>
                   <p className="mt-1 text-xl font-semibold">{data.subscription.planName}</p>
                   <p className="mt-1 text-xs capitalize text-muted-foreground">
-                    {data.subscription.status} · {data.subscription.autoRenew ? "auto renews" : "manual renewal"} · ends {dateLabel(data.subscription.endDate)}
+                    {data.subscription.status} - {data.subscription.autoRenew ? "auto renews" : "manual renewal"} - ends {dateLabel(data.subscription.endDate)}
                   </p>
                 </div>
               ) : (

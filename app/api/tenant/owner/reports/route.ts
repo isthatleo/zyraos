@@ -166,6 +166,17 @@ function escapeHtml(value: unknown) {
     .replace(/"/g, "&quot;");
 }
 
+function absoluteAssetUrl(value: unknown, origin: string) {
+  const raw = asString(value);
+  if (!raw) return "";
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+  try {
+    return new URL(raw, origin).toString();
+  } catch {
+    return raw;
+  }
+}
+
 function formatDate(value: unknown) {
   if (!value) return "Not set";
   const date = value instanceof Date ? value : new Date(String(value));
@@ -348,14 +359,20 @@ function renderSection(section: ReportSection, data: Awaited<ReturnType<typeof b
   return "";
 }
 
-function renderReport(template: ReportTemplate, data: Awaited<ReturnType<typeof buildReportData>>) {
+function renderReport(template: ReportTemplate, data: Awaited<ReturnType<typeof buildReportData>>, origin: string) {
   if (!data) return "";
   const school = data.school;
   const generated = new Intl.DateTimeFormat("en", { dateStyle: "full", timeStyle: "short" }).format(new Date());
   const primaryColor = String(school.primaryColor || "#f97316");
   const secondaryColor = String(school.secondaryColor || "#111827");
+  const logoUrl = absoluteAssetUrl(school.logoUrl, origin);
+  const sealUrl = absoluteAssetUrl(school.schoolSealUrl, origin);
+  const watermarkUrl = absoluteAssetUrl(school.reportCardWatermarkUrl, origin);
+  school.logoUrl = logoUrl;
+  school.schoolSealUrl = sealUrl;
+  school.reportCardWatermarkUrl = watermarkUrl;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(template.title)}</title><style>
-    @page{margin:18mm} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;background:#f8fafc} .page{max-width:980px;margin:0 auto;background:white;padding:38px;box-shadow:0 12px 40px rgba(15,23,42,.08)}
+    @page{size:A4 portrait;margin:18mm} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;background:#f8fafc} .page{max-width:980px;margin:0 auto;background:white;padding:38px;box-shadow:0 12px 40px rgba(15,23,42,.08)}
     .page{position:relative;overflow:hidden}.watermark{position:fixed;inset:28%;opacity:.05;z-index:0}.watermark img{width:100%;height:100%;object-fit:contain}.content{position:relative;z-index:1}
     header{display:flex;gap:18px;align-items:center;border-bottom:3px solid ${primaryColor};padding-bottom:18px;margin-bottom:26px}.logo{width:72px;height:72px;border-radius:18px;background:${primaryColor}14;display:flex;align-items:center;justify-content:center;color:${primaryColor};font-size:28px;font-weight:800;overflow:hidden}.logo img{width:100%;height:100%;object-fit:cover}
     h1{font-size:30px;margin:0;color:#0f172a} h2{font-size:18px;margin:28px 0 12px;color:#0f172a;border-left:5px solid ${primaryColor};padding-left:10px}.muted{color:#64748b;font-size:13px;line-height:1.5}.badge{display:inline-block;background:${primaryColor}12;color:${primaryColor};border:1px solid ${primaryColor}44;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}
@@ -394,7 +411,7 @@ export async function POST(request: NextRequest) {
     if (!template) return NextResponse.json({ error: "Valid report template is required" }, { status: 400 });
     const data = await buildReportData(slug);
     if (!data) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    const html = renderReport(template, data);
+    const html = renderReport(template, data, request.nextUrl.origin);
     return NextResponse.json({ template, html, generatedAt: new Date().toISOString(), fileName: `${template.id}-${slug}-${new Date().toISOString().slice(0, 10)}.html` });
   } catch (error) {
     console.error("Owner reports POST failed:", error);

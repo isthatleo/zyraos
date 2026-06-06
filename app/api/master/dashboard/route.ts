@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { masterDb } from "@/lib/db";
@@ -12,6 +12,7 @@ import {
   tenantModulesTable,
 } from "@/lib/db-schema";
 import { getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { requireMasterAdmin } from "@/lib/master-audit";
 
 const currencyFormatter = new Intl.NumberFormat("en-ZA", {
   style: "currency",
@@ -36,8 +37,11 @@ function monthStart(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const cached = getCachedValue<Record<string, unknown>>("master-dashboard");
     if (cached) {
       return NextResponse.json(cached, {

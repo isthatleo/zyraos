@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, CheckCircle2, FilePlus2, FileText, Receipt, RefreshCw, Search, TrendingUp, Wallet, XCircle } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type Invoice = {
@@ -101,8 +101,10 @@ function StatCard({ label, value, detail, icon: Icon }: { label: string; value: 
 
 export default function OwnerInvoicesPage() {
   const params = useParams<{ tenant: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [data, setData] = React.useState<Payload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -148,13 +150,40 @@ export default function OwnerInvoicesPage() {
 
   const createInvoice = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const totalAmount = Number(form.totalAmount || 0);
+    const amountPaid = Number(form.amountPaid || 0);
+    const dueDate = form.dueDate ? new Date(form.dueDate) : null;
+    if (!form.studentId) {
+      toast.error("Select a student before creating an invoice.");
+      return;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      toast.error("Enter a valid invoice total.");
+      return;
+    }
+    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
+      toast.error("Amount paid cannot be negative.");
+      return;
+    }
+    if (Math.round(totalAmount * 100) !== totalAmount * 100 || Math.round(amountPaid * 100) !== amountPaid * 100) {
+      toast.error("Invoice amounts can only use up to 2 decimal places.");
+      return;
+    }
+    if (amountPaid > totalAmount) {
+      toast.error("Amount paid cannot exceed total amount.");
+      return;
+    }
+    if (!dueDate || Number.isNaN(dueDate.getTime())) {
+      toast.error("Select a valid invoice due date.");
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch(`/api/tenant/owner/invoices?tenant=${tenantSlug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...form, totalAmount: Number(form.totalAmount || 0), amountPaid: Number(form.amountPaid || 0) }),
+        body: JSON.stringify({ ...form, totalAmount, amountPaid }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error || "Failed to create invoice");
@@ -169,7 +198,7 @@ export default function OwnerInvoicesPage() {
     }
   };
 
-  if (loading) return <div className="space-y-6"><Skeleton className="h-36 rounded-3xl" /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
+  if (loading) return <div className="space-y-6"><Card className="overflow-hidden border-border/70 bg-card/80 shadow-sm backdrop-blur"><CardContent className="p-6 md:p-8"><Badge className="mb-3 rounded-full bg-primary/10 text-primary hover:bg-primary/10">Owner finance command</Badge><h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Invoices</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Loading student invoices, collection status, branded documents, and receivables analytics.</p></CardContent></Card><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
 
   if (error || !data) {
     return (

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   getEmailProviderStatus,
@@ -8,12 +8,16 @@ import {
   getSsoProviderStatus,
 } from "@/lib/platform-integrations";
 import { getPlatformSettings, getPublicPlatformSettings, maskPlatformSecrets } from "@/lib/platform-settings-server";
+import { requireMasterAdmin } from "@/lib/master-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const [settings, email, sms, sso, lms, backups] = await Promise.all([
       getPlatformSettings(),
       getEmailProviderStatus(),

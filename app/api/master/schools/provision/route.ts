@@ -22,6 +22,7 @@ import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
 import { getTenantPortalUrl, validateTenantSlug } from '@/lib/tenant-url';
 import { provisionTenantDatabase } from '@/lib/tenant-database-provisioning';
 import { deliverProvisioningHandoff } from '@/lib/provisioning-delivery';
+import { deleteCachedValue } from '@/lib/server-response-cache';
 
 interface ProvisioningRequest {
   schoolInfo: {
@@ -58,6 +59,15 @@ function getPlanCurrency(features: unknown, fallback: string) {
     if (/^[A-Z]{3}$/.test(currency)) return currency;
   }
   return fallback;
+}
+
+function invalidateSchoolsCaches() {
+  deleteCachedValue("master-dashboard");
+  for (const status of ["all", "active", "inactive", "trial", "deactivated"]) {
+    for (const limit of [25, 50, 100]) {
+      deleteCachedValue(`master-schools:${status === "all" ? "all" : status}:${limit}:0`);
+    }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -463,6 +473,7 @@ export async function POST(request: NextRequest) {
       },
       status: delivery.ok ? 'success' : 'warning',
     });
+    invalidateSchoolsCaches();
 
     return NextResponse.json({
       success: true,

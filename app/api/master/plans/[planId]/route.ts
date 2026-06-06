@@ -6,9 +6,28 @@ import { invoicesTable, schoolsTable, subscriptionPlansTable, subscriptionsTable
 import { convertMoney } from "@/lib/currency-conversion";
 import { requireMasterAdmin, writeMasterAudit } from "@/lib/master-audit";
 import { getPlatformSetting } from "@/lib/platform-settings-server";
+import { deleteCachedValue, deleteCachedValuesByPrefix, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const PLAN_DETAIL_CACHE_TTL_MS = 20_000;
+const ALLOWED_PERIODS = new Set(["month", "term", "year"]);
+const ALLOWED_COLORS = new Set(["orange", "green", "blue", "purple", "gray", "indigo"]);
+const ALLOWED_ICON_KEYS = new Set(["basic", "starter", "standard", "professional", "premium", "enterprise", "custom"]);
+
+function planCacheKey(planId: string) {
+  return `master-plan:${planId}`;
+}
+
+function invalidatePlansCaches(planId?: string) {
+  deleteCachedValue("master-plans:list");
+  deleteCachedValue("master-dashboard");
+  deleteCachedValue("master-billing-overview");
+  if (planId) deleteCachedValue(planCacheKey(planId));
+  else deleteCachedValuesByPrefix("master-plan:");
+  deleteCachedValuesByPrefix("master-schools:");
+}
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
@@ -54,26 +73,40 @@ function validatePlanInput(body: Record<string, unknown>) {
   const currency = String(body.currency || "ZAR").trim().toUpperCase();
   const maxStudents = parseNullableLimit(body.maxStudents);
   const maxStaff = parseNullableLimit(body.maxStaff);
+  const period = String(body.period || "month").trim().toLowerCase();
+  const color = String(body.color || "orange").trim().toLowerCase();
+  const iconKey = String(body.iconKey || "basic").trim().toLowerCase();
 
   if (!name) return { error: "Plan name is required" };
+  if (name.length > 120) return { error: "Plan name cannot exceed 120 characters" };
+  if (String(body.description || "").length > 1200) return { error: "Plan description cannot exceed 1200 characters" };
   if (price < 0) return { error: "Plan price cannot be negative" };
+  if (price > 99_999_999) return { error: "Plan price is too high" };
   if (!/^[A-Z]{3}$/.test(currency)) return { error: "Currency must be a valid 3-letter ISO code" };
   if (Number.isNaN(maxStudents) || Number.isNaN(maxStaff)) return { error: "Student and staff limits must be positive numbers or empty" };
+  if (maxStudents !== null && maxStudents > 10_000_000) return { error: "Student limit is too high" };
+  if (maxStaff !== null && maxStaff > 1_000_000) return { error: "Staff limit is too high" };
+  if (!ALLOWED_PERIODS.has(period)) return { error: "Billing period must be month, term, or year" };
+  if (!ALLOWED_COLORS.has(color)) return { error: "Plan color is not supported" };
+  if (!ALLOWED_ICON_KEYS.has(iconKey)) return { error: "Plan icon is not supported" };
 
   return { name, price, maxStudents, maxStaff };
 }
 
 function buildFeatureJson(body: Record<string, unknown>) {
+  const period = String(body.period || "month").trim().toLowerCase();
+  const color = String(body.color || "orange").trim().toLowerCase();
+  const iconKey = String(body.iconKey || "basic").trim().toLowerCase();
   return {
-    included: normalizeStringArray(body.features),
-    unavailable: normalizeStringArray(body.unavailableFeatures),
-    modules: normalizeStringArray(body.modules),
-    tagline: String(body.tagline || ""),
-    label: String(body.label || ""),
+    included: normalizeStringArray(body.features).slice(0, 80),
+    unavailable: normalizeStringArray(body.unavailableFeatures).slice(0, 80),
+    modules: normalizeStringArray(body.modules).slice(0, 80),
+    tagline: String(body.tagline || "").trim().slice(0, 180),
+    label: String(body.label || "").trim().slice(0, 60),
     popular: Boolean(body.popular),
-    color: String(body.color || "orange"),
-    iconKey: String(body.iconKey || "basic"),
-    period: String(body.period || "month"),
+    color: ALLOWED_COLORS.has(color) ? color : "orange",
+    iconKey: ALLOWED_ICON_KEYS.has(iconKey) ? iconKey : "basic",
+    period: ALLOWED_PERIODS.has(period) ? period : "month",
     currency: String(body.currency || "ZAR").trim().toUpperCase(),
   };
 }
@@ -156,6 +189,11 @@ export async function GET(
     if (response) return response;
 
     const { planId } = await params;
+    const cached = getCachedValue<Record<string, unknown>>(planCacheKey(planId));
+    if (cached) {
+      return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=20" } });
+    }
+
     const planRows = await masterDb.select().from(subscriptionPlansTable).where(eq(subscriptionPlansTable.id, planId)).limit(1);
     if (!planRows.length) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 
@@ -213,12 +251,14 @@ export async function GET(
       };
     }));
 
-    return NextResponse.json({
+    const payload = {
       plan: await planPayload(planRows[0], usage),
       subscriptions,
       invoices: convertedInvoices,
       platformCurrency,
-    }, { headers: { "Cache-Control": "no-store" } });
+    };
+    setCachedValue(planCacheKey(planId), payload, PLAN_DETAIL_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=20" } });
   } catch (error) {
     console.error("Error fetching plan detail:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -262,6 +302,7 @@ export async function PATCH(
       resourceId: plan.id,
       changes: { name: plan.name, price: plan.price, isActive: plan.isActive },
     });
+    invalidatePlansCaches(planId);
     return NextResponse.json({ success: true, plan: await planPayload(plan, await getPlanUsage(planId)) });
   } catch (error) {
     console.error("Error updating plan detail:", error);
@@ -295,6 +336,7 @@ export async function DELETE(
         resourceId: plan.id,
         changes: { reason: "Plan has existing subscriptions", totalSubscriptions },
       });
+      invalidatePlansCaches(planId);
       return NextResponse.json({
         success: true,
         deleted: false,
@@ -315,6 +357,7 @@ export async function DELETE(
       resourceId: deleted.id,
       changes: { name: deleted.name, price: deleted.price },
     });
+    invalidatePlansCaches(planId);
     return NextResponse.json({ success: true, deleted: true });
   } catch (error) {
     console.error("Error deleting subscription plan:", error);

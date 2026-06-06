@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, Download, FileImage, FileText, Pencil, Printer, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { downloadHtmlDocument, openHtmlDocument } from "@/lib/browser-document";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type Template = {
@@ -86,8 +87,10 @@ function StatCard({ label, value, detail, icon: Icon }: { label: string; value: 
 
 export default function OwnerReportsPage() {
   const params = useParams<{ tenant: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [data, setData] = React.useState<ReportsPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -220,33 +223,18 @@ export default function OwnerReportsPage() {
 
   const printReport = () => {
     if (!generated) return;
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) return toast.error("Popup blocked. Allow popups to print this report.");
-    printWindow.document.write(generated.html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    const opened = openHtmlDocument(generated.html, { print: true });
+    if (!opened) toast.error("Popup blocked. Allow popups to print this report.");
   };
 
   const downloadReport = () => {
     if (!generated) return;
-    const blob = new Blob([generated.html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = generated.fileName;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadHtmlDocument(generated.html, generated.fileName);
   };
 
   const downloadPngSnapshot = () => {
     if (!generated) return;
-    const escaped = generated.html
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:1240px;height:1754px;overflow:hidden;background:white">${escaped}</div></foreignObject></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:1240px;height:1754px;overflow:hidden;background:white">${generated.html}</div></foreignObject></svg>`;
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement("canvas");
@@ -263,7 +251,9 @@ export default function OwnerReportsPage() {
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = generated.fileName.replace(/\.html$/i, ".png");
+        document.body.appendChild(anchor);
         anchor.click();
+        anchor.remove();
         URL.revokeObjectURL(url);
       }, "image/png");
     };
@@ -277,7 +267,24 @@ export default function OwnerReportsPage() {
     return downloadReport();
   };
 
-  if (loading) return <div className="space-y-6"><Skeleton className="h-36 rounded-3xl" /><div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
+  if (loading) return (
+    <div className="space-y-6">
+      <Card className="overflow-hidden border-border/70 bg-card/80 shadow-sm backdrop-blur">
+        <CardContent className="p-0">
+          <div className="relative isolate p-6 md:p-8">
+            <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.16),transparent_38%),linear-gradient(135deg,hsl(var(--muted)/0.45),transparent)]" />
+            <Badge className="mb-3 rounded-full bg-primary/10 text-primary hover:bg-primary/10">Owner reporting suite</Badge>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Reports</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Loading report templates, branding, and operational metrics.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}</div>
+      <Skeleton className="h-96 rounded-3xl" />
+    </div>
+  );
 
   if (error || !data) {
     return (

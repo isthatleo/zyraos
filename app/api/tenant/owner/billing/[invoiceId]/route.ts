@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable } from "@/lib/db-schema";
 import { convertMoney } from "@/lib/currency-conversion";
-import { getTenantBranding } from "@/lib/tenant-branding-server";
+import { getPlatformBillingBranding } from "@/lib/platform-branding-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +76,7 @@ async function buildPayload(slug: string, invoiceId: string) {
   if (!school) return null;
   const tenantCurrency = school.currencyCode || "ZAR";
   const tenantDb = await getTenantDbBySlug(slug);
-  const branding = await getTenantBranding(slug, school.name);
+  const platformBranding = await getPlatformBillingBranding();
 
   const [invoiceRow] = await safeRows<Row>(
     () =>
@@ -145,18 +145,20 @@ async function buildPayload(slug: string, invoiceId: string) {
     school: {
       ...school,
       currencyCode: tenantCurrency,
-      displayName: branding.name || school.name,
-      logoUrl: branding.logoUrl,
-      schoolSealUrl: branding.schoolSealUrl,
-      reportCardWatermarkUrl: branding.reportCardWatermarkUrl,
-      primaryColor: branding.primaryColor,
-      secondaryColor: branding.secondaryColor,
-      accentColor: branding.accentColor,
-      address: branding.address,
-      phone: branding.phone,
-      email: branding.email,
-      website: branding.website,
-      motto: branding.motto,
+      billingBrandingSource: "platform",
+      displayName: platformBranding.name,
+      logoUrl: platformBranding.logoUrl,
+      schoolSealUrl: platformBranding.logoUrl,
+      reportCardWatermarkUrl: null,
+      primaryColor: platformBranding.primaryColor,
+      secondaryColor: platformBranding.secondaryColor,
+      accentColor: platformBranding.accentColor,
+      address: platformBranding.address,
+      phone: platformBranding.phone,
+      email: platformBranding.email,
+      website: platformBranding.website,
+      motto: platformBranding.subtitle,
+      letterhead: platformBranding.letterhead,
     },
     generatedAt: new Date().toISOString(),
     invoice: {

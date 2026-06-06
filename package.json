@@ -13,7 +13,19 @@
     "db:push": "drizzle-kit push",
     "db:ensure-super-admin": "tsx scripts/ensure-super-admin.ts",
     "db:reset-tenant-user-password": "tsx scripts/reset-tenant-user-password.ts",
-    "e2e:settings": "npx playwright test tests/settings.e2e.spec.ts"
+    "e2e:master-activity": "npx playwright test tests/master-activity-production.e2e.spec.ts",
+    "e2e:master-analytics": "npx playwright test tests/master-analytics-production.e2e.spec.ts",
+    "e2e:master-billing": "npx playwright test tests/master-billing-production.e2e.spec.ts",
+    "e2e:master-dashboard": "npx playwright test tests/master-dashboard-production.e2e.spec.ts",
+    "e2e:master-permissions": "npx playwright test tests/master-permissions-production.e2e.spec.ts",
+    "e2e:master-plans": "npx playwright test tests/master-plans-production.e2e.spec.ts",
+    "e2e:master-profile": "npx playwright test tests/master-profile-production.e2e.spec.ts",
+    "e2e:master-schools": "npx playwright test tests/master-schools-production.e2e.spec.ts",
+    "e2e:master-settings": "npx playwright test tests/master-settings-production.e2e.spec.ts",
+    "e2e:settings": "npx playwright test tests/settings.e2e.spec.ts",
+    "e2e:owner-dashboard": "npx playwright test tests/owner-dashboard-production.e2e.spec.ts",
+    "e2e:owner-finance": "npx playwright test tests/owner-finance-production.e2e.spec.ts",
+    "e2e:owner-hr": "npx playwright test tests/owner-hr-production.e2e.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

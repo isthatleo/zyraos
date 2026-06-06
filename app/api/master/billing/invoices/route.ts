@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { addDays, buildInvoiceNumber, getInvoicePolicy, getPlatformSettings } from '@/lib/platform-settings-server';
 import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
 import { convertMoney } from '@/lib/currency-conversion';
+import { deleteCachedValue, getCachedValue, setCachedValue } from '@/lib/server-response-cache';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,10 +28,31 @@ function formatDate(date?: Date | null) {
   return date ? date.toISOString() : null;
 }
 
+function invalidateBillingCaches() {
+  deleteCachedValue('master-dashboard');
+  deleteCachedValue('master-billing-overview');
+  for (const status of ['all', 'pending', 'paid', 'overdue', 'void']) {
+    deleteCachedValue(`master-billing-invoices:${status}`);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status');
+    const statusFilter = searchParams.get('status') || 'all';
+    const cacheKey = `master-billing-invoices:${statusFilter}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'private, max-age=30',
+          'X-Roxan-Cache': 'HIT',
+        },
+      });
+    }
+
     const data = await masterDb
       .select({
         id: invoicesTable.id,
@@ -98,7 +120,7 @@ export async function GET(request: NextRequest) {
       });
     const invoicesWithConversion = await Promise.all(invoices);
     const filteredInvoices = invoicesWithConversion
-      .filter((invoice) => !statusFilter || statusFilter === 'all' || invoice.status === statusFilter);
+      .filter((invoice) => statusFilter === 'all' || invoice.status === statusFilter);
 
     const summary = filteredInvoices.reduce(
       (acc, invoice) => {
@@ -120,7 +142,14 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    return NextResponse.json({ invoices: filteredInvoices, summary });
+    const payload = { invoices: filteredInvoices, summary };
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': 'private, max-age=30',
+        'X-Roxan-Cache': 'MISS',
+      },
+    });
   } catch (error) {
     console.error('Error fetching invoices:', error);
     return NextResponse.json(
@@ -197,6 +226,7 @@ export async function POST(request: NextRequest) {
         status: invoice.status,
       },
     });
+    invalidateBillingCaches();
 
     return NextResponse.json({ success: true, invoice }, { status: 201 });
   } catch (error) {

@@ -6,6 +6,8 @@ import { departmentsTable, rolesTable, schoolsTable, tenantUsersTable, userTable
 import { generateTemporaryPassword, markForcePasswordChange, upsertCredentialAuthUser } from "@/lib/password-access";
 import { getTenantRoleDefinitionById, getTenantRoleDefinitions, normalizeRole, roleLoginMeta } from "@/lib/roles";
 import { sendPlatformEmail } from "@/lib/platform-integrations";
+import { deleteCachedValue } from "@/lib/server-response-cache";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 import { getTenantPortalUrl } from "@/lib/tenant-url";
 
@@ -27,6 +29,12 @@ function asDate(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function asPositiveInt(value: string | null, fallback: number, max: number) {
+  const next = Number(value || fallback);
+  if (!Number.isFinite(next) || next < 1) return fallback;
+  return Math.min(Math.floor(next), max);
 }
 
 async function safeRows<T = Row>(operation: () => Promise<{ rows?: unknown[] } | T[]>, label: string): Promise<T[]> {
@@ -104,10 +112,40 @@ function accessEmail(input: { schoolName: string; name: string; email: string; t
   return { text, html };
 }
 
-async function buildPayload(slug: string) {
+function deleteTenantUserCaches(slug: string) {
+  deleteCachedValue(`owner-staff:${slug}`);
+  deleteCachedValue(`owner-hr:${slug}`);
+  deleteCachedValue(`owner-staff-attendance:${slug}`);
+  deleteCachedValue(`owner-leave:${slug}`);
+  deleteCachedValue(`owner-payroll:${slug}`);
+}
+
+async function buildPayload(slug: string, options?: { query?: string; role?: string; status?: string; page?: number; pageSize?: number }) {
   const school = await getSchool(slug);
   if (!school) return null;
   const tenantDb = await getTenantDbBySlug(slug);
+  const page = options?.page || 1;
+  const pageSize = options?.pageSize || 25;
+  const offset = (page - 1) * pageSize;
+  const query = options?.query?.trim() || "";
+  const roleFilter = options?.role?.trim().toLowerCase() || "all";
+  const statusFilter = options?.status?.trim().toLowerCase() || "all";
+  const whereParts = [sql`lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')`];
+  if (query) {
+    const pattern = `%${query}%`;
+    whereParts.push(sql`(
+      u.name ilike ${pattern}
+      or u.email ilike ${pattern}
+      or coalesce(r.name, '') ilike ${pattern}
+      or coalesce(d.name, '') ilike ${pattern}
+      or coalesce(st.employee_id, '') ilike ${pattern}
+      or coalesce(s.admission_number, '') ilike ${pattern}
+    )`);
+  }
+  if (roleFilter !== "all") whereParts.push(sql`(lower(u.role_id) = ${roleFilter} or lower(coalesce(r.name, '')) = ${roleFilter})`);
+  if (statusFilter === "active") whereParts.push(sql`u.is_active is true`);
+  if (statusFilter === "inactive") whereParts.push(sql`u.is_active is false`);
+  const whereSql = sql.join(whereParts, sql` and `);
 
   const roleDefinitions = getTenantRoleDefinitions(school.type);
   for (const role of roleDefinitions) {
@@ -117,7 +155,7 @@ async function buildPayload(slug: string) {
       .onConflictDoNothing();
   }
 
-  const [userRows, departments, roleRows, passwordRows] = await Promise.all([
+  const [userRows, countRows, summaryRows, roleCountRows, departments, roleRows, passwordRows] = await Promise.all([
     safeRows<Row>(
       () =>
         tenantDb.execute(sql`
@@ -147,12 +185,35 @@ async function buildPayload(slug: string) {
           left join staff st on st.user_id = u.id
           left join students s on s.user_id = u.id
           left join guardians g on lower(g.email) = lower(u.email)
+          where ${whereSql}
           group by u.id, r.id, d.id, st.id, s.id
           order by u.created_at desc
-          limit 1000
+          limit ${pageSize} offset ${offset}
         `),
       "directory"
     ),
+    safeRows<Row>(() => tenantDb.execute(sql`
+      select count(*)::int total
+      from users u
+      left join roles r on r.id = u.role_id
+      left join departments d on d.id = u.department_id
+      left join staff st on st.user_id = u.id
+      left join students s on s.user_id = u.id
+      where ${whereSql}
+    `), "directory count"),
+    safeRows<Row>(() => tenantDb.execute(sql`
+      select
+        count(*)::int total,
+        count(*) filter (where u.is_active is true)::int active,
+        count(*) filter (where u.is_active is false)::int inactive,
+        count(*) filter (where lower(u.role_id) = 'student')::int learners,
+        count(*) filter (where lower(u.role_id) = 'parent')::int guardians,
+        count(*) filter (where lower(u.role_id) not in ('student', 'parent'))::int staff,
+        count(*) filter (where u.department_id is null and lower(u.role_id) not in ('student', 'parent'))::int unassigned
+      from users u
+      where lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
+    `), "summary"),
+    safeRows<Row>(() => tenantDb.execute(sql`select role_id, count(*)::int total from users where lower(coalesce(role_id, '')) not in ('super_admin', 'master', 'platform_admin') group by role_id`), "role counts"),
     safeRows<typeof departmentsTable.$inferSelect>(() => tenantDb.select().from(departmentsTable), "departments"),
     safeRows<typeof rolesTable.$inferSelect>(() => tenantDb.select().from(rolesTable), "roles"),
     safeRows<Row>(() => masterDb.execute(sql`select user_id, force_password_change, password_last_changed_at, temporary_password_issued_at from password_security`), "password security"),
@@ -192,10 +253,13 @@ async function buildPayload(slug: string) {
     };
   });
 
-  const byCanonicalRole = users.reduce<Record<string, number>>((acc, user) => {
-    acc[user.canonicalRole] = (acc[user.canonicalRole] || 0) + 1;
+  const byCanonicalRole = roleCountRows.reduce<Record<string, number>>((acc, row) => {
+    const canonical = normalizeRole(asString(row.role_id));
+    acc[canonical] = (acc[canonical] || 0) + asNumber(row.total);
     return acc;
   }, {});
+  const total = asNumber(countRows[0]?.total);
+  const summary = summaryRows[0] || {};
 
   return {
     school,
@@ -214,16 +278,25 @@ async function buildPayload(slug: string) {
       };
     }),
     summary: {
-      total: users.length,
-      active: users.filter((user) => user.isActive).length,
-      inactive: users.filter((user) => !user.isActive).length,
-      staff: users.filter((user) => !["student", "parent"].includes(user.canonicalRole)).length,
-      learners: users.filter((user) => user.canonicalRole === "student").length,
-      guardians: users.filter((user) => user.canonicalRole === "parent").length,
+      total: asNumber(summary.total),
+      active: asNumber(summary.active),
+      inactive: asNumber(summary.inactive),
+      staff: asNumber(summary.staff),
+      learners: asNumber(summary.learners),
+      guardians: asNumber(summary.guardians),
       forcePasswordChange: users.filter((user) => user.forcePasswordChange).length,
-      unassigned: users.filter((user) => !user.departmentId && !["student", "parent"].includes(user.canonicalRole)).length,
+      unassigned: asNumber(summary.unassigned),
       byCanonicalRole,
     },
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      hasNextPage: page * pageSize < total,
+      hasPreviousPage: page > 1,
+    },
+    filters: { query, role: roleFilter, status: statusFilter },
     generatedAt: new Date().toISOString(),
   };
 }
@@ -243,7 +316,15 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
-    const payload = await buildPayload(slug);
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
+    const payload = await buildPayload(slug, {
+      query: request.nextUrl.searchParams.get("query") || "",
+      role: request.nextUrl.searchParams.get("role") || "all",
+      status: request.nextUrl.searchParams.get("status") || "all",
+      page: asPositiveInt(request.nextUrl.searchParams.get("page"), 1, 10_000),
+      pageSize: asPositiveInt(request.nextUrl.searchParams.get("pageSize"), 25, 100),
+    });
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     return NextResponse.json(withRequestLoginUrls(payload, request, slug), { headers: { "Cache-Control": "no-store, max-age=0" } });
@@ -277,6 +358,17 @@ export async function PATCH(request: NextRequest) {
     if (action === "activate" || action === "deactivate") {
       await tenantDb.update(tenantUsersTable).set({ isActive: action === "activate", updatedAt: new Date() }).where(eq(tenantUsersTable.id, userId));
       await masterDb.update(userTable).set({ updatedAt: new Date() }).where(eq(userTable.id, userId)).catch(() => undefined);
+      await writeTenantAuditLog({
+        db: tenantDb,
+        request,
+        actorId: currentUser.userId,
+        action: action === "activate" ? "User Activated" : "User Deactivated",
+        resource: "users",
+        resourceId: userId,
+        changes: { email: user.email, active: action === "activate" },
+        status: "success",
+      });
+      deleteTenantUserCaches(slug);
       return NextResponse.json(withRequestLoginUrls(await buildPayload(slug), request, slug));
     }
 
@@ -305,6 +397,17 @@ export async function PATCH(request: NextRequest) {
         status: "failed",
         message: error instanceof Error ? error.message : "Email delivery failed.",
       }));
+      await writeTenantAuditLog({
+        db: tenantDb,
+        request,
+        actorId: currentUser.userId,
+        action: "User Access Reset",
+        resource: "users",
+        resourceId: userId,
+        changes: { email: user.email, deliveryStatus: delivery.status || "unknown" },
+        status: "success",
+      });
+      deleteTenantUserCaches(slug);
       return NextResponse.json({ ...withRequestLoginUrls(await buildPayload(slug), request, slug), temporaryPassword, loginUrl: url, delivery });
     }
 
@@ -331,7 +434,18 @@ export async function PATCH(request: NextRequest) {
       .set({ name, email, image, role: normalizeRole(roleId), updatedAt: new Date() })
       .where(eq(userTable.id, userId))
       .catch(() => undefined);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: "User Updated",
+      resource: "users",
+      resourceId: userId,
+      changes: { previousEmail: user.email, email, previousRoleId: user.roleId, roleId, departmentId },
+      status: "success",
+    });
 
+    deleteTenantUserCaches(slug);
     return NextResponse.json(withRequestLoginUrls(await buildPayload(slug), request, slug));
   } catch (error) {
     console.error("Owner users PATCH failed:", error);
@@ -351,7 +465,19 @@ export async function DELETE(request: NextRequest) {
     if (userId === currentUser.userId) return NextResponse.json({ error: "You cannot delete your own owner account" }, { status: 400 });
 
     const tenantDb = await getTenantDbBySlug(slug);
+    const [user] = await tenantDb.select({ email: tenantUsersTable.email, roleId: tenantUsersTable.roleId }).from(tenantUsersTable).where(eq(tenantUsersTable.id, userId)).limit(1);
     await tenantDb.delete(tenantUsersTable).where(eq(tenantUsersTable.id, userId));
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: "User Deleted",
+      resource: "users",
+      resourceId: userId,
+      changes: { email: user?.email || "", roleId: user?.roleId || "" },
+      status: "success",
+    });
+    deleteTenantUserCaches(slug);
     return NextResponse.json(withRequestLoginUrls(await buildPayload(slug), request, slug));
   } catch (error) {
     console.error("Owner users DELETE failed:", error);

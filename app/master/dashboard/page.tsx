@@ -138,6 +138,20 @@ const emptyStats: DashboardStats = {
   systemStatus: "healthy",
 };
 
+const emptyDashboardData: DashboardData = {
+  stats: emptyStats,
+  recentSchools: [],
+  revenueTrend: [],
+  schoolGrowth: [],
+  planDistribution: [],
+  typeDistribution: [],
+  statusDistribution: [],
+  recentInvoices: [],
+  expiringSubscriptions: [],
+  recentActivity: [],
+  alerts: [],
+};
+
 const currencyFormatter = new Intl.NumberFormat("en-ZA", {
   style: "currency",
   currency: "ZAR",
@@ -158,6 +172,21 @@ const statusColors: Record<string, string> = {
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(Number(value || 0));
+}
+
+function formatTimestamp(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(date);
 }
 
 function percentageChange(current: number, previous: number) {
@@ -242,31 +271,8 @@ function DistributionList({
 }
 
 export default function MasterDashboard() {
-  const [data, setData] = useState<DashboardData>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = window.sessionStorage.getItem(MASTER_DASHBOARD_CACHE_KEY);
-        if (cached) return JSON.parse(cached) as DashboardData;
-      } catch {}
-    }
-    return {
-    stats: emptyStats,
-    recentSchools: [],
-    revenueTrend: [],
-    schoolGrowth: [],
-    planDistribution: [],
-    typeDistribution: [],
-    statusDistribution: [],
-    recentInvoices: [],
-    expiringSubscriptions: [],
-    recentActivity: [],
-    alerts: [],
-    };
-  });
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !window.sessionStorage.getItem(MASTER_DASHBOARD_CACHE_KEY);
-  });
+  const [data, setData] = useState<DashboardData>(emptyDashboardData);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -328,6 +334,13 @@ export default function MasterDashboard() {
   };
 
   useEffect(() => {
+    try {
+      const cached = window.sessionStorage.getItem(MASTER_DASHBOARD_CACHE_KEY);
+      if (cached) {
+        setData(JSON.parse(cached) as DashboardData);
+        setIsLoading(false);
+      }
+    } catch {}
     void loadDashboardData();
   }, []);
 
@@ -352,7 +365,7 @@ export default function MasterDashboard() {
                 {stats.systemStatus}
               </Badge>
               {data.generatedAt ? (
-                <span className="text-xs text-muted-foreground">Updated {new Date(data.generatedAt).toLocaleString()}</span>
+                <span className="text-xs text-muted-foreground">Updated {formatTimestamp(data.generatedAt)}</span>
               ) : null}
             </div>
             <h1 className="mt-3 text-3xl font-bold tracking-tight">Master Dashboard</h1>

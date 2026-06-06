@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, CreditCard, FileText, Receipt, RefreshCw, User, Wallet } from "lucide-react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { AlertCircle, ArrowLeft, CheckCircle2, CreditCard, Download, FileText, Printer, Receipt, RefreshCw, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,7 +13,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { downloadHtmlDocument, openHtmlDocument } from "@/lib/browser-document";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type DetailPayload = {
@@ -59,6 +60,37 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className={cn("rounded-full px-2.5 py-1 capitalize", STATUS_STYLES[status] || STATUS_STYLES.unpaid)}>{status}</Badge>;
 }
 
+function absoluteAssetUrl(value?: string | null) {
+  if (!value) return "";
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (typeof window === "undefined") return value;
+  return new URL(value, window.location.origin).toString();
+}
+
+function invoiceDocumentHtml(data: DetailPayload) {
+  const money = new Intl.NumberFormat("en", { style: "currency", currency: data.school.currencyCode || "ZAR", maximumFractionDigits: 2 });
+  const schoolName = data.school.displayName || data.school.name;
+  const primaryColor = data.school.primaryColor || "#0f766e";
+  const logoUrl = absoluteAssetUrl(data.school.logoUrl);
+  const watermarkUrl = absoluteAssetUrl(data.school.reportCardWatermarkUrl);
+  const rows = data.fees.length
+    ? data.fees
+        .map((fee) => `<tr><td>${fee.name}</td><td>${fee.feeType}</td><td>${money.format(fee.totalAmount)}</td><td>${money.format(fee.amountPaid)}</td><td>${money.format(fee.outstandingBalance)}</td></tr>`)
+        .join("")
+    : `<tr><td>${data.invoice.invoiceNumber}</td><td>Invoice</td><td>${money.format(data.invoice.totalAmount)}</td><td>${money.format(data.invoice.amountPaid)}</td><td>${money.format(data.invoice.outstandingBalance)}</td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${data.invoice.invoiceNumber}</title><style>
+    @page{size:A4 portrait;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#111827;margin:0}.page{max-width:900px;margin:32px auto;background:white;border-radius:24px;padding:38px;box-shadow:0 18px 60px rgba(15,23,42,.1);position:relative;overflow:hidden}
+    .watermark{position:fixed;inset:28%;opacity:.045}.watermark img{width:100%;height:100%;object-fit:contain}.content{position:relative;z-index:1}
+    header{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid ${primaryColor};padding-bottom:20px;margin-bottom:24px}.brand{display:flex;align-items:center;gap:12px;font-size:26px;font-weight:800;color:${primaryColor}}.brand img{width:56px;height:56px;border-radius:16px;object-fit:cover;border:1px solid #e2e8f0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.box{border:1px solid #e2e8f0;border-radius:16px;padding:16px;background:#f8fafc}
+    h1{margin:0;font-size:28px}.amount{font-size:34px;font-weight:800;margin-top:6px}.badge{display:inline-block;border-radius:999px;background:${primaryColor}12;color:${primaryColor};padding:6px 12px;font-size:12px;font-weight:700;text-transform:uppercase}
+    table{width:100%;border-collapse:collapse;margin-top:24px}td,th{padding:12px;border-bottom:1px solid #e2e8f0;text-align:left}th{background:#111827;color:white}.totals{margin-top:24px;margin-left:auto;max-width:360px}.totals div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e2e8f0}footer{margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:12px;color:#64748b}@media print{body{background:white}.page{box-shadow:none;margin:0;border-radius:0}}
+  </style></head><body><main class="page">${watermarkUrl ? `<div class="watermark"><img src="${watermarkUrl}" alt=""></div>` : ""}<div class="content"><header><div><div class="brand">${logoUrl ? `<img src="${logoUrl}" alt="">` : ""}<span>${schoolName}</span></div><p class="muted">${data.school.motto || "Education System"}<br>${[data.school.address, data.school.phone, data.school.email, data.school.website].filter(Boolean).join(" - ")}</p></div><div><span class="badge">${data.invoice.status}</span><h1>${data.invoice.invoiceNumber}</h1></div></header>
+  <section class="grid"><div class="box"><strong>Bill To</strong><p>${data.student.name}<br>${data.student.admissionNumber || data.student.email}<br>${data.student.phone || ""}</p></div><div class="box"><strong>Invoice Dates</strong><p>Issued: ${formatDate(data.invoice.issuedDate)}<br>Due: ${formatDate(data.invoice.dueDate)}</p></div></section>
+  <table><thead><tr><th>Item</th><th>Type</th><th>Total</th><th>Paid</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table>
+  <section class="totals"><div><span>Total</span><strong>${money.format(data.invoice.totalAmount)}</strong></div><div><span>Paid</span><strong>${money.format(data.invoice.amountPaid)}</strong></div><div><span>Outstanding</span><strong>${money.format(data.invoice.outstandingBalance)}</strong></div></section>
+  <footer>${data.invoice.notes || "Thank you."}</footer></div></main></body></html>`;
+}
+
 function InfoCard({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: React.ElementType }) {
   return (
     <Card className="border-border/70 bg-card/80 shadow-sm backdrop-blur">
@@ -72,8 +104,10 @@ function InfoCard({ label, value, detail, icon: Icon }: { label: string; value: 
 
 export default function OwnerInvoiceDetailPage() {
   const params = useParams<{ tenant: string; invoiceId: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const invoiceId = String(params?.invoiceId || "");
   const [data, setData] = React.useState<DetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -129,6 +163,17 @@ export default function OwnerInvoiceDetailPage() {
     }
   };
 
+  const openInvoiceDocument = (print = false) => {
+    if (!data) return;
+    const opened = openHtmlDocument(invoiceDocumentHtml(data), { print });
+    if (!opened) toast.error("Popup blocked. Allow popups to open the invoice document.");
+  };
+
+  const downloadInvoiceDocument = () => {
+    if (!data) return;
+    downloadHtmlDocument(invoiceDocumentHtml(data), `${data.invoice.invoiceNumber || "invoice"}.html`);
+  };
+
   if (loading) return <div className="space-y-6"><Skeleton className="h-36 rounded-3xl" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 rounded-3xl" /><Skeleton className="h-32 rounded-3xl" /><Skeleton className="h-32 rounded-3xl" /></div><Skeleton className="h-96 rounded-3xl" /></div>;
 
   if (error || !data) {
@@ -165,6 +210,9 @@ export default function OwnerInvoiceDetailPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => void load(true)} disabled={refreshing}><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} />Refresh</Button>
+                <Button variant="outline" onClick={() => openInvoiceDocument(false)}><FileText className="mr-2 h-4 w-4" />Document</Button>
+                <Button variant="outline" onClick={downloadInvoiceDocument}><Download className="mr-2 h-4 w-4" />Download</Button>
+                <Button variant="outline" onClick={() => openInvoiceDocument(true)}><Printer className="mr-2 h-4 w-4" />Print / Save PDF</Button>
                 <Button onClick={save} disabled={saving}>{saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Save changes</Button>
               </div>
             </div>

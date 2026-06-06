@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 import { getRequiredDashboardUser, isNextResponse, newId } from "@/lib/dashboard-db";
 import { db } from "@/lib/db";
+import { canDashboardUserMessage } from "@/lib/message-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   const messageIds = Array.isArray(body.messageIds) ? body.messageIds.map(String) : [];
 
   if (!otherUserId) return NextResponse.json({ error: "otherUserId is required" }, { status: 400 });
+  if (!(await canDashboardUserMessage(currentUser, otherUserId))) {
+    return NextResponse.json({ error: "Your role cannot mark messages from this user." }, { status: 403 });
+  }
 
   const conversation = await db.execute(sql`
     select c.id

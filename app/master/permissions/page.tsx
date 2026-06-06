@@ -36,7 +36,7 @@ type PermissionsPayload = {
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Not set";
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
 function LoadingState() {
@@ -121,7 +121,12 @@ export default function MasterPermissionsPage() {
       if (!response.ok) throw new Error(payload?.error || "Failed to save platform permissions");
       setData(payload);
       setDrafts(Object.fromEntries(payload.roles.map((item: PermissionRole) => [item.id, item.selectedPermissions])));
-      toast.success(`${role.name} permissions saved and propagated to ${payload.propagated?.tenantCount || 0} tenants`);
+      const failedTenants = payload.propagated?.failedTenants?.length || 0;
+      if (failedTenants) {
+        toast.warning(`${role.name} saved, but ${failedTenants} tenant(s) need retry`);
+      } else {
+        toast.success(`${role.name} permissions saved and propagated to ${payload.propagated?.tenantCount || 0} tenants`);
+      }
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : "Failed to save platform permissions");
     } finally {
@@ -134,7 +139,27 @@ export default function MasterPermissionsPage() {
     return (data?.roles || []).filter((role) => [role.name, role.description, role.canonicalRole].join(" ").toLowerCase().includes(text));
   }, [data?.roles, query]);
 
-  if (loading) return <LoadingState />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <section className="rounded-3xl border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">Platform control</Badge>
+              <h1 className="mt-4 flex items-center gap-3 text-3xl font-semibold tracking-tight">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+                Global Permissions Manager
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                Manage the default permission structure for every tenant. Saving a role updates the platform default and propagates that role's permissions across all tenant databases.
+              </p>
+            </div>
+          </div>
+        </section>
+        <LoadingState />
+      </div>
+    );
+  }
 
   if (error || !data) {
     return (

@@ -1,26 +1,45 @@
 import { io, Socket } from 'socket.io-client'
 
 let socket: Socket | null = null
+let usingFallbackSocket = false
 
 export const getSocket = () => {
   if (!socket) {
+    const configuredSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL
+    const shouldUseConfiguredSocket =
+      !!configuredSocketUrl &&
+      !usingFallbackSocket &&
+      !(
+        typeof window !== "undefined" &&
+        window.location.hostname.includes("localhost") &&
+        configuredSocketUrl.includes("localhost:4000")
+      )
     const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
+      (shouldUseConfiguredSocket ? configuredSocketUrl : "") ||
       (typeof window === "undefined" ? "http://localhost:3000" : `${window.location.protocol}//${window.location.host}`)
     const socketPath =
-      process.env.NEXT_PUBLIC_SOCKET_PATH ||
-      (process.env.NEXT_PUBLIC_SOCKET_URL ? "/socket.io" : "/api/socket")
+      (shouldUseConfiguredSocket ? process.env.NEXT_PUBLIC_SOCKET_PATH : "/api/socket") ||
+      (shouldUseConfiguredSocket ? "/socket.io" : "/api/socket")
 
     socket = io(socketUrl, {
       autoConnect: false,
       path: socketPath,
       addTrailingSlash: false,
-      transports: ["polling", "websocket"],
+      transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 800,
-      reconnectionDelayMax: 3000,
-      timeout: 5000,
+      reconnectionDelay: 300,
+      reconnectionDelayMax: 1500,
+      timeout: 1500,
+    })
+
+    socket.on("connect_error", () => {
+      if (usingFallbackSocket || !shouldUseConfiguredSocket || typeof window === "undefined") return
+      socket?.disconnect()
+      socket = null
+      usingFallbackSocket = true
+      const fallback = getSocket()
+      fallback.connect()
     })
   }
   return socket

@@ -6,12 +6,15 @@ import { masterDb } from "@/lib/db";
 import { auditLogsTable, platformAdminsTable } from "@/lib/db-schema";
 import { asNumber, getPlatformSettings } from "@/lib/platform-settings-server";
 import { requireMasterAdmin, writeMasterAudit } from "@/lib/master-audit";
+import { deleteCachedValuesByPrefix, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_LIMIT = 100;
 const MAX_EXPORT_LIMIT = 5000;
+const ACTIVITY_CACHE_PREFIX = "master-activity:";
+const ACTIVITY_CACHE_TTL_MS = 15_000;
 
 function toNumber(value: unknown) {
   const parsed = Number(value || 0);
@@ -130,11 +133,23 @@ function buildWhere(searchParams: URLSearchParams) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { response } = await requireMasterAdmin(request);
+    const { admin, response } = await requireMasterAdmin(request);
     if (response) return response;
 
     const { searchParams } = new URL(request.url);
     const exportFormat = clean(searchParams.get("export"));
+    if (exportFormat && !["csv", "json"].includes(exportFormat)) {
+      return NextResponse.json({ error: "Unsupported export format" }, { status: 400 });
+    }
+
+    const cacheKey = `${ACTIVITY_CACHE_PREFIX}${searchParams.toString() || "default"}`;
+    if (!exportFormat) {
+      const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=15" } });
+      }
+    }
+
     const limit = exportFormat ? MAX_EXPORT_LIMIT : parseLimit(searchParams.get("limit"));
     const offset = parseOffset(searchParams.get("offset"));
     const where = buildWhere(searchParams);
@@ -263,6 +278,14 @@ export async function GET(request: NextRequest) {
     }));
 
     if (exportFormat === "csv") {
+      await writeMasterAudit(request, {
+        adminId: admin.adminId,
+        action: "Activity Log Exported",
+        resource: "audit_logs",
+        resourceId: "csv",
+        changes: { format: "csv", filteredRows: logs.length, generatedAt: now.toISOString() },
+      });
+      deleteCachedValuesByPrefix(ACTIVITY_CACHE_PREFIX);
       return new NextResponse(auditCsv(logs), {
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
@@ -312,6 +335,14 @@ export async function GET(request: NextRequest) {
     };
 
     if (exportFormat === "json") {
+      await writeMasterAudit(request, {
+        adminId: admin.adminId,
+        action: "Activity Log Exported",
+        resource: "audit_logs",
+        resourceId: "json",
+        changes: { format: "json", filteredRows: logs.length, generatedAt: now.toISOString() },
+      });
+      deleteCachedValuesByPrefix(ACTIVITY_CACHE_PREFIX);
       return NextResponse.json(payload, {
         headers: {
           "Content-Disposition": `attachment; filename="roxan-activity-log-${now.toISOString().slice(0, 10)}.json"`,
@@ -320,7 +351,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(payload);
+    setCachedValue(cacheKey, payload, ACTIVITY_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=15" } });
   } catch (error) {
     console.error("Error fetching activity logs:", error);
     return NextResponse.json(
@@ -352,6 +384,7 @@ export async function DELETE(request: NextRequest) {
       resourceId: "retention",
       changes: { retentionDays, cutoff: cutoff.toISOString(), deletedCount: deleted.length },
     });
+    deleteCachedValuesByPrefix(ACTIVITY_CACHE_PREFIX);
 
     return NextResponse.json({
       success: true,

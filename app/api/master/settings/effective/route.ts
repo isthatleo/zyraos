@@ -1,13 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getPlatformSettings, getPublicPlatformSettings, asBoolean, asString, maskPlatformSecrets } from "@/lib/platform-settings-server";
 import { getEmailProviderStatus, getLmsProviderStatus, getNeonBackupStatus, getSmsProviderStatus, getSsoProviderStatus } from "@/lib/platform-integrations";
+import { requireMasterAdmin } from "@/lib/master-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const settings = await getPlatformSettings();
     const ssoProvider = asString(settings.ssoProvider, "disabled");
     const lmsMode = asString(settings.lmsIntegrationMode, "disabled");

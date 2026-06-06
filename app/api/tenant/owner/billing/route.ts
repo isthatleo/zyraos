@@ -4,7 +4,8 @@ import { eq, sql } from "drizzle-orm";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable } from "@/lib/db-schema";
 import { convertMoney } from "@/lib/currency-conversion";
-import { getTenantBranding } from "@/lib/tenant-branding-server";
+import { getPlatformBillingBranding } from "@/lib/platform-branding-server";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,13 +80,23 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const cacheKey = `owner-billing:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          "Cache-Control": "private, max-age=30",
+          "X-Roxan-Cache": "HIT",
+        },
+      });
+    }
 
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     const tenantCurrency = school.currencyCode || "ZAR";
     const tenantDb = await getTenantDbBySlug(slug);
-    const branding = await getTenantBranding(slug, school.name);
+    const platformBranding = await getPlatformBillingBranding();
 
     const [subscriptionRows, invoiceRows, studentRows, userRows, moduleRows, auditRows] = await Promise.all([
       safeRows<Row>(
@@ -208,22 +219,24 @@ export async function GET(request: NextRequest) {
     const activeStudents = asNumber(studentSummary.active);
     const activeUsers = asNumber(userSummary.active);
 
-    return NextResponse.json({
+    const payload = {
       school: {
         ...school,
         currencyCode: tenantCurrency,
-        displayName: branding.name || school.name,
-        logoUrl: branding.logoUrl,
-        schoolSealUrl: branding.schoolSealUrl,
-        reportCardWatermarkUrl: branding.reportCardWatermarkUrl,
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
-        accentColor: branding.accentColor,
-        address: branding.address,
-        phone: branding.phone,
-        email: branding.email,
-        website: branding.website,
-        motto: branding.motto,
+        billingBrandingSource: "platform",
+        displayName: platformBranding.name,
+        logoUrl: platformBranding.logoUrl,
+        schoolSealUrl: platformBranding.logoUrl,
+        reportCardWatermarkUrl: null,
+        primaryColor: platformBranding.primaryColor,
+        secondaryColor: platformBranding.secondaryColor,
+        accentColor: platformBranding.accentColor,
+        address: platformBranding.address,
+        phone: platformBranding.phone,
+        email: platformBranding.email,
+        website: platformBranding.website,
+        motto: platformBranding.subtitle,
+        letterhead: platformBranding.letterhead,
       },
       generatedAt: new Date().toISOString(),
       subscription: subscriptionRow
@@ -288,6 +301,13 @@ export async function GET(request: NextRequest) {
           .filter((item) => item.dueDate)
           .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())[0]?.dueDate || null,
       },
+    };
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+        "X-Roxan-Cache": "MISS",
+      },
     });
   } catch (error) {
     console.error("Owner billing GET failed:", error);
@@ -304,6 +324,12 @@ export async function PATCH(request: NextRequest) {
     const paymentMethod = asString(body.paymentMethod, "manual");
     const paymentReference = asString(body.paymentReference, `ROX-MANUAL-${Date.now()}`);
     if (!invoiceId) return NextResponse.json({ error: "Invoice id is required" }, { status: 400 });
+    if (!["manual", "cash", "bank_transfer", "card", "mobile_money", "paystack", "flutterwave", "stripe"].includes(paymentMethod)) {
+      return NextResponse.json({ error: "Unsupported payment method" }, { status: 400 });
+    }
+    if (paymentReference.length < 4 || paymentReference.length > 120) {
+      return NextResponse.json({ error: "Payment reference must be between 4 and 120 characters" }, { status: 400 });
+    }
 
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
@@ -355,6 +381,8 @@ export async function PATCH(request: NextRequest) {
       )
     `);
 
+    deleteCachedValue(`owner-billing:${slug}`);
+    deleteCachedValue(`owner-finance:${slug}`);
     return NextResponse.json({
       success: true,
       invoiceId,

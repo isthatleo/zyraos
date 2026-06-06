@@ -7,6 +7,8 @@ import { departmentsTable, rolesTable, schoolsTable, staffTable, tenantUsersTabl
 import { generateTemporaryPassword, markForcePasswordChange, upsertCredentialAuthUser, validatePasswordPolicy } from "@/lib/password-access";
 import { getTenantRoleDefinitionById, getTenantRoleDefinitions, roleLoginMeta } from "@/lib/roles";
 import { sendPlatformEmail, sendPlatformSms } from "@/lib/platform-integrations";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 import { getTenantPortalUrl } from "@/lib/tenant-url";
 
@@ -74,6 +76,9 @@ export async function GET(request: NextRequest) {
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     const owner = await requireTenantOwner(request, slug);
     if (isTenantOwnerResponse(owner)) return owner;
+    const cacheKey = `owner-staff:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "HIT" } });
 
     const roleDefinitions = getTenantRoleDefinitions(school.type).filter(
       (role) => !["student", "parent", "owner"].includes(role.canonicalRole)
@@ -86,7 +91,6 @@ export async function GET(request: NextRequest) {
             u.id,
             u.name,
             u.email,
-            u.image,
             u.role_id,
             u.department_id,
             u.is_active,
@@ -108,6 +112,7 @@ export async function GET(request: NextRequest) {
             and lower(u.role_id) not like '%learner%'
             and lower(u.role_id) not like '%parent%'
             and lower(u.role_id) not like '%guardian%'
+            and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
           order by u.created_at desc
         `),
       "directory"
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest) {
       id: String(row.id),
       name: String(row.name || "User"),
       email: String(row.email || ""),
-      image: row.image ? String(row.image) : null,
+      image: null,
       roleId: String(row.role_id || ""),
       roleName: String(row.role_name || row.role_id || "Staff"),
       roleDescription: row.role_description ? String(row.role_description) : "",
@@ -136,7 +141,7 @@ export async function GET(request: NextRequest) {
       status: row.staff_status ? String(row.staff_status) : row.is_active === false ? "inactive" : "active",
     }));
 
-    return NextResponse.json({
+    const payload = {
       school,
       staff,
       roles: roleDefinitions,
@@ -152,7 +157,9 @@ export async function GET(request: NextRequest) {
         unassigned: staff.filter((member) => !member.departmentId).length,
         departments: departments.length,
       },
-    });
+    };
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "MISS" } });
   } catch (error) {
     console.error("Owner staff GET failed:", error);
     return NextResponse.json({ error: "Failed to load owner staff data" }, { status: 500 });
@@ -297,6 +304,29 @@ export async function POST(request: NextRequest) {
         : null,
     };
 
+    deleteCachedValue(`owner-staff:${slug}`);
+    deleteCachedValue(`owner-hr:${slug}`);
+    deleteCachedValue(`owner-staff-attendance:${slug}`);
+    deleteCachedValue(`owner-payroll:${slug}`);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: owner.userId,
+      action: "staff.created",
+      resource: "staff",
+      resourceId: userId,
+      changes: {
+        email,
+        roleId: resolvedRole.id,
+        departmentId,
+        position: position || resolvedRole.name,
+        employeeId,
+        delivery: {
+          email: delivery.email?.status,
+          sms: delivery.sms?.status || null,
+        },
+      },
+    }).catch((error) => console.warn("Owner staff audit log skipped:", error instanceof Error ? error.message : error));
     return NextResponse.json({
       success: true,
       user: {

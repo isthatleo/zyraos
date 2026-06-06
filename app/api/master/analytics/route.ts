@@ -15,9 +15,13 @@ import {
   userTable,
 } from "@/lib/db-schema";
 import { requireMasterAdmin, writeMasterAudit } from "@/lib/master-audit";
+import { getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const ANALYTICS_CACHE_KEY = "master-analytics:overview";
+const ANALYTICS_CACHE_TTL_MS = 20_000;
 
 function toNumber(value: unknown) {
   const parsed = Number(value || 0);
@@ -345,6 +349,13 @@ export async function GET(request: NextRequest) {
     if (response) return response;
 
     const exportFormat = request.nextUrl.searchParams.get("export");
+    if (!exportFormat) {
+      const cached = getCachedValue<Record<string, unknown>>(ANALYTICS_CACHE_KEY);
+      if (cached) {
+        return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=20" } });
+      }
+    }
+
     const payload = await buildAnalyticsPayload(started);
 
     if (exportFormat === "csv") {
@@ -380,7 +391,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+    setCachedValue(ANALYTICS_CACHE_KEY, payload, ANALYTICS_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=20" } });
   } catch (error) {
     console.error("Failed to fetch analytics:", error);
     return NextResponse.json({ error: "Failed to fetch analytics" }, { status: 500 });

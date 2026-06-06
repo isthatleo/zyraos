@@ -7,6 +7,7 @@ import { invoicesTable, schoolsTable, subscriptionPlansTable, subscriptionsTable
 import { convertMoney } from "@/lib/currency-conversion";
 import { requireMasterAdmin, writeMasterAudit } from "@/lib/master-audit";
 import { getPlatformSetting } from "@/lib/platform-settings-server";
+import { deleteCachedValue, deleteCachedValuesByPrefix, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,34 @@ type PlanFeatureMeta = {
   period?: string;
   currency?: string;
 };
+
+type PlansListPayload = {
+  plans: Awaited<ReturnType<typeof planPayload>>[];
+  metrics: {
+    total: number;
+    active: number;
+    inactive: number;
+    activeSubscriptions: number;
+    mrr: number;
+    revenue: number;
+    currency: string;
+  };
+  platformCurrency: string;
+};
+
+const PLANS_CACHE_KEY = "master-plans:list";
+const PLANS_CACHE_TTL_MS = 20_000;
+const ALLOWED_PERIODS = new Set(["month", "term", "year"]);
+const ALLOWED_COLORS = new Set(["orange", "green", "blue", "purple", "gray", "indigo"]);
+const ALLOWED_ICON_KEYS = new Set(["basic", "starter", "standard", "professional", "premium", "enterprise", "custom"]);
+
+function invalidatePlansCaches() {
+  deleteCachedValue(PLANS_CACHE_KEY);
+  deleteCachedValue("master-dashboard");
+  deleteCachedValue("master-billing-overview");
+  deleteCachedValuesByPrefix("master-plan:");
+  deleteCachedValuesByPrefix("master-schools:");
+}
 
 function normalizeStringArray(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
@@ -78,14 +107,26 @@ function validatePlanInput(body: Record<string, unknown>, options: { requireId?:
   const currency = String(body.currency || "ZAR").trim().toUpperCase();
   const maxStudents = parseNullableLimit(body.maxStudents);
   const maxStaff = parseNullableLimit(body.maxStaff);
+  const period = String(body.period || "month").trim().toLowerCase();
+  const color = String(body.color || "orange").trim().toLowerCase();
+  const iconKey = String(body.iconKey || "basic").trim().toLowerCase();
 
   if (options.requireId && !id) return { error: "Plan ID is required" };
+  if (id && (id.length < 2 || id.length > 80)) return { error: "Plan ID must be between 2 and 80 characters" };
   if (!name) return { error: "Plan name is required" };
+  if (name.length > 120) return { error: "Plan name cannot exceed 120 characters" };
+  if (String(body.description || "").length > 1200) return { error: "Plan description cannot exceed 1200 characters" };
   if (price < 0) return { error: "Plan price cannot be negative" };
+  if (price > 99_999_999) return { error: "Plan price is too high" };
   if (!/^[A-Z]{3}$/.test(currency)) return { error: "Currency must be a valid 3-letter ISO code" };
   if (Number.isNaN(maxStudents) || Number.isNaN(maxStaff)) return { error: "Student and staff limits must be positive numbers or empty" };
+  if (maxStudents !== null && maxStudents > 10_000_000) return { error: "Student limit is too high" };
+  if (maxStaff !== null && maxStaff > 1_000_000) return { error: "Staff limit is too high" };
+  if (!ALLOWED_PERIODS.has(period)) return { error: "Billing period must be month, term, or year" };
+  if (!ALLOWED_COLORS.has(color)) return { error: "Plan color is not supported" };
+  if (!ALLOWED_ICON_KEYS.has(iconKey)) return { error: "Plan icon is not supported" };
 
-  return { id, name, price, currency, maxStudents, maxStaff };
+  return { id, name, price, currency, maxStudents, maxStaff, period, color, iconKey };
 }
 
 async function planPayload(row: {
@@ -152,16 +193,19 @@ async function planPayload(row: {
 }
 
 function buildFeatureJson(body: Record<string, unknown>): PlanFeatureMeta {
+  const period = String(body.period || "month").trim().toLowerCase();
+  const color = String(body.color || "orange").trim().toLowerCase();
+  const iconKey = String(body.iconKey || "basic").trim().toLowerCase();
   return {
-    included: normalizeStringArray(body.features),
-    unavailable: normalizeStringArray(body.unavailableFeatures),
-    modules: normalizeStringArray(body.modules),
-    tagline: String(body.tagline || ""),
-    label: String(body.label || ""),
+    included: normalizeStringArray(body.features).slice(0, 80),
+    unavailable: normalizeStringArray(body.unavailableFeatures).slice(0, 80),
+    modules: normalizeStringArray(body.modules).slice(0, 80),
+    tagline: String(body.tagline || "").trim().slice(0, 180),
+    label: String(body.label || "").trim().slice(0, 60),
     popular: Boolean(body.popular),
-    color: String(body.color || "orange"),
-    iconKey: String(body.iconKey || "basic"),
-    period: String(body.period || "month"),
+    color: ALLOWED_COLORS.has(color) ? color : "orange",
+    iconKey: ALLOWED_ICON_KEYS.has(iconKey) ? iconKey : "basic",
+    period: ALLOWED_PERIODS.has(period) ? period : "month",
     currency: String(body.currency || "ZAR").trim().toUpperCase(),
   };
 }
@@ -187,6 +231,11 @@ export async function GET(request: NextRequest) {
     const { response } = await requireMasterAdmin(request);
     if (response) return response;
 
+    const cached = getCachedValue<PlansListPayload>(PLANS_CACHE_KEY);
+    if (cached) {
+      return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=20" } });
+    }
+
     const [plans, usage] = await Promise.all([
       masterDb.select().from(subscriptionPlansTable).orderBy(desc(subscriptionPlansTable.createdAt)),
       loadUsageByPlan(),
@@ -207,7 +256,9 @@ export async function GET(request: NextRequest) {
     metrics.inactive = metrics.total - metrics.active;
 
     const platformCurrency = String(await getPlatformSetting("currency") || "ZAR").toUpperCase();
-    return NextResponse.json({ plans: enriched, metrics: { ...metrics, currency: platformCurrency }, platformCurrency }, { headers: { "Cache-Control": "no-store" } });
+    const payload: PlansListPayload = { plans: enriched, metrics: { ...metrics, currency: platformCurrency }, platformCurrency };
+    setCachedValue(PLANS_CACHE_KEY, payload, PLANS_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=20" } });
   } catch (error) {
     console.error("Error fetching subscription plans:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -254,6 +305,7 @@ export async function POST(request: NextRequest) {
       changes: { name: plan.name, price: plan.price, isActive: plan.isActive },
     });
 
+    invalidatePlansCaches();
     return NextResponse.json({ success: true, plan: await planPayload(plan) }, { status: 201 });
   } catch (error) {
     console.error("Error creating subscription plan:", error);
@@ -297,6 +349,7 @@ export async function PUT(request: NextRequest) {
       changes: { name: plan.name, price: plan.price, isActive: plan.isActive },
     });
 
+    invalidatePlansCaches();
     return NextResponse.json({ success: true, plan: await planPayload(plan) });
   } catch (error) {
     console.error("Error updating subscription plan:", error);

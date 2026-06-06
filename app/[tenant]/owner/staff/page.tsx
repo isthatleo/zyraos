@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type StaffMember = {
@@ -90,7 +90,14 @@ function statusClass(status: string) {
 function LoadingState() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-56 rounded-3xl" />
+      <section className="rounded-3xl border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Users className="size-6" />
+        </div>
+        <Badge variant="outline" className="rounded-full">Owner staff</Badge>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Owner Staff Management</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Loading staff access, departments, roles, and credential delivery state.</p>
+      </section>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}
       </div>
@@ -101,8 +108,10 @@ function LoadingState() {
 
 export default function OwnerStaffPage() {
   const params = useParams<{ tenant?: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [isTenantSubdomain, setIsTenantSubdomain] = React.useState(false);
   const [data, setData] = React.useState<StaffPayload | null>(null);
   const [loading, setLoading] = React.useState(true);

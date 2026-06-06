@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import crypto from "node:crypto";
 
 import { masterDb } from "@/lib/db";
 import { systemSettingsTable } from "@/lib/db-schema";
@@ -107,7 +108,7 @@ const PUBLIC_SETTING_KEYS = [
   "firstDayOfWeek",
 ] as const;
 
-const SECRET_SETTING_KEYS = new Set([
+export const SECRET_SETTING_KEYS = new Set([
   "smtpPassword",
   "resendApiKey",
   "twilioAccountSid",
@@ -119,11 +120,61 @@ const SECRET_SETTING_KEYS = new Set([
   "tenantDatabaseUrlTemplate",
 ]);
 
+type EncryptedSecret = {
+  __encrypted: "platform-setting:v1";
+  iv: string;
+  tag: string;
+  data: string;
+};
+
+function encryptionKey() {
+  const source = process.env.PLATFORM_SETTINGS_ENCRYPTION_KEY || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET || "";
+  if (!source) return null;
+  return crypto.createHash("sha256").update(source).digest();
+}
+
+function isEncryptedSecret(value: unknown): value is EncryptedSecret {
+  return Boolean(value && typeof value === "object" && (value as Record<string, unknown>).__encrypted === "platform-setting:v1");
+}
+
+export function encryptPlatformSecret(value: unknown) {
+  const plaintext = asString(value);
+  if (!plaintext || plaintext === "********") return value;
+  const key = encryptionKey();
+  if (!key) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const data = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return {
+    __encrypted: "platform-setting:v1",
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    data: data.toString("base64"),
+  } satisfies EncryptedSecret;
+}
+
+export function decryptPlatformSecret(value: unknown) {
+  if (!isEncryptedSecret(value)) return value;
+  const key = encryptionKey();
+  if (!key) return "";
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(value.iv, "base64"));
+    decipher.setAuthTag(Buffer.from(value.tag, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(value.data, "base64")), decipher.final()]).toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+export function normalizePlatformSettingValue(key: string, value: unknown) {
+  return SECRET_SETTING_KEYS.has(key) ? decryptPlatformSecret(value) : value;
+}
+
 export async function getPlatformSettings(): Promise<PlatformSettings> {
   const rows = await masterDb.select().from(systemSettingsTable);
   const settings: Record<string, unknown> = { ...PLATFORM_SETTING_DEFAULTS };
   for (const row of rows) {
-    settings[row.key] = row.value;
+    settings[row.key] = normalizePlatformSettingValue(row.key, row.value);
   }
   return settings as PlatformSettings;
 }
@@ -134,7 +185,7 @@ export async function getPlatformSetting(key: keyof typeof PLATFORM_SETTING_DEFA
     .from(systemSettingsTable)
     .where(eq(systemSettingsTable.key, key))
     .limit(1);
-  return row?.value ?? PLATFORM_SETTING_DEFAULTS[key];
+  return row ? normalizePlatformSettingValue(String(key), row.value) : PLATFORM_SETTING_DEFAULTS[key];
 }
 
 export function getPublicPlatformSettings(settings: Record<string, unknown>): PublicPlatformSettings {

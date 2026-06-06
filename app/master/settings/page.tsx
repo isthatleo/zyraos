@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CityInput, CountrySelect, PhoneNumberField } from "@/components/shared/localized-fields";
 import { publishPlatformSettings, type PublicPlatformSettings } from "@/lib/platform-settings-sync";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,8 @@ type SettingsState = {
   platformSubtitle: string;
   supportEmail: string;
   supportPhone: string;
+  supportCountry: string;
+  supportCity: string;
   companyAddress: string;
   timezone: string;
   currency: string;
@@ -156,6 +159,8 @@ const DEFAULT_SETTINGS: SettingsState = {
   platformSubtitle: "Education System",
   supportEmail: "hello@roxan.com",
   supportPhone: "+27 21 123 4567",
+  supportCountry: "South Africa",
+  supportCity: "Cape Town",
   companyAddress: "Cape Town, South Africa",
   timezone: "Africa/Johannesburg",
   currency: "ZAR",
@@ -268,6 +273,8 @@ const SECTION_FIELDS: Record<string, Array<keyof SettingsState>> = {
     "platformSubtitle",
     "supportEmail",
     "supportPhone",
+    "supportCountry",
+    "supportCity",
     "companyAddress",
     "timezone",
     "currency",
@@ -624,10 +631,27 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[520px] items-center justify-center">
-        <div className="flex items-center gap-3 rounded-full border bg-card px-5 py-3 text-sm text-muted-foreground shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          Loading platform settings...
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 p-4 lg:p-6">
+        <div className="border-b bg-background/80 pb-4 backdrop-blur-xl">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <ServerCog className="h-3.5 w-3.5" />
+              Platform Control
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+              <p className="text-muted-foreground">
+                Global configuration for Roxan, tenant defaults, dashboard sync, security, backups, and communications.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-3xl bg-muted" />)}
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="h-[520px] animate-pulse rounded-3xl bg-muted" />
+          <div className="h-[520px] animate-pulse rounded-3xl bg-muted" />
         </div>
       </div>
     );
@@ -842,9 +866,9 @@ export default function SettingsPage() {
                   <Field label="Support Email">
                     <Input type="email" value={settings.supportEmail} onChange={(event) => setField("supportEmail", event.target.value)} />
                   </Field>
-                  <Field label="Support Phone">
-                    <Input value={settings.supportPhone} onChange={(event) => setField("supportPhone", event.target.value)} />
-                  </Field>
+                  <PhoneNumberField label="Support Phone" value={settings.supportPhone} country={settings.supportCountry} onChange={(value) => setField("supportPhone", value)} />
+                  <CountrySelect label="Support Country" value={settings.supportCountry} onChange={(value) => setField("supportCountry", value)} />
+                  <CityInput label="Support City" value={settings.supportCity} country={settings.supportCountry} onChange={(value) => setField("supportCity", value)} />
                 </div>
                 <Field label="Physical Address">
                   <Textarea rows={3} value={settings.companyAddress} onChange={(event) => setField("companyAddress", event.target.value)} />

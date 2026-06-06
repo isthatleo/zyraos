@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 
 import { masterDb } from '@/lib/db';
 import { invoicesTable, schoolsTable, subscriptionPlansTable, subscriptionsTable } from '@/lib/db-schema';
+import { getCachedValue, setCachedValue } from '@/lib/server-response-cache';
+import { requireMasterAdmin } from '@/lib/master-audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,8 +24,20 @@ function monthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+    const cached = getCachedValue<Record<string, unknown>>('master-billing-overview');
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'private, max-age=30',
+          'X-Roxan-Cache': 'HIT',
+        },
+      });
+    }
+
     const invoiceRows = await masterDb
       .select({
         id: invoicesTable.id,
@@ -129,7 +143,7 @@ export async function GET() {
       bucket.count += 1;
     }
 
-    return NextResponse.json({
+    const payload = {
       metrics: {
         ...metrics,
         mrr,
@@ -162,6 +176,13 @@ export async function GET() {
           currency: invoice.currency || 'ZAR',
           dueDate: invoice.dueDate,
         })),
+    };
+    setCachedValue('master-billing-overview', payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': 'private, max-age=30',
+        'X-Roxan-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error loading billing overview:', error);

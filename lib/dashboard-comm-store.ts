@@ -55,7 +55,9 @@ type Store = {
     callerCandidates?: RTCIceCandidateInit[];
     recipientCandidates?: RTCIceCandidateInit[];
     createdAt: string;
+    acceptedAt?: string;
     endedAt?: string;
+    callEventMessageId?: string;
   }>;
 };
 

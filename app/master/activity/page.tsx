@@ -133,7 +133,7 @@ const DEFAULT_DATA: ActivityData = {
 };
 
 function compact(value: number) {
-  return new Intl.NumberFormat(undefined, { notation: value >= 10000 ? "compact" : "standard" }).format(Number(value || 0));
+  return new Intl.NumberFormat("en-US", { notation: value >= 10000 ? "compact" : "standard" }).format(Number(value || 0));
 }
 
 function percent(value: number) {
@@ -141,7 +141,7 @@ function percent(value: number) {
 }
 
 function dateLabel(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : "N/A";
+  return value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) : "N/A";
 }
 
 function getActionIcon(action: string) {
@@ -230,6 +230,8 @@ function MetricCard({
 export default function ActivityLogPage() {
   const [data, setData] = React.useState<ActivityData>(DEFAULT_DATA);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [exporting, setExporting] = React.useState<"csv" | "json" | null>(null);
   const [query, setQuery] = React.useState("");
   const deferredQuery = React.useDeferredValue(query);
   const [status, setStatus] = React.useState("all");
@@ -262,6 +264,7 @@ export default function ActivityLogPage() {
 
   const fetchLogs = React.useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = buildParams();
       const response = await fetch(`/api/master/activity?${params.toString()}`, {
@@ -272,8 +275,9 @@ export default function ActivityLogPage() {
       setData({ ...DEFAULT_DATA, ...payload });
     } catch (error) {
       console.error("Failed to fetch activity logs:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to fetch activity logs");
-      setData(DEFAULT_DATA);
+      const message = error instanceof Error ? error.message : "Failed to fetch activity logs";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -299,6 +303,7 @@ export default function ActivityLogPage() {
   };
 
   const exportFromServer = async (format: "csv" | "json") => {
+    setExporting(format);
     try {
       const response = await fetch(`/api/master/activity?${buildParams({ includeOffset: false, exportFormat: format }).toString()}`, {
         cache: "no-store",
@@ -316,6 +321,8 @@ export default function ActivityLogPage() {
       toast.success(`Full filtered ${format.toUpperCase()} export generated`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -357,12 +364,12 @@ export default function ActivityLogPage() {
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
-          <Button variant="outline" className="gap-2 rounded-full" onClick={() => exportFromServer("csv")} disabled={loading || !data.logs.length}>
-            <Download className="h-4 w-4" />
+          <Button variant="outline" className="gap-2 rounded-full" onClick={() => exportFromServer("csv")} disabled={loading || exporting !== null || !data.logs.length}>
+            {exporting === "csv" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Export CSV
           </Button>
-          <Button variant="outline" className="gap-2 rounded-full" onClick={() => exportFromServer("json")} disabled={loading || !data.logs.length}>
-            <Download className="h-4 w-4" />
+          <Button variant="outline" className="gap-2 rounded-full" onClick={() => exportFromServer("json")} disabled={loading || exporting !== null || !data.logs.length}>
+            {exporting === "json" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Export JSON
           </Button>
           <Button className="gap-2 rounded-full" onClick={purgeRetainedLogs} disabled={loading}>
@@ -371,6 +378,21 @@ export default function ActivityLogPage() {
           </Button>
         </div>
       </div>
+
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-destructive">Could not load activity logs</p>
+              <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" onClick={fetchLogs} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard title="Total Events" value={compact(data.summary.total)} description={`${compact(data.summary.last24h)} in the last 24 hours`} icon={CalendarClock} />

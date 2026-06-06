@@ -53,7 +53,10 @@ function money(amount: number, currency = "ZAR") {
 }
 
 function dateLabel(date?: string | null) {
-  return date ? new Date(date).toLocaleDateString() : "Not set";
+  if (!date) return "Not set";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "Not set";
+  return new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(parsed);
 }
 
 export default function InvoiceDetailPage() {
@@ -149,7 +152,7 @@ export default function InvoiceDetailPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Invoice Detail</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{invoice.invoiceNumber}</h1>
-            <p className="mt-2 text-muted-foreground">{invoice.schoolName} · {invoice.plan}</p>
+            <p className="mt-2 text-muted-foreground">{invoice.schoolName} - {invoice.plan}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

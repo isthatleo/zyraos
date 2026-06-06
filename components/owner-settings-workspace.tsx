@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import {
   AlertCircle,
   Bell,
@@ -37,7 +37,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CityInput, CountrySelect, PhoneNumberField } from "@/components/shared/localized-fields";
 import { cn } from "@/lib/utils";
+import { resolveTenantSlug } from "@/lib/tenant-routing";
 
 const settingsSectionTitleClass = "text-2xl font-bold tracking-tight text-foreground";
 
@@ -81,6 +83,18 @@ type Payload = {
   backups?: Array<{ id: string; createdAt: string | null; createdBy: string | null; size: number | null }>;
   generatedAt: string;
 };
+
+const fallbackSections: Section[] = [
+  { id: "school_name", title: "School Profile", description: "Core school identity, contact, location, and administrator details.", fields: [] },
+  { id: "branding", title: "Branding & Appearance", description: "Tenant logos, colors, typography, portal layout, and previews.", fields: [] },
+  { id: "academic", title: "Academic Settings", description: "Academic identity, policies, grading logic, and publication controls.", fields: [] },
+  { id: "academic_structure", title: "Academic Structure", description: "Dynamic stages, levels, streams, and generated classes.", fields: [] },
+  { id: "attendance", title: "Attendance", description: "Attendance modes, late policies, notifications, and grading.", fields: [] },
+  { id: "examination", title: "Examination & Grading", description: "Assessment categories, grading scales, ranking, and report card rules.", fields: [] },
+  { id: "finance", title: "Finance", description: "Fee structures, discounts, penalties, providers, and currencies.", fields: [] },
+  { id: "communication", title: "Communication", description: "Email, SMS, push, WhatsApp, and live provider tests.", fields: [] },
+  { id: "backup", title: "Back-up & Data", description: "Backup execution, restore management, and data exports.", fields: [] },
+];
 
 const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   school_name: Building2,
@@ -326,20 +340,55 @@ const selectOptions: Record<string, string[]> = {
   backupFrequency: ["hourly", "daily", "weekly", "monthly"],
 };
 
-function loadingState() {
+function loadingState(section: Section, routeTenantSlug: string) {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-48 rounded-3xl" />
+      <section className="rounded-3xl border border-border bg-card/95 p-4 shadow-sm ring-1 ring-border/60 backdrop-blur">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">Tenant ecosystem settings</Badge>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight">{section.title}</h1>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{section.description}</p>
+          </div>
+          <Button className="rounded-2xl" disabled>
+            <Save className="mr-2 h-4 w-4 animate-pulse" /> Save Settings
+          </Button>
+        </div>
+      </section>
       <div className="grid gap-6 lg:grid-cols-[19rem_1fr]">
-        <Skeleton className="h-96 rounded-3xl" />
+        <Card className="h-96 rounded-3xl border-border bg-card/95">
+          <CardHeader>
+            <CardTitle>Sections</CardTitle>
+            <CardDescription>Each section opens as its own settings page.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {fallbackSections.map((item) => {
+              const Icon = sectionIcons[item.id] || SlidersHorizontal;
+              const active = item.id === section.id;
+              return (
+                <Link
+                  key={item.id}
+                  href={sectionHref(routeTenantSlug, item.id)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.title}</span>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
         <Skeleton className="h-[560px] rounded-3xl" />
       </div>
     </div>
   );
 }
 
-function sectionHref(tenantSlug: string, sectionId: string) {
-  return `/${tenantSlug}/owner/settings/${sectionId}`;
+function sectionHref(routeTenantSlug: string, sectionId: string) {
+  return `${routeTenantSlug ? `/${routeTenantSlug}` : ""}/owner/settings/${sectionId}`;
 }
 
 function applyTenantFavicon(faviconUrl: string) {
@@ -353,7 +402,10 @@ function applyTenantFavicon(faviconUrl: string) {
 
 export function OwnerSettingsWorkspace({ sectionId }: { sectionId?: string }) {
   const params = useParams<{ tenant?: string }>();
-  const tenantSlug = params?.tenant || "";
+  const pathname = usePathname();
+  const paramTenantSlug = params?.tenant || "";
+  const routeTenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : "";
+  const tenantSlug = routeTenantSlug || (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : "");
   const [data, setData] = React.useState<Payload | null>(null);
   const [settings, setSettings] = React.useState<Record<string, SettingsValue>>({});
   const [loading, setLoading] = React.useState(true);
@@ -416,7 +468,7 @@ export function OwnerSettingsWorkspace({ sectionId }: { sectionId?: string }) {
   function selectSection(nextSectionId: string) {
     setSelectedSectionId(nextSectionId);
     if (tenantSlug && typeof window !== "undefined") {
-      window.history.pushState(null, "", sectionHref(tenantSlug, nextSectionId));
+      window.history.pushState(null, "", sectionHref(routeTenantSlug, nextSectionId));
     }
   }
 
@@ -551,7 +603,9 @@ export function OwnerSettingsWorkspace({ sectionId }: { sectionId?: string }) {
     );
   }
 
-  if (loading) return loadingState();
+  const fallbackSection = fallbackSections.find((section) => section.id === selectedSectionId) || fallbackSections[0];
+
+  if (loading) return loadingState(fallbackSection, routeTenantSlug);
 
   if (error || !data) {
     return (
@@ -604,7 +658,7 @@ export function OwnerSettingsWorkspace({ sectionId }: { sectionId?: string }) {
                 return (
                   <Link
                     key={section.id}
-                    href={sectionHref(tenantSlug, section.id)}
+                    href={sectionHref(routeTenantSlug, section.id)}
                     onClick={(event) => {
                       event.preventDefault();
                       selectSection(section.id);
@@ -2109,7 +2163,7 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
 
       <Card className={sectionCardClass}>
         <CardHeader className={sectionHeaderClass}>
-          <CardTitle className="text-xl font-bold">Provider Credentials</CardTitle>
+          <CardTitle role="heading" aria-level={2} className="text-xl font-bold">Provider Credentials</CardTitle>
           <CardDescription>Store API keys, secret keys, webhooks, sandbox mode, and live mode for each enabled provider.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 p-6 pt-0 xl:grid-cols-2">
@@ -2127,7 +2181,7 @@ function FinanceSettingsSection({ settings, setField, onSave, saving, actionLoad
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-base font-bold">{label}</p>
                   <Button variant="outline" size="sm" className="rounded-full" disabled={actionLoading === `test:${key}`} onClick={() => onTestProvider(key)}>
-                    <RefreshCw className={cn("mr-2 h-3.5 w-3.5", actionLoading === `test:${key}` && "animate-spin")} /> Test
+                    <RefreshCw className={cn("mr-2 h-3.5 w-3.5", actionLoading === `test:${key}` && "animate-spin")} /> Test {label}
                   </Button>
                 </div>
                 <div className="mt-4 grid gap-3">
@@ -2489,6 +2543,16 @@ function FieldControl({ field, value, onChange }: { field: string; value: Settin
       </div>
     );
   }
+  if (["phone", "alternativePhone", "ownerPhone"].includes(field)) {
+    return (
+      <PhoneNumberField
+        id={field}
+        label={label}
+        value={String(value || "")}
+        onChange={onChange}
+      />
+    );
+  }
   if (selectOptions[field]) {
     return (
       <div className="space-y-2.5">
@@ -2498,6 +2562,26 @@ function FieldControl({ field, value, onChange }: { field: string; value: Settin
           <SelectContent>{selectOptions[field].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
         </Select>
       </div>
+    );
+  }
+  if (field === "country") {
+    return (
+      <CountrySelect
+        id={field}
+        label={label}
+        value={String(value || "")}
+        onChange={(nextValue) => onChange(nextValue)}
+      />
+    );
+  }
+  if (field === "city") {
+    return (
+      <CityInput
+        id={field}
+        label={label}
+        value={String(value || "")}
+        onChange={onChange}
+      />
     );
   }
   if (["address", "schoolDescription", "postalAddress"].includes(field)) {

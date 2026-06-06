@@ -6,6 +6,7 @@ import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
 import { convertMoney } from '@/lib/currency-conversion';
 import { getPlatformSetting } from '@/lib/platform-settings-server';
 import { getTenantPortalUrl } from '@/lib/tenant-url';
+import { deleteCachedValue } from '@/lib/server-response-cache';
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,15 @@ function getPlanCurrency(features: unknown, fallback: string) {
     if (/^[A-Z]{3}$/.test(currency)) return currency;
   }
   return fallback;
+}
+
+function invalidateSchoolsCaches() {
+  deleteCachedValue("master-dashboard");
+  for (const status of ["all", "active", "inactive", "trial", "deactivated"]) {
+    for (const limit of [25, 50, 100]) {
+      deleteCachedValue(`master-schools:${status === "all" ? "all" : status}:${limit}:0`);
+    }
+  }
 }
 
 export async function GET(
@@ -216,6 +226,7 @@ export async function PUT(
         },
       },
     });
+    invalidateSchoolsCaches();
 
     return NextResponse.json({
       success: true,
@@ -277,6 +288,7 @@ export async function DELETE(
         status: updatedSchool[0].status,
       },
     });
+    invalidateSchoolsCaches();
 
     return NextResponse.json({
       success: true,

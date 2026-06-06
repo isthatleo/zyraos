@@ -3,6 +3,9 @@ import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { leaveTable, schoolsTable } from "@/lib/db-schema";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +65,11 @@ export async function GET(request: NextRequest) {
 
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
+    const cacheKey = `owner-staff-attendance:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "HIT" } });
 
     const tenantDb = await getTenantDbBySlug(slug);
     const [staffRows, leaveRows, departmentRows] = await Promise.all([
@@ -89,6 +97,7 @@ export async function GET(request: NextRequest) {
               and lower(u.role_id) not like '%learner%'
               and lower(u.role_id) not like '%parent%'
               and lower(u.role_id) not like '%guardian%'
+              and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
             order by u.name asc
           `),
         "staff"
@@ -201,7 +210,7 @@ export async function GET(request: NextRequest) {
     const inactive = staff.filter((member) => member.state === "inactive").length;
     const coverageRate = staff.length ? Math.round((available / staff.length) * 1000) / 10 : 0;
 
-    return NextResponse.json({
+    const payload = {
       school,
       generatedAt: new Date().toISOString(),
       staff,
@@ -224,7 +233,9 @@ export async function GET(request: NextRequest) {
         coverageRate,
         departments: departmentRows.length,
       },
-    });
+    };
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=30", "X-Roxan-Cache": "MISS" } });
   } catch (error) {
     console.error("Owner staff attendance GET failed:", error);
     return NextResponse.json({ error: "Failed to load owner staff attendance data" }, { status: 500 });
@@ -237,6 +248,8 @@ export async function PATCH(request: NextRequest) {
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
     const school = await getSchool(slug);
     if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const owner = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(owner)) return owner;
 
     const body = await request.json().catch(() => ({}));
     const id = asString(body.id);
@@ -246,11 +259,39 @@ export async function PATCH(request: NextRequest) {
     }
 
     const tenantDb = await getTenantDbBySlug(slug);
+    const [record] = await safeRows<Row>(
+      () =>
+        tenantDb.execute(sql`
+          select l.id, l.status
+          from leave l
+          join staff s on s.id = l.staff_id
+          join users u on u.id = s.user_id
+          where l.id = ${id}
+            and lower(u.role_id) not like '%student%'
+            and lower(u.role_id) not like '%parent%'
+            and lower(coalesce(u.role_id, '')) not in ('super_admin', 'master', 'platform_admin')
+          limit 1
+        `),
+      "leave ownership"
+    );
+    if (!record) return NextResponse.json({ error: "Leave record not found in this tenant" }, { status: 404 });
     await tenantDb
       .update(leaveTable)
       .set({ status, remarks: body.remarks ? asString(body.remarks) : undefined, updatedAt: new Date() })
       .where(eq(leaveTable.id, id));
 
+    deleteCachedValue(`owner-staff-attendance:${slug}`);
+    deleteCachedValue(`owner-leave:${slug}`);
+    deleteCachedValue(`owner-hr:${slug}`);
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: owner.userId,
+      action: "leave.status_updated",
+      resource: "leave",
+      resourceId: id,
+      changes: { from: record.status, to: status, source: "staff_attendance" },
+    }).catch((error) => console.warn("Owner staff attendance audit log skipped:", error instanceof Error ? error.message : error));
     return NextResponse.json({ success: true, message: "Leave status updated" });
   } catch (error) {
     console.error("Owner staff attendance PATCH failed:", error);

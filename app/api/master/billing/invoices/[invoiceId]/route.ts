@@ -4,6 +4,7 @@ import { invoicesTable, schoolsTable, subscriptionsTable, subscriptionPlansTable
 import { eq } from 'drizzle-orm';
 import { requireMasterAdmin, writeMasterAudit } from '@/lib/master-audit';
 import { convertMoney } from '@/lib/currency-conversion';
+import { deleteCachedValue } from '@/lib/server-response-cache';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,11 +17,22 @@ function resolveStatus(status?: string | null, dueDate?: Date | null) {
   return VALID_STATUSES.has(normalized) ? normalized : 'pending';
 }
 
+function invalidateBillingCaches() {
+  deleteCachedValue('master-dashboard');
+  deleteCachedValue('master-billing-overview');
+  for (const status of ['all', 'pending', 'paid', 'overdue', 'void']) {
+    deleteCachedValue(`master-billing-invoices:${status}`);
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> }
 ) {
   try {
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
     const { invoiceId } = await params;
 
     const data = await masterDb
@@ -141,6 +153,7 @@ export async function PATCH(
         paidDate: invoice.paidDate?.toISOString() || null,
       },
     });
+    invalidateBillingCaches();
 
     return NextResponse.json({ success: true, invoice });
   } catch (error) {

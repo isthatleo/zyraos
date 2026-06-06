@@ -38,16 +38,6 @@ export async function getRequiredDashboardUser(headers: Headers): Promise<Dashbo
   const name = session.user.name || session.user.email;
   const image = session.user.image || authUser?.image || null;
 
-  if (role === "super_admin") {
-    return {
-      id: session.user.id,
-      name: authUser?.name || name,
-      email: session.user.email,
-      role,
-      image,
-    };
-  }
-
   await db.execute(sql`
     insert into roles (id, name, description, is_system, created_at, updated_at)
     values (${role}, ${role.replace(/_/g, " ")}, ${"Auto-created role for authenticated users"}, true, now(), now())

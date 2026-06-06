@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
+import crypto from "node:crypto";
 
 import { masterDb } from "@/lib/db";
 import { auditLogsTable, schoolsTable, systemSettingsTable } from "@/lib/db-schema";
 import type { PublicPlatformSettings } from "@/lib/platform-settings-sync";
 import { getRequestIp, requireMasterAdmin } from "@/lib/master-audit";
+import { encryptPlatformSecret, normalizePlatformSettingValue } from "@/lib/platform-settings-server";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const SETTINGS_CACHE_KEY = "master-settings:overview";
+const SETTINGS_CACHE_TTL_MS = 20_000;
 
 type SettingDefinition = {
   key: string;
@@ -132,7 +138,52 @@ function sanitizeSetting(key: string, value: unknown) {
   const definition = definitionsByKey.get(key);
   if (typeof definition?.defaultValue === "boolean") return Boolean(value);
   if (typeof definition?.defaultValue === "number") return Number(value || 0);
-  return String(value ?? "");
+  const text = String(value ?? "");
+  return definition?.secret ? encryptPlatformSecret(text) : text;
+}
+
+function validateSetting(key: string, value: unknown) {
+  if (!definitionsByKey.has(key)) return `Unknown setting: ${key}`;
+  const stringValue = String(value ?? "").trim();
+  const numericRules: Record<string, { min: number; max: number; label: string }> = {
+    smtpPort: { min: 1, max: 65535, label: "SMTP port" },
+    sessionTimeout: { min: 5, max: 1440, label: "Session timeout" },
+    passwordMinLength: { min: 8, max: 128, label: "Password minimum length" },
+    auditRetentionDays: { min: 30, max: 3650, label: "Audit retention days" },
+    failedLoginLockout: { min: 1, max: 20, label: "Failed login lockout" },
+    retentionPeriod: { min: 1, max: 3650, label: "Retention period" },
+    ownerSeatLimit: { min: 1, max: 1000, label: "Owner seat limit" },
+    trialDays: { min: 0, max: 365, label: "Trial days" },
+    invoiceDueDays: { min: 1, max: 365, label: "Invoice due days" },
+    taxRate: { min: 0, max: 100, label: "Tax rate" },
+    paymentGraceDays: { min: 0, max: 365, label: "Payment grace days" },
+    subscriptionRenewalNoticeDays: { min: 1, max: 365, label: "Renewal notice days" },
+  };
+  const numericRule = numericRules[key];
+  if (numericRule) {
+    const parsed = Number(stringValue);
+    if (!Number.isFinite(parsed) || parsed < numericRule.min || parsed > numericRule.max) {
+      return `${numericRule.label} must be between ${numericRule.min} and ${numericRule.max}`;
+    }
+  }
+  if (["supportEmail", "emailFrom", "privacyContactEmail"].includes(key) && stringValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stringValue)) {
+    return `${key} must be a valid email address`;
+  }
+  if (key === "currency" && !/^[A-Z]{3}$/.test(stringValue.toUpperCase())) return "Currency must be a valid 3-letter ISO code";
+  if (["webhookUrl", "ssoIssuerUrl", "lmsApiUrl"].includes(key) && stringValue) {
+    try {
+      const url = new URL(stringValue);
+      if (!["https:", "http:"].includes(url.protocol)) return `${key} must be an HTTP or HTTPS URL`;
+    } catch {
+      return `${key} must be a valid URL`;
+    }
+  }
+  if (key === "nightlyJobWindow" && !/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(stringValue)) return "Nightly job window must use HH:mm-HH:mm";
+  if (key === "ssoProvider" && !["disabled", "saml", "oidc", "google-workspace", "microsoft-entra"].includes(stringValue)) return "Unsupported SSO provider";
+  if (key === "lmsIntegrationMode" && !["disabled", "lti", "moodle", "canvas", "google-classroom"].includes(stringValue)) return "Unsupported LMS integration mode";
+  if (key === "defaultSchoolStatus" && !["active", "pending", "trial", "suspended"].includes(stringValue)) return "Unsupported default school status";
+  if (key === "backupFrequency" && !["hourly", "daily", "weekly", "monthly"].includes(stringValue)) return "Unsupported backup frequency";
+  return null;
 }
 
 function getPublicSettings(settings: Record<string, unknown>) {
@@ -166,7 +217,7 @@ async function readSettings() {
     };
   }
   for (const row of rows) {
-    settings[row.key] = row.value as string | boolean | number;
+    settings[row.key] = normalizePlatformSettingValue(row.key, row.value) as string | boolean | number;
     meta[row.key] = {
       category: row.category,
       description: row.description || definitionsByKey.get(row.key)?.description || "",
@@ -225,13 +276,21 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope");
-    const { settings, meta } = await readSettings();
 
     if (scope === "public") {
+      const { settings } = await readSettings();
       return NextResponse.json(getPublicSettings(settings), {
         headers: { "Cache-Control": "no-store" },
       });
     }
+
+    const { response } = await requireMasterAdmin(request);
+    if (response) return response;
+
+    const cached = getCachedValue<Record<string, unknown>>(SETTINGS_CACHE_KEY);
+    if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=20" } });
+
+    const { settings, meta } = await readSettings();
 
     const [schoolStats] = await masterDb
       .select({
@@ -240,9 +299,9 @@ export async function GET(request: NextRequest) {
       })
       .from(schoolsTable);
 
-    return NextResponse.json(
-      {
+    const payload = {
         settings: maskSecrets(settings),
+        rawSettings: maskSecrets(settings),
         meta,
         publicSettings: getPublicSettings(settings),
         categories: DEFINITIONS.reduce((acc, definition) => {
@@ -255,9 +314,9 @@ export async function GET(request: NextRequest) {
           settingsCount: Object.keys(settings).length,
           publicSettingCount: DEFINITIONS.filter((definition) => definition.public).length,
         },
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+      };
+    setCachedValue(SETTINGS_CACHE_KEY, payload, SETTINGS_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=20" } });
   } catch (error) {
     console.error("Failed to fetch settings:", error);
     return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
@@ -277,14 +336,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "No valid settings were provided" }, { status: 400 });
     }
 
+    const validationErrors = changedKeys.map((key) => validateSetting(key, incoming[key])).filter(Boolean);
+    if (validationErrors.length) {
+      return NextResponse.json({ error: "Invalid platform settings", validationErrors }, { status: 400 });
+    }
+
     await Promise.all(changedKeys.map((key) => writeSetting(key, incoming[key])));
     await auditSettingsUpdate(request, admin.adminId, changedKeys);
+    deleteCachedValue(SETTINGS_CACHE_KEY);
 
     const { settings, meta } = await readSettings();
     return NextResponse.json({
       success: true,
       changedKeys,
       settings: maskSecrets(settings),
+      rawSettings: maskSecrets(settings),
       meta,
       publicSettings: getPublicSettings(settings),
     });
@@ -304,8 +370,11 @@ export async function POST(request: NextRequest) {
     if (!key || typeof key !== "string") {
       return NextResponse.json({ error: "Key is required" }, { status: 400 });
     }
+    const validationError = validateSetting(key, value);
+    if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
     await writeSetting(key, value, category, description);
     await auditSettingsUpdate(request, admin.adminId, [key]);
+    deleteCachedValue(SETTINGS_CACHE_KEY);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to save setting:", error);

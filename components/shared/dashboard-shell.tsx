@@ -890,10 +890,10 @@ export function DashboardShell({
   const scopedAccountPath = (page: "profile" | "settings") => {
     const first = routeBreadcrumbs[0];
     if (first === "master") return `/master/${page}`;
+    if (first === "owner") return withTenantPath(page === "settings" ? "/owner/user-settings" : "/owner/profile");
     if (
       [
         "admin",
-        "owner",
         "staff",
         "student",
         "parent",

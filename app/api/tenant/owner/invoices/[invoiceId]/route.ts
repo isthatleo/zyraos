@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable, studentInvoicesTable } from "@/lib/db-schema";
+import { deleteCachedValue } from "@/lib/server-response-cache";
 import { getTenantBranding } from "@/lib/tenant-branding-server";
 
 export const runtime = "nodejs";
@@ -253,6 +254,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const tenantDb = await getTenantDbBySlug(slug);
     await tenantDb.update(studentInvoicesTable).set({ status, notes, updatedAt: new Date() }).where(eq(studentInvoicesTable.id, invoiceId));
+    deleteCachedValue(`owner-invoices:${slug}`);
+    deleteCachedValue(`owner-finance:${slug}`);
     return NextResponse.json({ success: true, message: "Invoice updated" });
   } catch (error) {
     console.error("Owner invoice detail PATCH failed:", error);

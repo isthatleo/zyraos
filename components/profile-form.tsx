@@ -1,17 +1,44 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import {
+  Activity,
+  BadgeCheck,
+  Briefcase,
+  Calendar,
+  Camera,
+  CheckCircle2,
+  Clipboard,
+  Contact,
+  Download,
+  HeartPulse,
+  IdCard,
+  Languages,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  MapPin,
+  Phone,
+  RefreshCw,
+  Shield,
+  Sparkles,
+  User,
+} from "lucide-react"
+import { toast } from "sonner"
+
 import { authClient } from "@/lib/auth-client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
-import { Loader2, User, Mail, Shield, Calendar, Camera, Phone, Briefcase, MapPin, Contact, HeartPulse } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { CityInput, CountrySelect, PhoneNumberField } from "@/components/shared/localized-fields"
 
 type ExtendedProfile = {
   phone: string
@@ -31,6 +58,15 @@ type ExtendedProfile = {
   emergencyContactName: string
   emergencyContactPhone: string
   preferredContactMethod: string
+}
+
+type ApiProfileUser = {
+  id: string
+  name?: string | null
+  email: string
+  role?: string | null
+  image?: string | null
+  createdAt?: string | Date | null
 }
 
 const defaultProfile: ExtendedProfile = {
@@ -53,12 +89,60 @@ const defaultProfile: ExtendedProfile = {
   preferredContactMethod: "in_app",
 }
 
+const profileCompletionFields: Array<keyof ExtendedProfile | "name" | "image"> = [
+  "name",
+  "image",
+  "phone",
+  "alternateEmail",
+  "jobTitle",
+  "department",
+  "address",
+  "city",
+  "country",
+  "emergencyContactName",
+  "emergencyContactPhone",
+  "bio",
+]
+
 function normalizeProfile(value: Partial<Record<keyof ExtendedProfile, unknown>> = {}): ExtendedProfile {
   return (Object.keys(defaultProfile) as Array<keyof ExtendedProfile>).reduce((next, key) => {
     const raw = value[key]
     next[key] = raw == null ? defaultProfile[key] : String(raw)
     return next
   }, { ...defaultProfile })
+}
+
+function initials(name?: string | null, email?: string | null) {
+  const source = name || email || "User"
+  return source
+    .split(/[ @._-]/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+function formatRole(role?: string | null) {
+  return String(role || "user").replace(/_/g, " ")
+}
+
+function getProfilePath() {
+  if (typeof window === "undefined") return "/profile"
+  const parts = window.location.pathname.split("/").filter(Boolean)
+  if (parts[0] === "master") return "/master/profile"
+  if (parts[1] === "owner") return `/${parts[0]}/owner/profile`
+  if (parts.length > 1) return `/${parts[0]}/${parts[1]}/profile`
+  return "/profile"
+}
+
+function getSettingsPath() {
+  if (typeof window === "undefined") return "/settings"
+  const parts = window.location.pathname.split("/").filter(Boolean)
+  if (parts[0] === "master") return "/master/settings"
+  if (parts[1] === "owner") return `/${parts[0]}/owner/user-settings`
+  if (parts.length > 1) return `/${parts[0]}/${parts[1]}/settings`
+  return "/settings"
 }
 
 export const USER_PROFILE_UPDATED_EVENT = "roxan:user-profile-updated"
@@ -96,6 +180,9 @@ export function ProfileForm() {
   const [image, setImage] = useState("")
   const [previewUrl, setPreviewUrl] = useState("")
   const [profile, setProfile] = useState<ExtendedProfile>(defaultProfile)
+  const [apiUser, setApiUser] = useState<ApiProfileUser | null>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user) {
@@ -105,49 +192,124 @@ export function ProfileForm() {
   }, [session])
 
   useEffect(() => {
+    let cancelled = false
+
     void (async () => {
-      const response = await fetch("/api/profile", { cache: "no-store" }).catch(() => null)
-      if (!response?.ok) return
-      const data = await response.json().catch(() => ({}))
-      setProfile(normalizeProfile(data.profile || {}))
+      try {
+        const response = await fetch("/api/profile", { cache: "no-store" }).catch(() => null)
+        if (!response?.ok) return
+        const data = await response.json().catch(() => ({}))
+        if (cancelled) return
+        if (data.currentUser) {
+          setApiUser(data.currentUser)
+          setName((current) => current || data.currentUser.name || "")
+          setImage((current) => current || data.currentUser.image || "")
+        }
+        setProfile(normalizeProfile(data.profile || {}))
+      } finally {
+        if (!cancelled) setProfileLoading(false)
+      }
     })()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const updateProfileField = (key: keyof ExtendedProfile, value: string) => {
     setProfile((current) => ({ ...current, [key]: value }))
   }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File size must be less than 5MB")
-        return
-      }
+  const user = (apiUser || session?.user) as ApiProfileUser | undefined
+  const role = formatRole((user as { role?: string } | undefined)?.role)
+  const joinedAt = user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Not recorded"
+  const profilePath = getProfilePath()
+  const settingsPath = getSettingsPath()
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = reader.result as string
-        setPreviewUrl(base64String)
-        setImage(base64String)
-      }
-      reader.readAsDataURL(file)
+  const completion = useMemo(() => {
+    const completed = profileCompletionFields.filter((field) => {
+      if (field === "name") return Boolean(name.trim())
+      if (field === "image") return Boolean(image || user?.image)
+      return Boolean(profile[field].trim())
+    }).length
+    return Math.round((completed / profileCompletionFields.length) * 100)
+  }, [image, name, profile, user?.image])
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB")
+      return
     }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are supported")
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64String = reader.result as string
+      setPreviewUrl(base64String)
+      setImage(base64String)
+    }
+    reader.readAsDataURL(file)
   }
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCopyAccountId = async () => {
+    if (!user?.id) return
+    await navigator.clipboard.writeText(user.id).catch(() => undefined)
+    toast.success("Account ID copied")
+  }
+
+  const handleDownloadContact = () => {
+    if (!user) return
+    const vcard = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      `FN:${name || user.name || "User"}`,
+      `EMAIL:${user.email}`,
+      profile.phone ? `TEL:${profile.phone}` : "",
+      profile.jobTitle ? `TITLE:${profile.jobTitle}` : "",
+      profile.department ? `ORG:${profile.department}` : "",
+      profile.address ? `ADR:;;${profile.address};${profile.city};${profile.country};;;` : "",
+      "END:VCARD",
+    ].filter(Boolean).join("\n")
+    const url = URL.createObjectURL(new Blob([vcard], { type: "text/vcard;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${(name || user.name || "profile").replace(/\s+/g, "-").toLowerCase()}.vcf`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success("Contact card downloaded")
+  }
+
+  const handleResetAvatar = () => {
+    setPreviewUrl("")
+    setImage("")
+    toast.info("Avatar cleared. Save changes to persist.")
+  }
+
+  const handleUpdateProfile = async (event: React.FormEvent) => {
+    event.preventDefault()
     setIsUpdating(true)
 
     try {
-      const { error } = await authClient.updateUser({
-        name: name,
-        image: image,
-      })
-
-      if (error) {
-        toast.error(error.message || "Failed to update profile")
+      if (!name.trim()) {
+        toast.error("Full name is required")
         return
+      }
+      if (profile.alternateEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.alternateEmail)) {
+        toast.error("Alternate email must be valid")
+        return
+      }
+
+      if (session?.user) {
+        const { error } = await authClient.updateUser({ name, image })
+        if (error) {
+          toast.error(error.message || "Failed to update profile")
+          return
+        }
       }
 
       const response = await fetch("/api/profile", {
@@ -157,290 +319,374 @@ export function ProfileForm() {
       }).catch(() => null)
 
       if (!response?.ok) {
-        toast.error("Basic profile saved, but extended profile failed")
+        const data = await response?.json().catch(() => ({}))
+        toast.error(data?.error || "Failed to save profile")
         return
       }
 
       const data = await response.json().catch(() => ({}))
       setProfile(normalizeProfile(data.profile || profile))
-      const detail = { name, image: image ? `/api/profile/avatar?v=${Date.now()}` : null, avatarVersion: Date.now() }
+      if (data.currentUser) {
+        setApiUser(data.currentUser)
+        setName(data.currentUser.name || name)
+        setImage(data.currentUser.image || "")
+      }
+      const avatarVersion = Date.now()
+      const nextImage = data.currentUser?.image || image || null
+      const detail = { name: data.currentUser?.name || name, image: nextImage ? `/api/profile/avatar?v=${avatarVersion}` : null, avatarVersion }
       writeCachedUserProfile(detail)
       window.dispatchEvent(new CustomEvent(USER_PROFILE_UPDATED_EVENT, { detail }))
       await refetch().catch(() => undefined)
+      setLastSavedAt(new Date().toLocaleTimeString())
       toast.success("Profile updated successfully")
       setPreviewUrl("")
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred")
     } finally {
       setIsUpdating(false)
     }
   }
 
-  if (isPending) {
+  if ((isPending || profileLoading) && !session?.user && !apiUser) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border bg-card/70">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="size-5 animate-spin text-primary" />
+          Loading profile workspace...
+        </div>
       </div>
     )
   }
 
-  if (!session?.user) {
+  if (!user) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-muted-foreground">Please log in to view and manage your profile.</p>
+      <Card className="mx-auto max-w-xl">
+        <CardContent className="py-10 text-center">
+          <Shield className="mx-auto mb-4 size-10 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Sign in required</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Please log in to view and manage your profile.</p>
         </CardContent>
       </Card>
     )
   }
 
-  const user = session.user
-
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleUpdateProfile}>
-        <div className="grid gap-6 md:grid-cols-12">
-          {/* Left Column: Avatar & Quick Info */}
-          <Card className="md:col-span-4 h-fit">
-            <CardHeader className="text-center">
-              <div className="relative mx-auto w-32 h-32 mb-4 group">
-                <Avatar className="w-full h-full border-4 border-background shadow-xl">
-                  <AvatarImage src={previewUrl || image || user.image || undefined} className="object-cover" />
-                  <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
-                    {user.name?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <label 
-                  htmlFor="avatar-upload" 
-                  className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <Camera className="h-8 w-8 text-white" />
-                  <input 
-                    id="avatar-upload" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleImageChange}
-                  />
-                </label>
+    <form onSubmit={handleUpdateProfile} className="space-y-6">
+      <section className="overflow-hidden rounded-[2rem] border bg-gradient-to-br from-card via-card to-primary/10 shadow-sm">
+        <div className="grid gap-6 p-5 lg:grid-cols-[1fr_19rem] lg:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row">
+            <div className="relative h-32 w-32 shrink-0">
+              <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+                <AvatarImage src={previewUrl || image || user.image || undefined} className="object-cover" />
+                <AvatarFallback className="bg-primary text-4xl text-primary-foreground">{initials(name || user.name, user.email)}</AvatarFallback>
+              </Avatar>
+              <label
+                htmlFor="avatar-upload"
+                className="absolute -bottom-1 -right-1 flex size-11 cursor-pointer items-center justify-center rounded-2xl border bg-background shadow-md transition hover:bg-muted"
+                title="Upload profile image"
+              >
+                <Camera className="size-5" />
+                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+              </label>
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="capitalize" variant="secondary">{role}</Badge>
+                  <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
+                    <CheckCircle2 className="size-3" />
+                    Active account
+                  </Badge>
+                </div>
+                <h1 className="mt-3 truncate text-3xl font-bold tracking-tight">{name || user.name || "User Profile"}</h1>
+                <p className="mt-1 truncate text-muted-foreground">{user.email}</p>
               </div>
-              <CardTitle className="text-xl">{name || user.name}</CardTitle>
-              <CardDescription>{user.email}</CardDescription>
-              <div className="flex justify-center gap-2 mt-4">
-                <Badge variant="secondary" className="capitalize">
-                  {(user as any).role?.replace("_", " ") || "user"}
-                </Badge>
-                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                  Active
-                </Badge>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">Profile completion</p>
+                  <p className="mt-1 text-2xl font-semibold">{completion}%</p>
+                  <Progress value={completion} className="mt-2" />
+                </div>
+                <div className="rounded-2xl border bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">Joined</p>
+                  <p className="mt-1 text-sm font-semibold">{joinedAt}</p>
+                </div>
+                <div className="rounded-2xl border bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">Contact method</p>
+                  <p className="mt-1 text-sm font-semibold capitalize">{profile.preferredContactMethod.replace(/_/g, " ")}</p>
+                </div>
               </div>
+              {lastSavedAt ? (
+                <p className="text-xs text-muted-foreground">All profile cards refreshed from the saved record at {lastSavedAt}.</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid content-start gap-2">
+            <Button type="submit" disabled={isUpdating} className="justify-center">
+              {isUpdating ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
+              Save Changes
+            </Button>
+            <Button type="button" variant="outline" onClick={handleDownloadContact}>
+              <Download className="size-4" />
+              Download Contact
+            </Button>
+            <Button type="button" variant="outline" onClick={handleCopyAccountId}>
+              <Clipboard className="size-4" />
+              Copy Account ID
+            </Button>
+            <Button type="button" variant="outline" onClick={handleResetAvatar}>
+              <RefreshCw className="size-4" />
+              Reset Avatar
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="space-y-6">
+          <Card className="border-foreground/15 shadow-sm">
+            <CardHeader>
+              <h2 className="font-heading text-lg font-semibold leading-snug">Account Details</h2>
+              <CardDescription>Core identity fields used in dashboards, messages, audit logs, and reports.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-0">
-              <Separator />
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center text-sm gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground font-medium">Joined:</span>
-                  <span>{new Date(user.createdAt).toLocaleDateString()}</span>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="name" className="pl-10" value={name} onChange={(event) => setName(event.target.value)} required />
                 </div>
-                <div className="flex items-center text-sm gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground font-medium">Account ID:</span>
-                  <span className="truncate max-w-[120px]" title={user.id}>{user.id}</span>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="email" type="email" value={user.email} disabled className="pl-10" />
                 </div>
-                {profile.phone ? (
-                  <div className="flex items-center text-sm gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground font-medium">Phone:</span>
-                    <span className="truncate">{profile.phone}</span>
-                  </div>
-                ) : null}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="jobTitle">Job Title / Learner Status</Label>
+                <div className="relative">
+                  <Briefcase className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="jobTitle" className="pl-10" value={profile.jobTitle} onChange={(event) => updateProfileField("jobTitle", event.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="department">Department / Class</Label>
+                <Input id="department" value={profile.department} onChange={(event) => updateProfileField("department", event.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="employeeCode">Staff Code</Label>
+                <Input id="employeeCode" value={profile.employeeCode} onChange={(event) => updateProfileField("employeeCode", event.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="admissionNumber">Admission Number</Label>
+                <Input id="admissionNumber" value={profile.admissionNumber} onChange={(event) => updateProfileField("admissionNumber", event.target.value)} />
               </div>
             </CardContent>
           </Card>
 
-          {/* Right Column: Edit Form */}
-          <Card className="md:col-span-8">
+          <Card className="border-foreground/15 shadow-sm">
             <CardHeader>
-              <CardTitle>Account Details</CardTitle>
-              <CardDescription>
-                Update your public profile information.
-              </CardDescription>
+              <h2 className="font-heading text-lg font-semibold leading-snug">Contact & Emergency</h2>
+              <CardDescription>Primary, alternate, guardian, and emergency contacts for operational workflows.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="name" 
-                      placeholder="Your Name" 
-                      className="pl-9"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      value={user.email} 
-                      disabled 
-                      className="pl-9 bg-muted/50 cursor-not-allowed"
-                    />
-                  </div>
-                  <p className="text-[12px] text-muted-foreground px-1">
-                    Email address cannot be changed. Contact support if you need to update it.
-                  </p>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <PhoneNumberField id="phone" label="Primary Phone" value={profile.phone} country={profile.country} onChange={(value) => updateProfileField("phone", value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="alternateEmail">Alternate Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="alternateEmail" type="email" className="pl-10" value={profile.alternateEmail} onChange={(event) => updateProfileField("alternateEmail", event.target.value)} />
                 </div>
               </div>
-
-              <div className="pt-4">
-                <h3 className="text-sm font-medium mb-4">Security Preferences</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Two-Factor Authentication</p>
-                      <p className="text-[12px] text-muted-foreground">Enhance your account security.</p>
-                    </div>
-                    <Button variant="outline" size="sm" disabled>Configure</Button>
-                  </div>
+              <div className="grid gap-2">
+                <Label htmlFor="guardianContact">Guardian Contact</Label>
+                <Input id="guardianContact" value={profile.guardianContact} onChange={(event) => updateProfileField("guardianContact", event.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="preferredContactMethod">Preferred Contact Method</Label>
+                <Select value={profile.preferredContactMethod} onValueChange={(value) => updateProfileField("preferredContactMethod", value)}>
+                  <SelectTrigger id="preferredContactMethod">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_app">In-app</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="phone">Phone call</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+                <div className="relative">
+                  <Contact className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="emergencyContactName" className="pl-10" value={profile.emergencyContactName} onChange={(event) => updateProfileField("emergencyContactName", event.target.value)} />
                 </div>
               </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium">School Profile</h3>
-                  <p className="text-sm text-muted-foreground">Role-aware contact and school identity details used across the education system.</p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">Primary Phone</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="phone" className="pl-9" value={profile.phone} onChange={(event) => updateProfileField("phone", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="alternateEmail">Alternate Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="alternateEmail" type="email" className="pl-9" value={profile.alternateEmail} onChange={(event) => updateProfileField("alternateEmail", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="jobTitle">Job Title / Learner Status</Label>
-                    <div className="relative">
-                      <Briefcase className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="jobTitle" className="pl-9" value={profile.jobTitle} onChange={(event) => updateProfileField("jobTitle", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="department">Department / Class</Label>
-                    <Input id="department" value={profile.department} onChange={(event) => updateProfileField("department", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="employeeCode">Staff Code</Label>
-                    <Input id="employeeCode" value={profile.employeeCode} onChange={(event) => updateProfileField("employeeCode", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="admissionNumber">Admission Number</Label>
-                    <Input id="admissionNumber" value={profile.admissionNumber} onChange={(event) => updateProfileField("admissionNumber", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="campus">Campus / Branch</Label>
-                    <Input id="campus" value={profile.campus} onChange={(event) => updateProfileField("campus", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="guardianContact">Guardian Contact</Label>
-                    <Input id="guardianContact" value={profile.guardianContact} onChange={(event) => updateProfileField("guardianContact", event.target.value)} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium">Location & Preferences</h3>
-                  <p className="text-sm text-muted-foreground">Used for scheduling, communication, support, and localized dashboard behavior.</p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="address" className="pl-9" value={profile.address} onChange={(event) => updateProfileField("address", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="city">City</Label>
-                    <Input id="city" value={profile.city} onChange={(event) => updateProfileField("city", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="country">Country</Label>
-                    <Input id="country" value={profile.country} onChange={(event) => updateProfileField("country", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Input id="timezone" value={profile.timezone} onChange={(event) => updateProfileField("timezone", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="language">Preferred Language</Label>
-                    <Input id="language" value={profile.language} onChange={(event) => updateProfileField("language", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
-                    <div className="relative">
-                      <Contact className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="emergencyContactName" className="pl-9" value={profile.emergencyContactName} onChange={(event) => updateProfileField("emergencyContactName", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="emergencyContactPhone">Emergency Contact Phone</Label>
-                    <div className="relative">
-                      <HeartPulse className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input id="emergencyContactPhone" className="pl-9" value={profile.emergencyContactPhone} onChange={(event) => updateProfileField("emergencyContactPhone", event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="preferredContactMethod">Preferred Contact Method</Label>
-                    <Input id="preferredContactMethod" value={profile.preferredContactMethod} onChange={(event) => updateProfileField("preferredContactMethod", event.target.value)} />
-                  </div>
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="bio">Professional / Academic Bio</Label>
-                    <Textarea id="bio" rows={4} value={profile.bio} onChange={(event) => updateProfileField("bio", event.target.value)} />
-                  </div>
-                </div>
+              <div className="grid gap-2">
+                <PhoneNumberField id="emergencyContactPhone" label="Emergency Contact Phone" value={profile.emergencyContactPhone} country={profile.country} onChange={(value) => updateProfileField("emergencyContactPhone", value)} />
               </div>
             </CardContent>
-            <CardFooter className="border-t bg-muted/20 px-6 py-4 flex justify-end">
-              <Button 
-                type="submit" 
-                disabled={isUpdating}
-                className="min-w-[120px]"
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
+          </Card>
+
+          <Card className="border-foreground/15 shadow-sm">
+            <CardHeader>
+              <h2 className="font-heading text-lg font-semibold leading-snug">Location & Preferences</h2>
+              <CardDescription>Localization and campus details used by tenant dashboards and personal workflows.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2 md:col-span-2">
+                <Label htmlFor="address">Address</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="address" className="pl-10" value={profile.address} onChange={(event) => updateProfileField("address", event.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <CityInput id="city" label="City" value={profile.city} country={profile.country} onChange={(value) => updateProfileField("city", value)} />
+              </div>
+              <div className="grid gap-2">
+                <CountrySelect id="country" label="Country" value={profile.country} onChange={(value) => updateProfileField("country", value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="campus">Campus / Branch</Label>
+                <Input id="campus" value={profile.campus} onChange={(event) => updateProfileField("campus", event.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select value={profile.timezone} onValueChange={(value) => updateProfileField("timezone", value)}>
+                  <SelectTrigger id="timezone">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Africa/Kampala">Africa/Kampala</SelectItem>
+                    <SelectItem value="Africa/Accra">Africa/Accra</SelectItem>
+                    <SelectItem value="Africa/Nairobi">Africa/Nairobi</SelectItem>
+                    <SelectItem value="Africa/Johannesburg">Africa/Johannesburg</SelectItem>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="language">Preferred Language</Label>
+                <div className="relative">
+                  <Languages className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                  <Input id="language" className="pl-10" value={profile.language} onChange={(event) => updateProfileField("language", event.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-2 md:col-span-2">
+                <Label htmlFor="bio">Professional / Academic Bio</Label>
+                <Textarea id="bio" rows={5} value={profile.bio} onChange={(event) => updateProfileField("bio", event.target.value)} maxLength={1200} />
+                <p className="text-xs text-muted-foreground">{profile.bio.length}/1200 characters</p>
+              </div>
+            </CardContent>
+            <CardFooter className="justify-end">
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
+                Save Profile
               </Button>
             </CardFooter>
           </Card>
         </div>
-      </form>
-    </div>
+
+        <aside className="space-y-6">
+          <Card className="border-foreground/15 shadow-sm">
+            <CardHeader>
+              <h2 className="font-heading text-base font-semibold">Account Controls</h2>
+              <CardDescription>Fast actions for this signed-in user.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button asChild variant="outline" className="w-full justify-start">
+                <Link href={settingsPath}>
+                  <Sparkles className="size-4" />
+                  User Settings
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start">
+                <Link href={profilePath}>
+                  <User className="size-4" />
+                  Refresh Profile Route
+                </Link>
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={handleCopyAccountId}>
+                <IdCard className="size-4" />
+                Copy Secure ID
+              </Button>
+              <Separator />
+              <div className="rounded-2xl bg-muted/50 p-4 text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  <LockKeyhole className="size-4 text-primary" />
+                  Security status
+                </div>
+                <p className="mt-2 text-muted-foreground">Email is locked to the authenticated account. Profile edits are audited on master accounts and scoped per tenant for tenant users.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-foreground/15 shadow-sm">
+            <CardHeader>
+              <h2 className="font-heading text-base font-semibold">Profile Health</h2>
+              <CardDescription>Missing fields that improve dashboards and communications.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: "Full name", done: Boolean(name.trim()), icon: User },
+                { label: "Avatar", done: Boolean(image || user.image), icon: Camera },
+                { label: "Primary phone", done: Boolean(profile.phone), icon: Phone },
+                { label: "Emergency contact", done: Boolean(profile.emergencyContactName && profile.emergencyContactPhone), icon: HeartPulse },
+                { label: "Location", done: Boolean(profile.city && profile.country), icon: MapPin },
+                { label: "Role context", done: Boolean(profile.jobTitle || profile.department), icon: Briefcase },
+                { label: "Bio", done: Boolean(profile.bio), icon: Activity },
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border p-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-9 items-center justify-center rounded-xl bg-muted">
+                        <Icon className="size-4" />
+                      </span>
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </div>
+                    <Badge variant={item.done ? "secondary" : "outline"}>{item.done ? "Set" : "Missing"}</Badge>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+
+          <Card className="border-foreground/15 shadow-sm">
+            <CardHeader>
+              <h2 className="font-heading text-base font-semibold">Identity Snapshot</h2>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Role</span>
+                <span className="capitalize">{role}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Account ID</span>
+                <span className="max-w-36 truncate font-mono text-xs">{user.id}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Timezone</span>
+                <span>{profile.timezone}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Language</span>
+                <span>{profile.language}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+    </form>
   )
 }

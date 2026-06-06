@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Copy,
   KeyRound,
@@ -33,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type OwnerUser = {
@@ -80,6 +83,8 @@ type UsersPayload = {
     byCanonicalRole: Record<string, number>;
   };
   generatedAt: string;
+  pagination: { page: number; pageSize: number; total: number; totalPages: number; hasNextPage: boolean; hasPreviousPage: boolean };
+  filters: { query: string; role: string; status: string };
   temporaryPassword?: string;
   loginUrl?: string;
   delivery?: { ok?: boolean; status?: string; message?: string };
@@ -107,7 +112,11 @@ function roleLabel(value: string) {
 function LoadingState() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-52 rounded-3xl" />
+      <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur">
+        <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">Owner user management</Badge>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Users</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Loading tenant-scoped users, staff, roles, departments, and access state.</p>
+      </section>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-3xl" />)}
       </div>
@@ -118,7 +127,9 @@ function LoadingState() {
 
 export default function OwnerUsersPage() {
   const params = useParams<{ tenant?: string }>();
-  const tenantSlug = params?.tenant || "";
+  const pathname = usePathname();
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [data, setData] = React.useState<UsersPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -126,6 +137,8 @@ export default function OwnerUsersPage() {
   const [query, setQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState("25");
   const [selected, setSelected] = React.useState<OwnerUser | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
   const [resetResult, setResetResult] = React.useState<{ temporaryPassword: string; loginUrl: string } | null>(null);
@@ -137,7 +150,15 @@ export default function OwnerUsersPage() {
     else setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/tenant/owner/users?tenant=${encodeURIComponent(tenantSlug)}`, { credentials: "include", cache: "no-store" });
+      const search = new URLSearchParams({
+        tenant: tenantSlug,
+        query,
+        role: roleFilter,
+        status: statusFilter,
+        page: String(page),
+        pageSize,
+      });
+      const response = await fetch(`/api/tenant/owner/users?${search.toString()}`, { credentials: "include", cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Failed to load owner users");
       setData(payload);
@@ -149,7 +170,7 @@ export default function OwnerUsersPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantSlug]);
+  }, [page, pageSize, query, roleFilter, statusFilter, tenantSlug]);
 
   React.useEffect(() => {
     void fetchData();
@@ -187,16 +208,6 @@ export default function OwnerUsersPage() {
     }
   }
 
-  const filteredUsers = React.useMemo(() => {
-    const text = query.toLowerCase();
-    return (data?.users || []).filter((user) => {
-      const matchesQuery = [user.name, user.email, user.roleName, user.departmentName, user.employeeId, user.admissionNumber].join(" ").toLowerCase().includes(text);
-      const matchesRole = roleFilter === "all" || user.canonicalRole === roleFilter || user.roleId === roleFilter;
-      const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? user.isActive : !user.isActive);
-      return matchesQuery && matchesRole && matchesStatus;
-    });
-  }, [data?.users, query, roleFilter, statusFilter]);
-
   const riskUsers = React.useMemo(() => (data?.users || []).filter((user) => !user.isActive || user.forcePasswordChange || (!user.departmentId && !["student", "parent"].includes(user.canonicalRole))), [data?.users]);
 
   if (loading) return <LoadingState />;
@@ -214,7 +225,7 @@ export default function OwnerUsersPage() {
     );
   }
 
-  const roleOptions = Array.from(new Set(data.users.map((user) => user.canonicalRole))).sort();
+  const roleOptions = Array.from(new Set(data.roles.map((role) => role.canonicalRole))).sort();
 
   return (
     <div className="space-y-6">
@@ -282,19 +293,28 @@ export default function OwnerUsersPage() {
       <div className="flex flex-col gap-3 rounded-3xl border bg-card/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search users, roles, departments..." className="rounded-2xl pl-9" />
+          <Input value={query} onChange={(event) => { setPage(1); setQuery(event.target.value); }} placeholder="Search users, roles, departments..." className="rounded-2xl pl-9" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <Select value={roleFilter} onValueChange={(value) => { setPage(1); setRoleFilter(value); }}>
             <SelectTrigger className="w-44 rounded-2xl"><SelectValue placeholder="Role" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
               {roleOptions.map((role) => <SelectItem key={role} value={role}>{roleLabel(role)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(value) => { setPage(1); setStatusFilter(value); }}>
             <SelectTrigger className="w-40 rounded-2xl"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All status</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+          </Select>
+          <Select value={pageSize} onValueChange={(value) => { setPage(1); setPageSize(value); }}>
+            <SelectTrigger className="w-36 rounded-2xl"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 / page</SelectItem>
+              <SelectItem value="25">25 / page</SelectItem>
+              <SelectItem value="50">50 / page</SelectItem>
+              <SelectItem value="100">100 / page</SelectItem>
+            </SelectContent>
           </Select>
           <Button variant="outline" className="rounded-2xl" disabled={refreshing} onClick={() => fetchData(true)}>
             <RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> Refresh
@@ -324,7 +344,18 @@ export default function OwnerUsersPage() {
         </TabsList>
 
         <TabsContent value="directory" className="space-y-4">
-          {filteredUsers.map((user) => (
+          <div className="flex flex-col gap-3 rounded-3xl border bg-card/80 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <span>Showing page {data.pagination.page} of {data.pagination.totalPages} ({data.pagination.total.toLocaleString()} matching users)</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={!data.pagination.hasPreviousPage || refreshing} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+              </Button>
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={!data.pagination.hasNextPage || refreshing} onClick={() => setPage((current) => current + 1)}>
+                Next <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          {data.users.map((user) => (
             <Card key={user.id} className="border-border/70 bg-card/80 shadow-sm">
               <CardContent className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
@@ -367,6 +398,7 @@ export default function OwnerUsersPage() {
               </CardContent>
             </Card>
           ))}
+          {!data.users.length ? <Card className="border-border/70 bg-card/80"><CardContent className="p-8 text-center text-muted-foreground">No users match the current server filters.</CardContent></Card> : null}
         </TabsContent>
 
         <TabsContent value="roles" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

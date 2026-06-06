@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 
-import { getRequiredDashboardUser, isNextResponse } from "@/lib/dashboard-db";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { schoolsTable } from "@/lib/db-schema";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
+import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -472,12 +473,10 @@ function sanitizeSettings(body: Row, current: CanteenSettings): CanteenSettings 
 }
 
 async function mutate(request: NextRequest, method: "POST" | "PATCH" | "DELETE") {
-  const currentUser = await getRequiredDashboardUser(request.headers);
-  if (isNextResponse(currentUser)) return currentUser;
-  if (currentUser.role !== "owner") return NextResponse.json({ error: "Only owners can manage canteen operations" }, { status: 403 });
-
   const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
   if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+  const currentUser = await requireTenantOwner(request, slug);
+  if (isTenantOwnerResponse(currentUser)) return currentUser;
   const school = await getSchool(slug);
   if (!school) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
@@ -525,6 +524,16 @@ async function mutate(request: NextRequest, method: "POST" | "PATCH" | "DELETE")
   }
 
   await writeState(tenantDb, state);
+  await writeTenantAuditLog({
+    db: tenantDb,
+    request,
+    actorId: currentUser.userId,
+    action: `Canteen ${method}`,
+    resource: `canteen_${entity}`,
+    resourceId: id || null,
+    changes: { entity, method, id: id || null },
+    status: "success",
+  });
   return NextResponse.json(await buildPayload(slug), { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
@@ -532,6 +541,8 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const currentUser = await requireTenantOwner(request, slug);
+    if (isTenantOwnerResponse(currentUser)) return currentUser;
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store, max-age=0" } });

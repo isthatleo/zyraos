@@ -125,6 +125,10 @@ export function configureRealtimeServer(io: ServerIO) {
       emitToUser(data?.receiverId, "call:ice-candidate", data);
     });
 
+    socket.on("call:update", (data) => {
+      emitToUser(data?.receiverId, "call:update", data);
+    });
+
     socket.on("call:reject", (data) => {
       emitToUser(data?.receiverId, "call:reject", data);
       emitToUser(data?.receiverId, "call:update", { ...data, status: "declined" });

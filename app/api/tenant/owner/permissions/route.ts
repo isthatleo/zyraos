@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
 import { rolePermissionsTable, rolesTable, schoolsTable } from "@/lib/db-schema";
+import { writeTenantAuditLog } from "@/lib/tenant-audit";
 import { isTenantOwnerResponse, requireTenantOwner } from "@/lib/tenant-owner-auth";
 import { getTenantRoleDefinitions, normalizeRole } from "@/lib/roles";
 
@@ -270,6 +271,10 @@ export async function PATCH(request: NextRequest) {
 
     const catalog = permissionMap();
     const unique = Array.from(new Set(selectedPermissions)).filter((id) => catalog.has(id));
+    const beforeRows = await safeRows<Row>(() => tenantDb.execute(sql`select permission, resource from role_permissions where role_id = ${roleId}`), "existing role permissions");
+    const beforePermissionIds = beforeRows
+      .map((row) => Array.from(catalog.values()).find((permission) => permission.resource === asString(row.resource) && permission.permission === asString(row.permission))?.id)
+      .filter((id): id is string => Boolean(id));
     await tenantDb.delete(rolePermissionsTable).where(eq(rolePermissionsTable.roleId, roleId));
     for (const id of unique) {
       const permission = catalog.get(id)!;
@@ -280,6 +285,22 @@ export async function PATCH(request: NextRequest) {
         resource: permission.resource,
       });
     }
+    await writeTenantAuditLog({
+      db: tenantDb,
+      request,
+      actorId: currentUser.userId,
+      action: "Role Permissions Updated",
+      resource: "permissions",
+      resourceId: roleId,
+      changes: {
+        roleId,
+        before: beforePermissionIds,
+        after: unique,
+        added: unique.filter((id) => !beforePermissionIds.includes(id)),
+        removed: beforePermissionIds.filter((id) => !unique.includes(id)),
+      },
+      status: "success",
+    });
 
     return NextResponse.json(await buildPayload(slug), { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -29,7 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type AttendanceState = "available" | "on_leave" | "inactive";
@@ -182,8 +182,10 @@ function StatCard({
 
 export default function OwnerStaffAttendancePage() {
   const params = useParams<{ tenant: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const [data, setData] = React.useState<AttendancePayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -292,7 +294,13 @@ export default function OwnerStaffAttendancePage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-36 rounded-3xl" />
+        <Card className="overflow-hidden border-border/70 bg-card/80 shadow-sm backdrop-blur">
+          <CardContent className="p-6 md:p-8">
+            <Badge className="mb-3 rounded-full bg-primary/10 text-primary hover:bg-primary/10">Owner workforce coverage</Badge>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Staff Attendance</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Loading staff availability, leave coverage, department coverage, and attendance decisions.</p>
+          </CardContent>
+        </Card>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-32 rounded-3xl" />

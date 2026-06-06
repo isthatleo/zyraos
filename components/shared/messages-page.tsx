@@ -266,6 +266,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
   const [callError, setCallError] = useState<string | null>(null);
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [remoteMediaState, setRemoteMediaState] = useState({ microphoneMuted: false, cameraEnabled: true });
   const [remoteMediaReady, setRemoteMediaReady] = useState(false);
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const [soundPreference, setSoundPreference] = useState({
@@ -329,6 +330,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     setIsMicrophoneMuted(false);
     setIsCameraEnabled(true);
+    setRemoteMediaState({ microphoneMuted: false, cameraEnabled: true });
     setRemoteMediaReady(false);
     setCallDurationSeconds(0);
   };
@@ -544,7 +546,12 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       });
     };
 
-    const onCallEvent = ({ call }: { call?: any }) => {
+    const onCallEvent = (payload: { call?: any; callId?: string; id?: string; status?: string; answer?: RTCSessionDescriptionInit; mediaState?: any; callerId?: string; calleeId?: string; receiverId?: string; callType?: "audio" | "video" }) => {
+      const call = payload.call || {
+        ...payload,
+        id: payload.id || payload.callId,
+        calleeId: payload.calleeId || payload.receiverId,
+      };
       if (!call?.id || !messagingUserId) return;
 
       queryClient.invalidateQueries({ queryKey: ["messaging-incoming-call", messagesApiBase, messagingUserId] });
@@ -553,14 +560,20 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       const currentActiveCall = activeCallRef.current;
       const currentIncomingCall = incomingCallRef.current;
 
-      if (call.status === "ringing" && call.calleeId === messagingUserId && currentIncomingCall?.callId !== call.id) {
-        setIncomingCall({
-          callId: call.id,
-          callerId: call.callerId,
-          callType: call.callType,
-          offer: call.offer || undefined,
+      if (call.status === "ringing" && call.calleeId === messagingUserId) {
+        const isNewIncomingCall = currentIncomingCall?.callId !== call.id;
+        setIncomingCall((current) => {
+          if (current && current.callId === call.id) {
+            return { ...current, offer: call.offer || current.offer };
+          }
+          return {
+            callId: call.id,
+            callerId: call.callerId,
+            callType: call.callType,
+            offer: call.offer || undefined,
+          };
         });
-        playIncomingRingtone();
+        if (isNewIncomingCall) playIncomingRingtone();
       }
 
       if (currentIncomingCall?.callId === call.id && call.status !== "ringing") {
@@ -570,16 +583,27 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
 
       if (currentActiveCall?.callId !== call.id) return;
 
+      if (call.mediaState) {
+        setRemoteMediaState({
+          microphoneMuted: Boolean(call.mediaState.microphoneMuted),
+          cameraEnabled: call.mediaState.cameraEnabled !== false,
+        });
+      }
+
       if (call.status === "ended") {
         toast.info("Call ended");
         endCallCleanup(false);
         return;
       }
 
-      if (call.status === "rejected") {
+      if (call.status === "rejected" || call.status === "declined") {
         toast.error("Call declined");
         endCallCleanup(false);
         return;
+      }
+
+      if (call.status === "accepted" || call.status === "connected") {
+        setActiveCall((current) => (current ? { ...current, status: "connected" } : current));
       }
 
       if (call.answer && peerConnectionRef.current?.signalingState === "have-local-offer") {
@@ -595,7 +619,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       const isNewIncomingCall = incomingCallRef.current?.callId !== callId;
       setIncomingCall((current) =>
         current?.callId === callId
-          ? current
+          ? { ...current, offer: offer || current.offer }
           : {
               callId,
               callerId,
@@ -608,8 +632,9 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     };
 
     const onCallAnswer = ({ callId, answer }: { callId?: string; answer?: RTCSessionDescriptionInit }) => {
-      if (!callId || activeCallRef.current?.callId !== callId || !answer) return;
-      if (peerConnectionRef.current?.signalingState !== "have-local-offer") return;
+      if (!callId || activeCallRef.current?.callId !== callId) return;
+      setActiveCall((current) => (current ? { ...current, status: "connected" } : current));
+      if (!answer || peerConnectionRef.current?.signalingState !== "have-local-offer") return;
       peerConnectionRef.current
         .setRemoteDescription(new RTCSessionDescription(answer))
         .then(() => setActiveCall((current) => (current ? { ...current, status: "connected" } : current)))
@@ -834,16 +859,17 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     const call = incomingCallData?.call;
     if (!call || activeCall) return;
     const isNewIncomingCall = incomingCallRef.current?.callId !== call.id;
-    setIncomingCall((current) =>
-      current?.callId === call.id
-        ? current
-        : {
-            callId: call.id,
-            callerId: call.callerId,
-            callType: call.callType,
-            offer: call.offer || undefined,
-          }
-    );
+    setIncomingCall((current) => {
+      if (current && current.callId === call.id) {
+        return { ...current, offer: call.offer || current.offer };
+      }
+      return {
+        callId: call.id,
+        callerId: call.callerId,
+        callType: call.callType,
+        offer: call.offer || undefined,
+      };
+    });
     if (isNewIncomingCall) playIncomingRingtone();
   }, [activeCall, incomingCallData?.call]);
 
@@ -959,7 +985,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     onSuccess: (payload, _message, context) => {
       const createdMessage = payload?.message;
       if (createdMessage && selectedChat) {
-        socket.emit("message:new", { receiverId: selectedChat, message: createdMessage });
+        socket.emit("message:new", { receiverId: selectedChat, message: createdMessage, senderId: messagingUserId });
         queryClient.setQueryData(["chat", messagesApiBase, messagingUserId, selectedChat], (current: any) => {
           const existingMessages = Array.isArray(current?.messages) ? current.messages : [];
           const alreadyExists = existingMessages.some((entry: any) => entry.id === createdMessage.id);
@@ -983,10 +1009,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
           };
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["chat", messagesApiBase, messagingUserId, selectedChat] });
       queryClient.invalidateQueries({ queryKey: ["conversations", messagesApiBase, messagingUserId] });
-      void refetchChat();
-      void refetchConversations();
     },
     onError: (error, _message, context) => {
       if (selectedChat && messagingUserId && context?.previousChat) {
@@ -1074,8 +1097,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
           : [],
       }));
       queryClient.invalidateQueries({ queryKey: ["conversations", messagesApiBase, messagingUserId] });
-      void refetchChat();
-      void refetchConversations();
+      socket.emit("message:read", { receiverId: selectedChat, readerId: messagingUserId, messageIds });
     });
   }, [chatData?.messages, messagesApiBase, messagingUserId, queryClient, selectedChat]);
 
@@ -1182,6 +1204,14 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       track.enabled = !nextMuted;
     });
     setIsMicrophoneMuted(nextMuted);
+    if (activeCall?.targetUserId) {
+      socket.emit("call:update", {
+        receiverId: activeCall.targetUserId,
+        callId: activeCall.callId,
+        status: activeCall.status,
+        mediaState: { microphoneMuted: nextMuted, cameraEnabled: isCameraEnabled },
+      });
+    }
   };
 
   const toggleCamera = () => {
@@ -1196,6 +1226,14 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       track.enabled = nextEnabled;
     });
     setIsCameraEnabled(nextEnabled);
+    if (activeCall?.targetUserId) {
+      socket.emit("call:update", {
+        receiverId: activeCall.targetUserId,
+        callId: activeCall.callId,
+        status: activeCall.status,
+        mediaState: { microphoneMuted: isMicrophoneMuted, cameraEnabled: nextEnabled },
+      });
+    }
   };
 
   const sendCallCandidate = (callId: string, candidate: RTCIceCandidateInit) =>
@@ -1245,6 +1283,13 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     try {
       setCallError(null);
       processedRemoteCandidateKeysRef.current = new Set();
+      const provisionalCallId = `call_${crypto.randomUUID()}`;
+      setActiveCall({ callId: provisionalCallId, status: "calling", targetUserId: selectedChat, callType });
+      socket.emit("call:offer", {
+        receiverId: selectedChat,
+        callId: provisionalCallId,
+        callType,
+      });
       const stream = await ensureMedia(callType);
       let currentCallId: string | null = null;
       const pendingCandidates: RTCIceCandidateInit[] = [];
@@ -1265,6 +1310,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
         cache: "no-store",
         body: JSON.stringify({
           calleeId: selectedChat,
+          callId: provisionalCallId,
           callType,
           offer,
         }),
@@ -1275,6 +1321,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       }
       const callId = payload.call.id as string;
       currentCallId = callId;
+      setActiveCall({ callId, status: "calling", targetUserId: selectedChat, callType });
       for (const candidate of pendingCandidates) {
         void sendCallCandidate(callId, candidate);
       }
@@ -1284,7 +1331,6 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
         callType,
         offer,
       });
-      setActiveCall({ callId, status: "calling", targetUserId: selectedChat, callType });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to start call";
       setCallError(message);
@@ -1304,21 +1350,33 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
     try {
       setCallError(null);
       processedRemoteCandidateKeysRef.current = new Set();
-      const stream = await ensureMedia(incomingCall.callType);
-      const peer = createPeerConnection(incomingCall.callerId, incomingCall.callType, (candidate) => {
-        void sendCallCandidate(incomingCall.callId, candidate);
+      const answeringCall = incomingCall;
+      if (!answeringCall.offer) {
+        toast.error("Call setup is still in progress. Try again.");
+        return;
+      }
+      setIncomingCall(null);
+      setActiveCall({
+        callId: answeringCall.callId,
+        status: "connected",
+        targetUserId: answeringCall.callerId,
+        callType: answeringCall.callType,
+      });
+      const stream = await ensureMedia(answeringCall.callType);
+      const peer = createPeerConnection(answeringCall.callerId, answeringCall.callType, (candidate) => {
+        void sendCallCandidate(answeringCall.callId, candidate);
       });
       const senders = stream.getTracks().map((track) => peer.addTrack(track, stream));
-      await Promise.all(senders.map((sender) => applySenderQuality(sender, incomingCall.callType)));
-      await peer.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+      await Promise.all(senders.map((sender) => applySenderQuality(sender, answeringCall.callType)));
+      await peer.setRemoteDescription(new RTCSessionDescription(answeringCall.offer));
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
       socket.emit("call:answer", {
-        receiverId: incomingCall.callerId,
-        callId: incomingCall.callId,
+        receiverId: answeringCall.callerId,
+        callId: answeringCall.callId,
         answer,
       });
-      const response = await fetch(`${messagesApiBase}/calls/${incomingCall.callId}`, {
+      const response = await fetch(`${messagesApiBase}/calls/${answeringCall.callId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -1331,13 +1389,6 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
       if (!response.ok) {
         throw new Error(payload.error || "Failed to answer call");
       }
-      setActiveCall({
-        callId: incomingCall.callId,
-        status: "connected",
-        targetUserId: incomingCall.callerId,
-        callType: incomingCall.callType,
-      });
-      setIncomingCall(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to answer call";
       setCallError(message);
@@ -1397,6 +1448,32 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
   const renderCallLabel = (message: Message) => {
     const duration = message.durationSeconds ? formatCallDuration(message.durationSeconds) : null;
     return duration ? `${message.message} (${duration})` : message.message;
+  };
+
+  const formatDateSeparator = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return format(date, "EEEE, MMM dd");
+  };
+
+  const shouldShowDateSeparator = (message: Message, previous?: Message) => {
+    if (!previous) return true;
+    return new Date(message.createdAt).toDateString() !== new Date(previous.createdAt).toDateString();
+  };
+
+  const getCallPresentation = (message: Message) => {
+    const isMissed = message.missed || message.callStatus === "missed" || /missed/i.test(message.message);
+    const duration = message.durationSeconds ? formatCallDuration(message.durationSeconds) : null;
+    return {
+      label: isMissed ? (message.callType === "video" ? "Missed video call" : "Missed voice call") : renderCallLabel(message),
+      detail: isMissed ? "No answer" : duration ? `Answered · ${duration}` : "Answered",
+      tone: isMissed ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+      iconClass: isMissed ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    };
   };
 
   if (!user) {
@@ -1501,10 +1578,15 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground truncate">
-                          {conversation.lastMessage.type === "call_event"
-                            ? renderCallLabel(conversation.lastMessage as unknown as Message)
-                            : conversation.lastMessage.message}
+                        <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+                          {conversation.lastMessage.type === "call_event" ? (
+                            <>
+                              {conversation.lastMessage.callType === "video" ? <Video className="h-3.5 w-3.5 shrink-0" /> : <Phone className="h-3.5 w-3.5 shrink-0" />}
+                              <span className="truncate">{renderCallLabel(conversation.lastMessage as unknown as Message)}</span>
+                            </>
+                          ) : (
+                            <span className="truncate">{conversation.lastMessage.message}</span>
+                          )}
                         </p>
                         {conversation.unreadCount > 0 && (
                           <Badge variant="destructive" className="h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
@@ -1521,12 +1603,12 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
         </div>
       </div>
 
-      {/* Chat Area - Styled as a Card */}
-      <div className="flex-1 flex flex-col bg-card border border-border shadow-sm rounded-[2rem] overflow-hidden">
+      {/* Chat Area - WhatsApp-style message surface */}
+      <div className="flex-1 flex flex-col overflow-hidden rounded-[2rem] border border-border bg-card shadow-sm">
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+            <div className="flex items-center justify-between border-b border-border bg-card/95 px-6 py-4 backdrop-blur">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={activeRemoteUser?.avatar || undefined} />
@@ -1583,7 +1665,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.08),transparent_26%),linear-gradient(135deg,hsl(var(--muted)/0.55),hsl(var(--background)))] p-5 custom-scrollbar">
               {chatLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => (
@@ -1608,60 +1690,99 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
                   <p className="text-sm">Send a message to start the conversation</p>
                 </div>
               ) : (
-                messages.map((message: Message) => {
+                messages.map((message: Message, index: number) => {
                   const isOwnMessage = message.sender.id === messagingUserId;
+                  const previousMessage = messages[index - 1] as Message | undefined;
+                  const nextMessage = messages[index + 1] as Message | undefined;
+                  const groupedWithPrevious =
+                    previousMessage &&
+                    previousMessage.sender.id === message.sender.id &&
+                    new Date(message.createdAt).getTime() - new Date(previousMessage.createdAt).getTime() < 3 * 60 * 1000 &&
+                    !shouldShowDateSeparator(message, previousMessage);
+                  const groupedWithNext =
+                    nextMessage &&
+                    nextMessage.sender.id === message.sender.id &&
+                    new Date(nextMessage.createdAt).getTime() - new Date(message.createdAt).getTime() < 3 * 60 * 1000 &&
+                    !shouldShowDateSeparator(nextMessage, message);
+                  const callPresentation = message.type === "call_event" ? getCallPresentation(message) : null;
                   return (
-                    <div
-                      key={message.id}
-                      className={cn("group flex items-end gap-2", isOwnMessage ? "justify-end" : "justify-start")}
-                    >
-                      {!isOwnMessage && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={message.sender.avatar || undefined} />
-                          <AvatarFallback>{getInitial(message.sender)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div
-                        className={cn(
-                          "max-w-xs lg:max-w-md px-6 py-3 rounded-[2rem]",
-                          isOwnMessage
-                            ? "bg-primary text-primary-foreground rounded-tr-none"
-                            : "bg-muted rounded-tl-none"
-                        )}
-                      >
-                        {message.type === "call_event" ? (
-                          <div className="flex items-center gap-2">
-                            {message.callType === "video" ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
-                            <p className="text-sm font-medium">{renderCallLabel(message)}</p>
-                          </div>
-                        ) : (
-                          <p className="text-sm">{message.message}</p>
-                        )}
-                        <div className="flex items-center justify-end gap-1 mt-1">
-                          <span className="text-xs opacity-70">
-                            {formatMessageTime(message.createdAt)}
+                    <div key={message.id}>
+                      {shouldShowDateSeparator(message, previousMessage) && (
+                        <div className="my-4 flex justify-center">
+                          <span className="rounded-full border border-border/70 bg-background/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                            {formatDateSeparator(message.createdAt)}
                           </span>
-                          {isOwnMessage && (
-                            message.read ? (
-                              <CheckCheck className="h-3 w-3 opacity-70" />
+                        </div>
+                      )}
+                      <div className={cn("group flex items-end gap-2", groupedWithPrevious ? "mt-1" : "mt-3", isOwnMessage ? "justify-end" : "justify-start")}>
+                        {!isOwnMessage && (
+                          <div className="w-8">
+                            {!groupedWithNext && (
+                              <Avatar className="h-8 w-8 border border-background shadow-sm">
+                                <AvatarImage src={message.sender.avatar || undefined} />
+                                <AvatarFallback>{getInitial(message.sender)}</AvatarFallback>
+                              </Avatar>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex max-w-[82%] items-end gap-1 sm:max-w-[70%] lg:max-w-[58%]">
+                          <div
+                            className={cn(
+                              "relative min-w-0 px-4 py-2.5 shadow-sm ring-1 ring-border/30",
+                              isOwnMessage
+                                ? "rounded-2xl rounded-br-md bg-emerald-600 text-white ring-emerald-700/20 dark:bg-emerald-700"
+                                : "rounded-2xl rounded-bl-md bg-background text-foreground",
+                              groupedWithPrevious && isOwnMessage && "rounded-tr-2xl",
+                              groupedWithPrevious && !isOwnMessage && "rounded-tl-2xl"
+                            )}
+                          >
+                            {message.type === "call_event" && callPresentation ? (
+                              <div className="flex items-center gap-3">
+                                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", isOwnMessage ? "bg-white/15 text-white" : callPresentation.iconClass)}>
+                                  {message.missed ? <PhoneOff className="h-4 w-4" /> : message.callType === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className={cn("block text-sm font-semibold", isOwnMessage ? "text-white" : callPresentation.tone)}>
+                                    {callPresentation.label}
+                                  </span>
+                                  <span className={cn("block text-xs", isOwnMessage ? "text-white/75" : "text-muted-foreground")}>
+                                    {callPresentation.detail}
+                                  </span>
+                                </span>
+                              </div>
                             ) : (
-                              <Check className="h-3 w-3 opacity-70" />
-                            )
+                              <p className="whitespace-pre-wrap break-words text-[0.95rem] leading-6">{message.message}</p>
+                            )}
+                            <div className={cn("mt-1 flex items-center justify-end gap-1 text-[10px]", isOwnMessage ? "text-white/75" : "text-muted-foreground")}>
+                              <span>{formatMessageTime(message.createdAt)}</span>
+                              {isOwnMessage && (
+                                <span className="inline-flex items-center gap-0.5">
+                                  {message.id.startsWith("temp-") ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : message.read ? (
+                                    <CheckCheck className="h-3.5 w-3.5 text-sky-200" />
+                                  ) : (
+                                    <Check className="h-3.5 w-3.5" />
+                                  )}
+                                  <span className="sr-only">{message.id.startsWith("temp-") ? "Sending" : message.read ? "Read" : "Delivered"}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {isOwnMessage && message.type !== "call_event" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                              title="Delete message"
+                              onClick={() => deleteMessageMutation.mutate(message.id)}
+                              disabled={deleteMessageMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </div>
-                      {isOwnMessage && message.type !== "call_event" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-                          title="Delete message"
-                          onClick={() => deleteMessageMutation.mutate(message.id)}
-                          disabled={deleteMessageMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
                     </div>
                   );
                 })
@@ -1670,8 +1791,11 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
             </div>
 
             {/* Message Input */}
-            <div className="p-6 border-t border-border bg-muted/10">
-              <div className="flex items-end gap-2">
+            <div className="border-t border-border bg-card/95 p-4 backdrop-blur">
+              <div className="flex items-end gap-2 rounded-[1.6rem] border border-border bg-background p-2 shadow-sm">
+                <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-full text-muted-foreground">
+                  <Plus className="h-4 w-4" />
+                </Button>
                 <Textarea
                   value={messageInput}
                   onChange={(e) => {
@@ -1680,7 +1804,7 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
                   }}
                   onKeyDown={handleKeyPress}
                   placeholder="Type a message..."
-                  className="min-h-[44px] max-h-32 resize-none rounded-[1.5rem] bg-background py-3 px-4"
+                  className="min-h-[42px] max-h-32 resize-none border-0 bg-transparent px-2 py-2.5 shadow-none focus-visible:ring-0"
                   rows={1}
                 />
                 <Button
@@ -1892,6 +2016,14 @@ export function MessagesPage({ apiBaseOverride, heading = "Messages" }: { apiBas
                 <Badge className="rounded-full bg-white/10 px-3 py-1 text-white hover:bg-white/10">
                   {isMicrophoneMuted ? "Mic muted" : "Mic live"}
                 </Badge>
+                <Badge className="rounded-full bg-white/10 px-3 py-1 text-white hover:bg-white/10">
+                  {remoteMediaState.microphoneMuted ? "Remote muted" : "Remote mic live"}
+                </Badge>
+                {activeCall?.callType === "video" && (
+                  <Badge className="rounded-full bg-white/10 px-3 py-1 text-white hover:bg-white/10">
+                    {remoteMediaState.cameraEnabled ? "Remote camera on" : "Remote camera off"}
+                  </Badge>
+                )}
                 <Badge className="rounded-full bg-white/10 px-3 py-1 text-white hover:bg-white/10">
                   <Volume2 className="mr-2 h-3.5 w-3.5" />
                   Default speaker

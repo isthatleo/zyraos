@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
-import { eq, or } from "drizzle-orm";
+import { and, eq, gt, or } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { masterDb } from "@/lib/db";
-import { auditLogsTable, platformAdminsTable, userTable } from "@/lib/db-schema";
+import { auditLogsTable, platformAdminsTable, sessionTable, userTable } from "@/lib/db-schema";
+import { getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export type MasterAdminContext = {
   adminId: string;
@@ -27,21 +28,45 @@ export function forbiddenMasterResponse(message = "Super admin access is require
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
+function unsignedSessionToken(value?: string | null) {
+  if (!value) return null;
+  const decoded = decodeURIComponent(value);
+  return decoded.split(".")[0] || null;
+}
+
 export async function getCurrentMasterAdmin(request: NextRequest): Promise<MasterAdminContext | null> {
-  const session = await auth.api.getSession({ headers: request.headers });
+  const sessionToken = request.cookies.get("better-auth.session_token")?.value;
+  const tokenCacheKey = sessionToken ? `master-admin-token:${crypto.createHash("sha256").update(sessionToken).digest("hex")}` : null;
+  if (tokenCacheKey) {
+    const cached = getCachedValue<MasterAdminContext>(tokenCacheKey);
+    if (cached) return cached;
+  }
+
+  const rawToken = unsignedSessionToken(sessionToken);
+  const [directSessionUser] = rawToken
+    ? await masterDb
+        .select({ id: userTable.id, email: userTable.email, name: userTable.name, role: userTable.role })
+        .from(sessionTable)
+        .innerJoin(userTable, eq(sessionTable.userId, userTable.id))
+        .where(and(eq(sessionTable.token, rawToken), gt(sessionTable.expiresAt, new Date())))
+        .limit(1)
+    : [];
+  const session = directSessionUser ? { user: directSessionUser } : await auth.api.getSession({ headers: request.headers });
   const sessionUser = session?.user;
   if (!sessionUser?.id) return null;
 
-  const [user] = await masterDb
-    .select({
-      id: userTable.id,
-      email: userTable.email,
-      name: userTable.name,
-      role: userTable.role,
-    })
-    .from(userTable)
-    .where(eq(userTable.id, sessionUser.id))
-    .limit(1);
+  const [user] = directSessionUser
+    ? [directSessionUser]
+    : await masterDb
+        .select({
+          id: userTable.id,
+          email: userTable.email,
+          name: userTable.name,
+          role: userTable.role,
+        })
+        .from(userTable)
+        .where(eq(userTable.id, sessionUser.id))
+        .limit(1);
 
   const email = String(user?.email || sessionUser.email || "").toLowerCase();
   const role = String(user?.role || "");
@@ -55,13 +80,15 @@ export async function getCurrentMasterAdmin(request: NextRequest): Promise<Maste
         .limit(1)
     : await masterDb.select().from(platformAdminsTable).where(eq(platformAdminsTable.id, sessionUser.id)).limit(1);
 
-  return {
+  const context = {
     adminId: platformAdmin?.id || sessionUser.id,
     userId: sessionUser.id,
     email,
     name: platformAdmin?.name || user?.name || sessionUser.name || email || "Super Admin",
     role,
-  };
+  } satisfies MasterAdminContext;
+  if (tokenCacheKey) setCachedValue(tokenCacheKey, context, 30_000);
+  return context;
 }
 
 export async function requireMasterAdmin(request: NextRequest) {

@@ -129,7 +129,7 @@ const colorMap: Record<string, string> = {
 };
 
 function money(amount: number, currency = "ZAR") {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(amount || 0));
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(amount || 0));
 }
 
 function planDisplayCurrency(plan: Pick<Plan, "displayCurrency" | "currency">) {
@@ -150,6 +150,23 @@ function stringList(value: string[] | undefined) {
 
 function parseList(value: string) {
   return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function validatePlanDraft(plan: Plan, requireId: boolean) {
+  const id = plan.id.trim().toLowerCase();
+  const name = plan.name.trim();
+  const currency = plan.currency.trim().toUpperCase();
+
+  if (requireId && !id) return "Plan ID is required";
+  if (id && (id.length < 2 || id.length > 80)) return "Plan ID must be between 2 and 80 characters";
+  if (!name) return "Plan name is required";
+  if (name.length > 120) return "Plan name cannot exceed 120 characters";
+  if ((plan.description || "").length > 1200) return "Plan description cannot exceed 1200 characters";
+  if (!Number.isFinite(Number(plan.price)) || Number(plan.price) < 0) return "Plan price cannot be negative";
+  if (!/^[A-Z]{3}$/.test(currency)) return "Currency must be a valid 3-letter ISO code";
+  if (plan.maxStudents !== null && (!Number.isFinite(Number(plan.maxStudents)) || Number(plan.maxStudents) < 0)) return "Student limit must be a positive number or empty";
+  if (plan.maxStaff !== null && (!Number.isFinite(Number(plan.maxStaff)) || Number(plan.maxStaff) < 0)) return "Staff limit must be a positive number or empty";
+  return null;
 }
 
 function PlanDialog({
@@ -175,6 +192,11 @@ function PlanDialog({
   }, [initialPlan, open]);
 
   const save = async () => {
+    const validationError = validatePlanDraft(plan, !initialPlan);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setSaving(true);
     try {
       await onSave(plan);
@@ -538,11 +560,25 @@ function MetricCard({ title, value, subtitle }: { title: string; value: string; 
   );
 }
 
+function MetricSkeleton() {
+  return (
+    <Card className="border-border/70 bg-card/95 shadow-sm">
+      <CardHeader className="space-y-3 pb-2">
+        <div className="h-4 w-28 animate-pulse rounded-full bg-muted" />
+        <div className="h-7 w-20 animate-pulse rounded-full bg-muted" />
+      </CardHeader>
+      <CardContent><div className="h-4 w-40 animate-pulse rounded-full bg-muted" /></CardContent>
+    </Card>
+  );
+}
+
 export default function SubscriptionPlansPage() {
   const [plans, setPlans] = React.useState<Plan[]>([]);
   const [metrics, setMetrics] = React.useState<PlanMetrics | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [activeMutationId, setActiveMutationId] = React.useState<string | null>(null);
   const [activePlan, setActivePlan] = React.useState<Plan | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -552,6 +588,7 @@ export default function SubscriptionPlansPage() {
 
   const fetchPlans = React.useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch("/api/master/plans", { cache: "no-store" });
       const data = await response.json().catch(() => ({}));
@@ -559,7 +596,9 @@ export default function SubscriptionPlansPage() {
       setPlans(data.plans || []);
       setMetrics(data.metrics || null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load plans");
+      const message = error instanceof Error ? error.message : "Failed to load plans";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -580,6 +619,11 @@ export default function SubscriptionPlansPage() {
   }, [fetchPlans]);
 
   const handleSave = async (plan: Plan) => {
+    const validationError = validatePlanDraft(plan, !activePlan);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setSaving(true);
     try {
       const method = activePlan ? "PUT" : "POST";
@@ -602,7 +646,12 @@ export default function SubscriptionPlansPage() {
   };
 
   const toggleActive = async (plan: Plan, isActive: boolean) => {
-    await handleSave({ ...plan, isActive });
+    setActiveMutationId(plan.id);
+    try {
+      await handleSave({ ...plan, isActive });
+    } finally {
+      setActiveMutationId(null);
+    }
   };
 
   const handleDelete = async () => {
@@ -650,11 +699,37 @@ export default function SubscriptionPlansPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Total Plans" value={String(metrics?.total || 0)} subtitle={`${metrics?.active || 0} active, ${metrics?.inactive || 0} inactive`} />
-        <MetricCard title="Active Subscriptions" value={String(metrics?.activeSubscriptions || 0)} subtitle="Schools currently assigned" />
-        <MetricCard title="MRR" value={money(metrics?.mrr || 0, metrics?.currency || "ZAR")} subtitle="Projected monthly recurring revenue" />
-        <MetricCard title="Collected Revenue" value={money(metrics?.revenue || 0, metrics?.currency || "ZAR")} subtitle="Paid invoices linked to plans" />
+        {loading && !metrics ? (
+          <>
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+          </>
+        ) : (
+          <>
+            <MetricCard title="Total Plans" value={String(metrics?.total || 0)} subtitle={`${metrics?.active || 0} active, ${metrics?.inactive || 0} inactive`} />
+            <MetricCard title="Active Subscriptions" value={String(metrics?.activeSubscriptions || 0)} subtitle="Schools currently assigned" />
+            <MetricCard title="MRR" value={money(metrics?.mrr || 0, metrics?.currency || "ZAR")} subtitle="Projected monthly recurring revenue" />
+            <MetricCard title="Collected Revenue" value={money(metrics?.revenue || 0, metrics?.currency || "ZAR")} subtitle="Paid invoices linked to plans" />
+          </>
+        )}
       </div>
+
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-destructive">Could not load subscription plans</p>
+              <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" onClick={fetchPlans} disabled={loading}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-border/70 bg-card/95 shadow-sm">
         <CardHeader>
@@ -743,7 +818,7 @@ export default function SubscriptionPlansPage() {
                       ) : null}
                       <div className="flex items-center justify-between rounded-xl border bg-background/60 p-3">
                         <span className="text-sm font-medium">{plan.isActive ? "Active" : "Inactive"}</span>
-                        <Switch checked={plan.isActive} onCheckedChange={(checked) => toggleActive(plan, checked)} />
+                        <Switch checked={plan.isActive} disabled={saving || activeMutationId === plan.id} onCheckedChange={(checked) => toggleActive(plan, checked)} />
                       </div>
                       <div className="grid grid-cols-4 gap-2">
                         <Button asChild variant="outline" size="sm" className="col-span-1">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentDashboardUser, getDashboardStore } from "@/lib/dashboard-comm-store";
+import { canDashboardUserMessage } from "@/lib/message-policy";
 
 export async function GET(request: NextRequest) {
   const currentUser = await getCurrentDashboardUser(request.headers);
@@ -35,11 +36,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const recipientId = String(body.recipientId || body.calleeId || "");
   const callType: "audio" | "video" = body.callType === "video" ? "video" : "audio";
+  const requestedCallId = String(body.callId || "");
 
   if (!recipientId) return NextResponse.json({ error: "recipientId is required" }, { status: 400 });
+  if (!(await canDashboardUserMessage(currentUser, recipientId))) {
+    return NextResponse.json({ error: "Your role cannot call this user." }, { status: 403 });
+  }
 
   const call = {
-    id: `call_${crypto.randomUUID()}`,
+    id: requestedCallId.startsWith("call_") ? requestedCallId : `call_${crypto.randomUUID()}`,
     callerId: currentUser.id,
     recipientId,
     callType,

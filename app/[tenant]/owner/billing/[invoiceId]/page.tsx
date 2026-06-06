@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
@@ -28,7 +28,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getTenantSubdomain } from "@/lib/tenant-routing";
+import { downloadPlatformBillingInvoiceHtml, openPlatformBillingInvoiceDocument } from "@/lib/platform-billing-invoice-document";
+import { getTenantSubdomain, resolveTenantSlug } from "@/lib/tenant-routing";
 import { cn } from "@/lib/utils";
 
 type PlatformInvoice = {
@@ -56,7 +57,7 @@ type PlatformInvoice = {
 };
 
 type Payload = {
-  school: { id: string; name: string; displayName?: string; logoUrl?: string | null; schoolSealUrl?: string | null; reportCardWatermarkUrl?: string | null; primaryColor?: string; secondaryColor?: string; address?: string; phone?: string; email?: string; website?: string; motto?: string; slug: string; type: string; status: string; currencyCode: string };
+  school: { id: string; name: string; displayName?: string; logoUrl?: string | null; schoolSealUrl?: string | null; reportCardWatermarkUrl?: string | null; primaryColor?: string; secondaryColor?: string; address?: string; phone?: string; email?: string; website?: string; motto?: string; letterhead?: string; slug: string; type: string; status: string; currencyCode: string };
   generatedAt: string;
   invoice: PlatformInvoice;
   subscription: {
@@ -132,8 +133,10 @@ function invoiceHtml(invoice: PlatformInvoice, school: Payload["school"]) {
 
 export default function OwnerBillingInvoiceDetailPage() {
   const params = useParams<{ tenant: string; invoiceId: string }>();
+  const pathname = usePathname();
   const router = useRouter();
-  const tenantSlug = String(params?.tenant || "");
+  const paramTenantSlug = String(params?.tenant || "");
+  const tenantSlug = paramTenantSlug && pathname?.startsWith(`/${paramTenantSlug}/`) ? paramTenantSlug : (typeof window !== "undefined" ? resolveTenantSlug(pathname, window.location.host) || "" : paramTenantSlug);
   const invoiceId = String(params?.invoiceId || "");
   const [data, setData] = React.useState<Payload | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -171,23 +174,13 @@ export default function OwnerBillingInvoiceDetailPage() {
 
   const openDocument = (print = false) => {
     if (!data) return;
-    const doc = window.open("", "_blank", "noopener,noreferrer");
-    if (!doc) return toast.error("Popup blocked. Allow popups to open the invoice document.");
-    doc.document.write(invoiceHtml(data.invoice, data.school));
-    doc.document.close();
-    doc.focus();
-    if (print) doc.print();
+    const opened = openPlatformBillingInvoiceDocument(data.invoice, data.school, print);
+    if (!opened) toast.error("Popup blocked. Allow popups to open the invoice document.");
   };
 
   const downloadHtml = () => {
     if (!data) return;
-    const blob = new Blob([invoiceHtml(data.invoice, data.school)], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${data.invoice.invoiceNumber || "platform-invoice"}.html`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadPlatformBillingInvoiceHtml(data.invoice, data.school);
   };
 
   const startPayment = () => {

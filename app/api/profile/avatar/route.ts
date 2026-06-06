@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCurrentMasterAdmin } from "@/lib/master-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,14 +22,16 @@ function dataUrlToResponse(dataUrl: string) {
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-  if (!session?.user?.id) {
+  const masterAdmin = !session?.user?.id ? await getCurrentMasterAdmin(request) : null;
+  const userId = session?.user?.id || masterAdmin?.userId;
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const result = await db.execute(sql`
     select image
     from "user"
-    where id = ${session.user.id}
+    where id = ${userId}
     limit 1
   `);
   const image = String((result.rows[0] as { image?: string | null } | undefined)?.image || "");

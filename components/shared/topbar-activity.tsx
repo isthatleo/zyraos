@@ -15,6 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { connectRealtimeSocket, socket } from "@/lib/socket";
+import { useAuthStore } from "@/stores/auth";
 
 type Member = { id: string; name: string; email: string; image?: string | null };
 type ConversationPreview = {
@@ -56,6 +58,7 @@ function relativeTime(value?: string) {
 export function TopbarActivityButtons() {
   const router = useRouter();
   const pathname = usePathname() || "";
+  const { user } = useAuthStore();
   const [messages, setMessages] = React.useState<ConversationPreview[]>([]);
   const [notifications, setNotifications] = React.useState<NotificationPreview[]>([]);
   const [messageCount, setMessageCount] = React.useState(0);
@@ -69,6 +72,9 @@ export function TopbarActivityButtons() {
 
     if (messageResponse?.ok) {
       const data = await messageResponse.json().catch(() => ({}));
+      if (data.currentUser?.id) {
+        void connectRealtimeSocket({ userId: data.currentUser.id, tenantId: data.currentUser.tenantId });
+      }
       setMessages(Array.isArray(data.conversations) ? data.conversations : []);
       setMessageCount(Number(data.unreadCount || 0));
     }
@@ -82,13 +88,36 @@ export function TopbarActivityButtons() {
   }, []);
 
   React.useEffect(() => {
-    const timeoutId = window.setTimeout(() => void load(), 1500);
+    if (user?.id) {
+      void connectRealtimeSocket({ userId: user.id });
+    }
+    const onNotification = (payload?: { type?: string }) => {
+      if (payload?.type === "message.read") {
+        void load();
+        return;
+      }
+      setNotificationCount((count) => count + 1);
+      void load();
+    };
+    const onMessage = () => {
+      setMessageCount((count) => count + 1);
+      void load();
+    };
+    const onRead = () => void load();
+    const notificationEvents = ["notification", "notification:new", "new_notification", "new_broadcast", "broadcast.new", "announcement.new"];
+    notificationEvents.forEach((event) => socket.on(event, onNotification));
+    socket.on("message:new", onMessage);
+    socket.on("message:read", onRead);
+    const timeoutId = window.setTimeout(() => void load(), 150);
     const interval = window.setInterval(load, 60000);
     return () => {
+      notificationEvents.forEach((event) => socket.off(event, onNotification));
+      socket.off("message:new", onMessage);
+      socket.off("message:read", onRead);
       window.clearTimeout(timeoutId);
       window.clearInterval(interval);
     };
-  }, [load]);
+  }, [load, user?.id]);
 
   const dashboardRoute = React.useCallback(
     (page: "messages" | "notifications") => {
@@ -150,6 +179,8 @@ export function TopbarActivityButtons() {
   };
 
   const openNotification = async (notification: NotificationPreview) => {
+    setNotifications((current) => current.filter((item) => item.id !== notification.id));
+    setNotificationCount((count) => Math.max(0, count - 1));
     await fetch(`/api/notifications/${encodeURIComponent(notification.id)}/read`, { method: "POST" }).catch(() => null);
     router.push(notification.targetUrl || `${dashboardRoute("notifications")}?notificationId=${encodeURIComponent(notification.id)}`);
     void load();

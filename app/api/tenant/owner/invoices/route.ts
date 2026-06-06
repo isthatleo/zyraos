@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
-import { schoolsTable, studentInvoicesTable } from "@/lib/db-schema";
+import { schoolsTable, studentInvoicesTable, studentsTable } from "@/lib/db-schema";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 import { getTenantBranding } from "@/lib/tenant-branding-server";
 
 export const runtime = "nodejs";
@@ -23,6 +24,10 @@ function asDate(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function hasValidMoneyPrecision(value: number) {
+  return Number.isFinite(value) && value >= 0 && Math.round(value * 100) === value * 100;
 }
 
 async function safeRows<T = Row>(operation: () => Promise<{ rows?: unknown[] } | T[]>, label: string): Promise<T[]> {
@@ -197,9 +202,25 @@ export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (!slug) return NextResponse.json({ error: "Tenant slug is required" }, { status: 400 });
+    const cacheKey = `owner-invoices:${slug}`;
+    const cached = getCachedValue<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          "Cache-Control": "private, max-age=30",
+          "X-Roxan-Cache": "HIT",
+        },
+      });
+    }
     const payload = await buildPayload(slug);
     if (!payload) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    return NextResponse.json(payload);
+    setCachedValue(cacheKey, payload, 30_000);
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+        "X-Roxan-Cache": "MISS",
+      },
+    });
   } catch (error) {
     console.error("Owner invoices GET failed:", error);
     return NextResponse.json({ error: "Failed to load owner invoices data" }, { status: 500 });
@@ -222,12 +243,28 @@ export async function POST(request: NextRequest) {
     if (!studentId || totalAmount <= 0 || !dueDate) {
       return NextResponse.json({ error: "Student, total amount, and due date are required" }, { status: 400 });
     }
+    if (!hasValidMoneyPrecision(totalAmount) || !hasValidMoneyPrecision(amountPaid)) {
+      return NextResponse.json({ error: "Invoice amounts must use valid currency precision" }, { status: 400 });
+    }
+    if (amountPaid > totalAmount) {
+      return NextResponse.json({ error: "Amount paid cannot exceed total amount" }, { status: 400 });
+    }
+    const parsedDueDate = new Date(dueDate);
+    if (Number.isNaN(parsedDueDate.getTime())) {
+      return NextResponse.json({ error: "Valid due date is required" }, { status: 400 });
+    }
 
     const outstandingBalance = Math.max(0, totalAmount - amountPaid);
     const status = outstandingBalance <= 0 ? "paid" : amountPaid > 0 ? "partial" : "unpaid";
     const tenantDb = await getTenantDbBySlug(slug);
+    const [student] = await tenantDb.select({ id: studentsTable.id }).from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
+    if (!student) return NextResponse.json({ error: "Selected student was not found in this tenant" }, { status: 404 });
+
     const id = crypto.randomUUID();
     const invoiceNumber = asString(body.invoiceNumber, `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`);
+    const [existingInvoice] = await tenantDb.select({ id: studentInvoicesTable.id }).from(studentInvoicesTable).where(eq(studentInvoicesTable.invoiceNumber, invoiceNumber)).limit(1);
+    if (existingInvoice) return NextResponse.json({ error: "Invoice number already exists" }, { status: 409 });
+
     await tenantDb.insert(studentInvoicesTable).values({
       id,
       invoiceNumber,
@@ -235,13 +272,15 @@ export async function POST(request: NextRequest) {
       totalAmount: String(totalAmount),
       amountPaid: String(amountPaid),
       outstandingBalance: String(outstandingBalance),
-      dueDate: new Date(dueDate),
+      dueDate: parsedDueDate,
       issuedDate: new Date(),
       status,
       notes: notes || null,
       updatedAt: new Date(),
     });
 
+    deleteCachedValue(`owner-invoices:${slug}`);
+    deleteCachedValue(`owner-finance:${slug}`);
     return NextResponse.json({ success: true, id, invoiceNumber }, { status: 201 });
   } catch (error) {
     console.error("Owner invoices POST failed:", error);

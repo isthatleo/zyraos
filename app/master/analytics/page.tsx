@@ -95,11 +95,11 @@ function money(amount: number) {
 }
 
 function compact(value: number) {
-  return new Intl.NumberFormat(undefined, { notation: value >= 10000 ? "compact" : "standard" }).format(Number(value || 0));
+  return new Intl.NumberFormat("en-US", { notation: value >= 10000 ? "compact" : "standard" }).format(Number(value || 0));
 }
 
 function dateLabel(date?: string | null) {
-  return date ? new Date(date).toLocaleString() : "N/A";
+  return date ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(date)) : "N/A";
 }
 
 function MetricCard({
@@ -139,6 +139,21 @@ function MetricCard({
   );
 }
 
+function MetricSkeleton() {
+  return (
+    <Card className="border-border/70 bg-card/95 shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+        <div className="space-y-3">
+          <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+          <div className="h-8 w-24 animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="size-11 animate-pulse rounded-2xl bg-muted" />
+      </CardHeader>
+      <CardContent><div className="h-4 w-44 animate-pulse rounded-full bg-muted" /></CardContent>
+    </Card>
+  );
+}
+
 async function exportFromServer(format: "csv" | "json") {
   const response = await fetch(`/api/master/analytics?export=${format}`, { cache: "no-store" });
   if (!response.ok) {
@@ -159,34 +174,43 @@ export default function SystemAnalyticsPage() {
   const [data, setData] = React.useState<AnalyticsData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [exporting, setExporting] = React.useState<"csv" | "json" | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   const fetchAnalytics = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
+    setError(null);
     try {
       const response = await fetch("/api/master/analytics", { cache: "no-store" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Failed to load analytics");
       setData(result);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load system analytics");
+      const message = error instanceof Error ? error.message : "Could not load system analytics";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
+  const handleExport = async (format: "csv" | "json") => {
+    setExporting(format);
+    try {
+      await exportFromServer(format);
+      toast.success(`Analytics ${format.toUpperCase()} exported`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExporting(null);
+    }
+  };
+
   React.useEffect(() => {
     void fetchAnalytics();
   }, [fetchAnalytics]);
-
-  if (loading && !data) {
-    return (
-      <div className="flex min-h-[55vh] items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const stats = data?.stats;
   const operations = data?.operations;
@@ -206,27 +230,19 @@ export default function SystemAnalyticsPage() {
           <Button
             variant="outline"
             className="rounded-full"
-            onClick={() =>
-              exportFromServer("csv")
-                .then(() => toast.success("Analytics CSV exported"))
-                .catch((error) => toast.error(error instanceof Error ? error.message : "Export failed"))
-            }
-            disabled={!data}
+            onClick={() => handleExport("csv")}
+            disabled={!data || exporting !== null}
           >
-            <Download className="size-4" />
+            {exporting === "csv" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             Export CSV
           </Button>
           <Button
             variant="outline"
             className="rounded-full"
-            onClick={() =>
-              exportFromServer("json")
-                .then(() => toast.success("Analytics JSON exported"))
-                .catch((error) => toast.error(error instanceof Error ? error.message : "Export failed"))
-            }
-            disabled={!data}
+            onClick={() => handleExport("json")}
+            disabled={!data || exporting !== null}
           >
-            <Download className="size-4" />
+            {exporting === "json" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             Export JSON
           </Button>
           <Button variant="outline" className="rounded-full" onClick={() => fetchAnalytics(true)} disabled={refreshing}>
@@ -235,6 +251,21 @@ export default function SystemAnalyticsPage() {
           </Button>
         </div>
       </div>
+
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-destructive">Could not load system analytics</p>
+              <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" onClick={() => fetchAnalytics(false)} disabled={loading}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {data?.alerts?.length ? (
         <div className="grid gap-3 md:grid-cols-3">
@@ -256,8 +287,20 @@ export default function SystemAnalyticsPage() {
         </div>
       ) : null}
 
-      {stats ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {loading && !stats ? (
+          <>
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+          </>
+        ) : stats ? (
+          <>
           <MetricCard title="Estimated MRR" value={money(stats.mrr)} description={`${stats.activeSubscriptions} active subscriptions`} icon={TrendingUp} tone="success" />
           <MetricCard title="Total Environments" value={String(stats.totalSchools)} description={`${stats.activeSchools} active, ${stats.inactiveSchools} inactive`} icon={Building2} />
           <MetricCard title="Active Sessions" value={String(stats.activeSessions)} description={`${stats.authUsers} users and ${stats.credentialAccounts} credential accounts`} icon={Users} />
@@ -266,8 +309,9 @@ export default function SystemAnalyticsPage() {
           <MetricCard title="Outstanding" value={money(stats.outstanding)} description={`${stats.overdueInvoices} overdue invoices`} icon={Clock} tone={stats.overdueInvoices ? "warning" : "default"} />
           <MetricCard title="New Schools" value={String(stats.newSchoolsThisMonth)} description="Provisioned this month" icon={Activity} />
           <MetricCard title="Enabled Modules" value={`${stats.enabledModules}/${stats.totalModules}`} description="Tenant module enablement records" icon={Zap} />
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
         <Card className="border-border/70 bg-card/95 shadow-sm">

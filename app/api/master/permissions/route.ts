@@ -14,6 +14,7 @@ import {
   permissionCatalog,
 } from "@/lib/permission-catalog";
 import { CANONICAL_ROLES, getTenantRoleDefinitions, normalizeRole } from "@/lib/roles";
+import { deleteCachedValue, getCachedValue, setCachedValue } from "@/lib/server-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ type Row = Record<string, unknown>;
 type PlatformDefaults = Record<string, string[]>;
 
 const PLATFORM_MANAGED_ROLES = CANONICAL_ROLES.filter((role) => role !== "super_admin") as string[];
+const PERMISSIONS_CACHE_KEY = "master-permissions:overview";
+const PERMISSIONS_CACHE_TTL_MS = 20_000;
 
 function asString(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -161,7 +164,13 @@ export async function GET(request: NextRequest) {
   try {
     const { response } = await requireMasterAdmin(request);
     if (response) return response;
-    return NextResponse.json(await buildPayload(), { headers: { "Cache-Control": "no-store, max-age=0" } });
+
+    const cached = getCachedValue<Record<string, unknown>>(PERMISSIONS_CACHE_KEY);
+    if (cached) return NextResponse.json(cached, { headers: { "Cache-Control": "private, max-age=20" } });
+
+    const payload = await buildPayload();
+    setCachedValue(PERMISSIONS_CACHE_KEY, payload, PERMISSIONS_CACHE_TTL_MS);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=20" } });
   } catch (error) {
     console.error("Master permissions GET failed:", error);
     return NextResponse.json({ error: "Failed to load platform permissions" }, { status: 500 });
@@ -176,19 +185,34 @@ export async function PATCH(request: NextRequest) {
     const roleId = normalizeRole(asString(body.roleId));
     if (!PLATFORM_MANAGED_ROLES.includes(roleId)) return NextResponse.json({ error: "Unsupported role" }, { status: 400 });
     const selectedPermissions = Array.isArray(body.selectedPermissions) ? body.selectedPermissions.map(String) : [];
+    if (selectedPermissions.length > ALL_PERMISSION_IDS.length) {
+      return NextResponse.json({ error: "Too many permissions supplied" }, { status: 400 });
+    }
+    const catalog = permissionCatalog();
+    const unknownPermissions = selectedPermissions.filter((id) => !hasPermissionId(catalog, id));
+    if (unknownPermissions.length) {
+      return NextResponse.json({ error: "Unknown permission IDs supplied", unknownPermissions }, { status: 400 });
+    }
     if (roleId === "owner" && !selectedPermissions.includes("permissions")) {
       return NextResponse.json({ error: "Owner defaults must retain permission management access" }, { status: 400 });
     }
 
-    const catalog = permissionCatalog();
     const defaults = await readDefaults();
     defaults[roleId] = Array.from(new Set(selectedPermissions.filter((id) => hasPermissionId(catalog, id))));
     await writeDefaults(defaults);
 
     const schools = await masterDb.select({ slug: schoolsTable.slug, type: schoolsTable.type, databaseUrl: schoolsTable.databaseUrl }).from(schoolsTable);
     let touchedRoles = 0;
+    const failedTenants: Array<{ slug: string; error: string }> = [];
     for (const school of schools) {
-      touchedRoles += await applyDefaultsToTenant(school, defaults, roleId);
+      try {
+        touchedRoles += await applyDefaultsToTenant(school, defaults, roleId);
+      } catch (error) {
+        failedTenants.push({
+          slug: school.slug,
+          error: error instanceof Error ? error.message : "Unknown propagation error",
+        });
+      }
     }
 
     await writeMasterAudit(request, {
@@ -196,10 +220,12 @@ export async function PATCH(request: NextRequest) {
       action: "Platform Permissions Updated",
       resource: "permissions",
       resourceId: roleId,
-      changes: { roleId, permissionCount: defaults[roleId].length, tenantCount: schools.length, touchedRoles },
+      changes: { roleId, permissionCount: defaults[roleId].length, tenantCount: schools.length, touchedRoles, failedTenants },
     });
 
-    return NextResponse.json({ ...(await buildPayload()), propagated: { tenantCount: schools.length, touchedRoles } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    deleteCachedValue(PERMISSIONS_CACHE_KEY);
+    const status = failedTenants.length ? 207 : 200;
+    return NextResponse.json({ ...(await buildPayload()), propagated: { tenantCount: schools.length, touchedRoles, failedTenants } }, { status, headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Master permissions PATCH failed:", error);
     return NextResponse.json({ error: "Failed to update platform permissions" }, { status: 500 });

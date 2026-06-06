@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 import { getRequiredDashboardUser, isNextResponse } from "@/lib/dashboard-db";
 import { db } from "@/lib/db";
+import { getCurrentMasterAdmin } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -66,7 +67,22 @@ async function ensureFeedbackNotificationTables() {
 
 export async function GET(request: NextRequest) {
   const currentUser = await getRequiredDashboardUser(request.headers);
-  if (isNextResponse(currentUser)) return currentUser;
+  if (isNextResponse(currentUser)) {
+    const masterAdmin = await getCurrentMasterAdmin(request);
+    if (!masterAdmin) return currentUser;
+    const masterUser = {
+      id: masterAdmin.adminId,
+      name: masterAdmin.name,
+      email: masterAdmin.email,
+      role: "super_admin",
+      image: null,
+    };
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("countOnly") === "true") {
+      return NextResponse.json({ unreadCount: 0, latestNotification: null, currentUser: masterUser }, { headers: { "Cache-Control": "no-store" } });
+    }
+    return NextResponse.json({ notifications: [], currentUser: masterUser }, { headers: { "Cache-Control": "no-store" } });
+  }
   await ensureFeedbackNotificationTables();
 
   const { searchParams } = new URL(request.url);
