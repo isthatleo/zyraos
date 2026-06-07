@@ -64,9 +64,112 @@ export function TopbarActivityButtons() {
   const [messageCount, setMessageCount] = React.useState(0);
   const [notificationCount, setNotificationCount] = React.useState(0);
 
+  const dashboardRoute = React.useCallback(
+    (page: "messages" | "notifications") => {
+      const segments = pathname.split("/").filter(Boolean);
+      const [first, second] = segments;
+      const role = String(user?.role || "").toLowerCase();
+      const roleSegment =
+        role === "super_admin" || role === "master" ? "master" :
+        role === "school_admin" ? "admin" :
+        role === "accountant" ? "finance" :
+        role === "guardian" ? "parent" :
+        role === "lecturer" ? "teacher" :
+        role === "receptionist" ? "reception" :
+        role === "transport_manager" ? "transport" :
+        role === "hostel_warden" ? "hostel" :
+        role === "inventory_manager" ? "inventory" :
+        role === "counselor" ? "wellbeing" :
+        role === "nurse" ? "health" :
+        role;
+
+      const pageForSegment = (segment: string) => (page === "messages" && segment === "student" ? "communication" : page);
+
+      if (first === "master") return `/master/${page}`;
+
+      const rootDashboardSegments = new Set([
+        "admin",
+        "staff",
+        "student",
+        "parent",
+        "finance",
+        "librarian",
+        "hr",
+        "canteen",
+      ]);
+      if (first && rootDashboardSegments.has(first)) return `/${first}/${pageForSegment(first)}`;
+
+      const tenantDashboardSegments = new Set([
+        "admin",
+        "school_admin",
+        "owner",
+        "staff",
+        "teacher",
+        "student",
+        "parent",
+        "finance",
+        "librarian",
+        "hr",
+        "canteen",
+        "health",
+        "transport",
+        "hostel",
+        "security",
+        "reception",
+        "inventory",
+        "wellbeing",
+        "alumni",
+      ]);
+      if (first && second && tenantDashboardSegments.has(second)) return `/${first}/${second}/${pageForSegment(second)}`;
+
+      const rootSegments = new Set([
+        ...rootDashboardSegments,
+        "messages",
+        "notifications",
+        "profile",
+        "settings",
+      ]);
+
+      if (first && !rootSegments.has(first) && roleSegment && roleSegment !== "master") {
+        return `/${first}/${roleSegment}/${pageForSegment(roleSegment)}`;
+      }
+      if (roleSegment === "master") return `/master/${page}`;
+      if (roleSegment && rootDashboardSegments.has(roleSegment)) return `/${roleSegment}/${pageForSegment(roleSegment)}`;
+      return `/${page}`;
+    },
+    [pathname, user?.role]
+  );
+
+  const messagesApiBase = React.useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    const [first, second] = segments;
+    const tenantRoles = new Set([
+      "admin",
+      "owner",
+      "staff",
+      "teacher",
+      "student",
+      "parent",
+      "finance",
+      "hr",
+      "librarian",
+      "canteen",
+      "health",
+      "transport",
+      "hostel",
+      "security",
+      "reception",
+      "inventory",
+      "wellbeing",
+      "alumni",
+    ]);
+    if (first && second && tenantRoles.has(second)) return `/api/tenant/${first}/messages`;
+    return "/api/messages";
+  }, [pathname]);
+
   const load = React.useCallback(async () => {
     const [messageResponse, notificationResponse] = await Promise.all([
-      fetch("/api/messages?type=unread", { cache: "no-store" }).catch(() => null),
+      fetch(`${messagesApiBase}?type=unread`, { cache: "no-store" }).catch(() => null),
       fetch("/api/notifications?unreadOnly=true", { cache: "no-store" }).catch(() => null),
     ]);
 
@@ -85,7 +188,7 @@ export function TopbarActivityButtons() {
       setNotifications(next.slice(0, 8));
       setNotificationCount(next.length);
     }
-  }, []);
+  }, [messagesApiBase]);
 
   React.useEffect(() => {
     if (user?.id) {
@@ -119,61 +222,6 @@ export function TopbarActivityButtons() {
     };
   }, [load, user?.id]);
 
-  const dashboardRoute = React.useCallback(
-    (page: "messages" | "notifications") => {
-      const segments = pathname.split("/").filter(Boolean);
-      const [first, second] = segments;
-      if (first === "master") return `/master/${page}`;
-
-      const rootDashboardSegments = new Set([
-        "admin",
-        "staff",
-        "student",
-        "parent",
-        "finance",
-        "librarian",
-        "hr",
-        "canteen",
-      ]);
-      if (first && rootDashboardSegments.has(first)) return `/${first}/${page}`;
-
-      const tenantDashboardSegments = new Set([
-        "admin",
-        "school_admin",
-        "owner",
-        "staff",
-        "teacher",
-        "student",
-        "parent",
-        "finance",
-        "librarian",
-        "hr",
-        "canteen",
-        "health",
-        "transport",
-        "hostel",
-        "security",
-        "reception",
-        "inventory",
-        "wellbeing",
-        "alumni",
-      ]);
-      if (first && second && tenantDashboardSegments.has(second)) return `/${first}/${second}/${page}`;
-
-      const rootSegments = new Set([
-        ...rootDashboardSegments,
-        "messages",
-        "notifications",
-        "profile",
-        "settings",
-      ]);
-
-      if (first && !rootSegments.has(first)) return `/${first}/${page}`;
-      return `/${page}`;
-    },
-    [pathname]
-  );
-
   const openConversation = (conversationId: string) => {
     router.push(`${dashboardRoute("messages")}?conversationId=${encodeURIComponent(conversationId)}`);
   };
@@ -182,7 +230,13 @@ export function TopbarActivityButtons() {
     setNotifications((current) => current.filter((item) => item.id !== notification.id));
     setNotificationCount((count) => Math.max(0, count - 1));
     await fetch(`/api/notifications/${encodeURIComponent(notification.id)}/read`, { method: "POST" }).catch(() => null);
-    router.push(notification.targetUrl || `${dashboardRoute("notifications")}?notificationId=${encodeURIComponent(notification.id)}`);
+    const fallback = `${dashboardRoute("notifications")}?notificationId=${encodeURIComponent(notification.id)}`;
+    const target = notification.type === "message"
+      ? dashboardRoute("messages")
+      : notification.targetUrl?.startsWith("/messages")
+        ? dashboardRoute("messages")
+        : notification.targetUrl || fallback;
+    router.push(target);
     void load();
   };
 

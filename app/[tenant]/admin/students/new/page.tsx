@@ -448,7 +448,26 @@ export default function NewStudentRegistrationPage() {
     }
   }
 
-  if (loading) return <div className="space-y-6"><Skeleton className="h-40 rounded-3xl" /><Skeleton className="h-96 rounded-3xl" /></div>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <section className="overflow-hidden rounded-[2rem] border-2 bg-card shadow-sm">
+          <div className="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.18),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/.58))] p-6">
+            <Button variant="ghost" className="mb-4 rounded-full px-0 text-muted-foreground hover:text-foreground" onClick={() => router.push(tenantPath(tenant, "/admin/students"))}>
+              <ArrowLeft className="mr-2 h-4 w-4" />Back to Student Profiles
+            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Badge className="rounded-full border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300">New Student Registration</Badge>
+              <Badge variant="outline" className="rounded-full">Loading numbers</Badge>
+            </div>
+            <h1 className="mt-4 text-3xl font-black tracking-tight md:text-5xl">Register New Student</h1>
+            <p className="mt-3 max-w-3xl text-sm text-muted-foreground">Loading classes, admission numbers, and registration controls.</p>
+          </div>
+        </section>
+        <Skeleton className="h-96 rounded-3xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

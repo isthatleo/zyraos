@@ -242,6 +242,23 @@ function AdminDirectoryPage({ mode }: { mode: "users" | "staff" }) {
 
   const records = staffMode ? data?.staff || [] : data?.users || [];
   const roles = staffMode ? data?.staffRoles || [] : data?.roles || [];
+  const pageHeader = (
+    <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+      <div className="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/.55))] p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Badge variant="outline" className="rounded-full">School admin</Badge>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight">{staffMode ? "Staff Management" : "Users"}</h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{staffMode ? "Create staff access, manage departments, roles, employee IDs, compensation periods, and activation state." : "Manage all tenant users, role assignments, dashboard access, departments, account status, and login routes."}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void load(true)} disabled={refreshing || loading}><RefreshCw className={cn("mr-2 h-4 w-4", (refreshing || loading) && "animate-spin")} />Refresh</Button>
+            {staffMode ? <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />New Staff</Button> : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 
   function openEdit(user: ManagedUser) {
     setEditing(user);
@@ -282,27 +299,13 @@ function AdminDirectoryPage({ mode }: { mode: "users" | "staff" }) {
     }
   }
 
-  if (loading) return <div className="space-y-6"><Skeleton className="h-44 rounded-3xl" /><div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
+  if (loading) return <div className="space-y-6">{pageHeader}<div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
 
-  if (error || !data) return <Alert variant="destructive" className="rounded-3xl"><AlertCircle className="h-4 w-4" /><AlertTitle>{staffMode ? "Staff" : "Users"} failed to load</AlertTitle><AlertDescription className="mt-2 flex items-center justify-between gap-4"><span>{error || "No data returned."}</span><Button variant="outline" onClick={() => void load()}>Retry</Button></AlertDescription></Alert>;
+  if (error || !data) return <div className="space-y-6">{pageHeader}<Alert variant="destructive" className="rounded-3xl"><AlertCircle className="h-4 w-4" /><AlertTitle>{staffMode ? "Staff" : "Users"} failed to load</AlertTitle><AlertDescription className="mt-2 flex items-center justify-between gap-4"><span>{error || "No data returned."}</span><Button variant="outline" onClick={() => void load()}>Retry</Button></AlertDescription></Alert></div>;
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
-        <div className="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/.55))] p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <Badge variant="outline" className="rounded-full">School admin</Badge>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight">{staffMode ? "Staff Management" : "Users"}</h1>
-              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{staffMode ? "Create staff access, manage departments, roles, employee IDs, compensation periods, and activation state." : "Manage all tenant users, role assignments, dashboard access, departments, account status, and login routes."}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => void load(true)} disabled={refreshing}><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} />Refresh</Button>
-              {staffMode ? <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />New Staff</Button> : null}
-            </div>
-          </div>
-        </div>
-      </section>
+      {pageHeader}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={Users} label="Total" value={staffMode ? data.summary.staff : data.summary.total} />

@@ -190,10 +190,31 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
-function LoadingDashboard() {
+function DashboardShellHeader({ onRefresh, refreshing }: { onRefresh?: () => void; refreshing?: boolean }) {
+  return (
+    <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+      <div className="p-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="rounded-full">School admin</Badge>
+          <Badge variant="outline" className="rounded-full">Tenant operations</Badge>
+        </div>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">School Admin Command Center</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          Loading live admissions, academics, attendance, communication, users, and school readiness.
+        </p>
+        <Button variant="ghost" className="mt-5" onClick={onRefresh} disabled={!onRefresh || refreshing}>
+          {refreshing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+          Refresh
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function LoadingDashboard({ onRefresh, refreshing }: { onRefresh?: () => void; refreshing?: boolean }) {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-64 rounded-3xl" />
+      <DashboardShellHeader onRefresh={onRefresh} refreshing={refreshing} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Skeleton key={index} className="h-40 rounded-3xl" />
@@ -265,20 +286,23 @@ export default function SchoolAdminDashboardPage() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  if (loading) return <LoadingDashboard />;
+  if (loading) return <LoadingDashboard onRefresh={() => loadDashboard()} refreshing={refreshing} />;
 
   if (error || !data) {
     return (
-      <Alert variant="destructive" className="rounded-3xl">
-        <AlertCircle className="size-4" />
-        <AlertTitle>School admin dashboard failed to load</AlertTitle>
-        <AlertDescription className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <span>{error || "No dashboard data was returned."}</span>
-          <Button variant="secondary" onClick={() => loadDashboard()}>
-            Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-6">
+        <DashboardShellHeader onRefresh={() => loadDashboard()} refreshing={refreshing} />
+        <Alert variant="destructive" className="rounded-3xl">
+          <AlertCircle className="size-4" />
+          <AlertTitle>School admin dashboard failed to load</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error || "No dashboard data was returned."}</span>
+            <Button variant="secondary" onClick={() => loadDashboard()}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 

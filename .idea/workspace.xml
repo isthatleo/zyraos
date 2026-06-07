@@ -5,39 +5,28 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/app/[tenant]/admin/admissions/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/admissions/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/admissions/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/messages/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/settings/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/messages/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/dashboard/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/messages/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/notifications/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/profile/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/procurement/settings/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/staff/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/schools/[schoolId]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/messages/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/messages/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/dashboard/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/announcements/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/broadcasts/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/owner/staff/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/schools/[schoolId]/edit/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/schools/[schoolId]/edit/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/staff/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/staff/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/permissions/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/permissions/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/admin/students/new/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/admin/students/new/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/student/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/student/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/student/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/student/messages/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/student/profile/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/student/profile/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/student/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/student/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/assignments/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/assignments/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/attendance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/attendance/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/exams/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/exams/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/profile/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/settings/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/subjects/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/subjects/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/student/timetable/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/timetable/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/admin/admin-user-management-pages.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/admin/admin-user-management-pages.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/dashboard-nav.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/dashboard-nav.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/dashboard-greeting.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-greeting.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/tenant-portal-login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-portal-login.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/tenant-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-sidebar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/message-policy.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/message-policy.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/platform-billing-invoice-document.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-billing-invoice-document.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/platform-integrations.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-integrations.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/platform-settings-server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/platform-settings-server.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/roles.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/roles.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/school-departments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/school-departments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/socket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/socket.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,7 +48,7 @@
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="927" />
+    <option name="cachedIndexableFilesCount" value="1014" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -140,35 +129,36 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
-    &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/leona.DESKTOP-10QNDAN/Desktop/zyraos&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;npm.Next.js: server-side.executor&quot;: &quot;Run&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2026.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "js.debugger.nextJs.config.created.client": "true",
+    "js.debugger.nextJs.config.created.server": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/leona.DESKTOP-10QNDAN/Desktop/zyraos",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "npm.Next.js: server-side.executor": "Run",
+    "settings.editor.selected.configurable": "ml.llm.LLMConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2026.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="ReactDesignerToolWindowState">
     <option name="myId2Visible">
       <map>
@@ -228,7 +218,10 @@
       <workItem from="1780689431707" duration="5023000" />
       <workItem from="1780695097158" duration="17809000" />
       <workItem from="1780717046641" duration="9149000" />
-      <workItem from="1780745380766" duration="19457000" />
+      <workItem from="1780745380766" duration="20205000" />
+      <workItem from="1780773199864" duration="791000" />
+      <workItem from="1780835024508" duration="809000" />
+      <workItem from="1780844423570" duration="19189000" />
     </task>
     <servers />
   </component>

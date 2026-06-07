@@ -68,14 +68,46 @@ export function DashboardNav({ user }: DashboardNavProps) {
     toast.success("Notifications cleared");
   };
 
-  // Determine dashboard base path for "Home" link
-  const getDashboardPath = () => {
-    if (pathname.startsWith("/master")) return "/master/dashboard";
-    // For tenant paths like /tenant/school-name/...
-    const tenantMatch = pathname.match(/^\/tenant\/([^/]+)/);
-    if (tenantMatch) return `/tenant/${tenantMatch[1]}/dashboard`;
-    return "/dashboard";
+  const normalizedRole = React.useMemo(() => {
+    const role = String(user?.role || "").toLowerCase();
+    if (role === "super_admin" || role === "master") return "master";
+    if (role === "school_admin") return "admin";
+    if (role === "accountant") return "finance";
+    if (role === "guardian") return "parent";
+    if (role === "lecturer") return "teacher";
+    if (role === "receptionist") return "reception";
+    if (role === "transport_manager") return "transport";
+    if (role === "hostel_warden") return "hostel";
+    if (role === "inventory_manager") return "inventory";
+    if (role === "counselor") return "wellbeing";
+    if (role === "nurse") return "health";
+    return role;
+  }, [user?.role]);
+
+  const routeContext = React.useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    const rootRoles = new Set(["master", "admin", "staff", "teacher", "student", "parent", "finance", "hr", "librarian", "canteen"]);
+    const tenantRoles = new Set(["admin", "owner", "staff", "teacher", "student", "parent", "finance", "hr", "librarian", "canteen", "health", "transport", "hostel", "security", "reception", "inventory", "wellbeing", "alumni"]);
+    if (segments[0] === "master") return { tenant: "", role: "master" };
+    if (segments[0] && rootRoles.has(segments[0])) return { tenant: "", role: segments[0] };
+    if (segments[0] && segments[1] && tenantRoles.has(segments[1])) return { tenant: segments[0], role: segments[1] };
+    if (segments[0] && normalizedRole && normalizedRole !== "master") return { tenant: segments[0], role: normalizedRole };
+    return { tenant: "", role: normalizedRole || "" };
+  }, [normalizedRole, pathname]);
+
+  const scopedPath = (page: "dashboard" | "messages" | "notifications" | "profile" | "settings") => {
+    const role = routeContext.role;
+    const pageByRole = page === "messages" && role === "student" ? "communication" : page;
+    if (role === "master") return page === "dashboard" ? "/master/dashboard" : `/master/${page}`;
+    if (!role) return `/${pageByRole}`;
+    const base = routeContext.tenant ? `/${routeContext.tenant}/${role}` : `/${role}`;
+    if (page === "dashboard") return `${base}/dashboard`;
+    if (page === "settings" && role === "admin") return `${base}/user-settings`;
+    if (page === "settings" && role === "owner") return `${base}/user-settings`;
+    return `${base}/${pageByRole}`;
   };
+
+  const getDashboardPath = () => scopedPath("dashboard");
 
   // Generate breadcrumbs from pathname
   const pathSegments = pathname.split("/").filter(Boolean);
@@ -86,20 +118,9 @@ export function DashboardNav({ user }: DashboardNavProps) {
     return { label, href, isLast };
   });
 
-  // Determine profile path
-  const getProfilePath = () => {
-    if (pathname.startsWith("/master")) return "/master/profile";
-    if (pathname.startsWith("/admin")) return "/admin/profile";
-    if (pathname.startsWith("/staff")) return "/staff/profile";
-    if (pathname.startsWith("/student")) return "/student/profile";
-    if (pathname.startsWith("/parent")) return "/parent/profile";
-    if (pathname.startsWith("/hr")) return "/hr/profile";
-    if (pathname.startsWith("/accountant")) return "/accountant/profile";
-    // For tenant paths like /tenant/school-name/...
-    const tenantMatch = pathname.match(/^\/tenant\/([^/]+)/);
-    if (tenantMatch) return `/tenant/${tenantMatch[1]}/profile`;
-    return "/profile";
-  };
+  const getProfilePath = () => scopedPath("profile");
+  const getSettingsPath = () => scopedPath("settings");
+  const getMessagesPath = () => scopedPath("messages");
 
   const handleLogout = async () => {
     try {
@@ -118,7 +139,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
-      {/* Dynamic Breadcrumbs — Home goes to /dashboard, NOT logout */}
+      {/* Dynamic breadcrumbs: Home goes to /dashboard, not logout */}
       <Breadcrumb className="hidden md:flex">
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -165,8 +186,14 @@ export function DashboardNav({ user }: DashboardNavProps) {
         </Button>
 
         {/* Messages */}
-        <Button variant="ghost" size="icon" className="rounded-full hover:bg-accent relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full hover:bg-accent relative"
+          onClick={() => router.push(getMessagesPath())}
+        >
           <MessageSquare className="h-5 w-5" />
+          <span className="sr-only">Open messages</span>
         </Button>
 
         {/* Notifications */}
@@ -234,7 +261,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 My Profile
               </DropdownMenuItem>
               {!isStudent && (
-                <DropdownMenuItem onClick={() => router.push("/settings")} className="gap-3 py-2 cursor-pointer">
+                <DropdownMenuItem onClick={() => router.push(getSettingsPath())} className="gap-3 py-2 cursor-pointer">
                   <Settings className="h-4 w-4" />
                   Settings
                 </DropdownMenuItem>

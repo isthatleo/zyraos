@@ -81,6 +81,20 @@ export default function AdminPermissionsPage() {
   const dirty = role ? selected.sort().join("|") !== [...role.selectedPermissions].sort().join("|") : false;
   const added = role ? selected.filter((id) => !role.selectedPermissions.includes(id)) : [];
   const removed = role ? role.selectedPermissions.filter((id) => !selected.includes(id)) : [];
+  const pageHeader = (
+    <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+      <div className="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/.55))] p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Badge variant="outline" className="rounded-full">School admin governance</Badge>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight">Permissions</h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage tenant role capabilities across academics, users, finance, facilities, communications, and governance.</p>
+          </div>
+          <Button variant="outline" disabled={refreshing || loading} onClick={() => void load(true)}><RefreshCw className={cn("mr-2 h-4 w-4", (refreshing || loading) && "animate-spin")} />Refresh</Button>
+        </div>
+      </div>
+    </section>
+  );
 
   function toggle(roleId: string, permissionId: string) {
     if (!role?.editable) return;
@@ -141,24 +155,13 @@ export default function AdminPermissionsPage() {
     }
   }
 
-  if (loading) return <div className="space-y-6"><Skeleton className="h-48 rounded-3xl" /><div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-3xl" />)}</div><Skeleton className="h-[520px] rounded-3xl" /></div>;
+  if (loading) return <div className="space-y-6">{pageHeader}<div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-3xl" />)}</div><Skeleton className="h-[520px] rounded-3xl" /></div>;
 
-  if (error || !data) return <Alert variant="destructive" className="rounded-3xl"><AlertCircle className="h-4 w-4" /><AlertTitle>Permissions unavailable</AlertTitle><AlertDescription className="mt-2 flex items-center justify-between gap-4"><span>{error || "No permissions data returned."}</span><Button variant="outline" onClick={() => void load()}>Retry</Button></AlertDescription></Alert>;
+  if (error || !data) return <div className="space-y-6">{pageHeader}<Alert variant="destructive" className="rounded-3xl"><AlertCircle className="h-4 w-4" /><AlertTitle>Permissions unavailable</AlertTitle><AlertDescription className="mt-2 flex items-center justify-between gap-4"><span>{error || "No permissions data returned."}</span><Button variant="outline" onClick={() => void load()}>Retry</Button></AlertDescription></Alert></div>;
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
-        <div className="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.16),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/.55))] p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <Badge variant="outline" className="rounded-full">School admin governance</Badge>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight">Permissions</h1>
-              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage tenant role capabilities across academics, users, finance, facilities, communications, and governance.</p>
-            </div>
-            <Button variant="outline" disabled={refreshing} onClick={() => void load(true)}><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} />Refresh</Button>
-          </div>
-        </div>
-      </section>
+      {pageHeader}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={ShieldCheck} label="Roles" value={data.summary.roles} />

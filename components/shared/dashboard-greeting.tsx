@@ -41,14 +41,15 @@ export function DashboardGreeting({
   displayName?: string | null;
   roleLabel: string;
 }) {
-  const [now, setNow] = React.useState(() => new Date());
+  const [now, setNow] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
+    setNow(new Date());
     const interval = window.setInterval(() => setNow(new Date()), 60000);
     return () => window.clearInterval(interval);
   }, []);
 
-  const greetingIcon = React.useMemo(() => getGreetingIcon(now), [now]);
+  const greetingIcon = React.useMemo(() => getGreetingIcon(now || new Date(0)), [now]);
   const Icon = greetingIcon.Icon;
   const name = displayName?.trim() || roleLabel;
 
@@ -59,11 +60,11 @@ export function DashboardGreeting({
           <Icon className={`h-5 w-5 ${greetingIcon.className}`} />
         </div>
         <p className="text-xl font-semibold tracking-tight text-foreground">
-          {getGreeting(now)}, {name}
+          {now ? getGreeting(now) : "Welcome back"}, {name}
         </p>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Today is {formatDate(now)} - {formatTime(now)}
+        {now ? `Today is ${formatDate(now)} - ${formatTime(now)}` : "Loading your local dashboard time..."}
       </p>
     </div>
   );

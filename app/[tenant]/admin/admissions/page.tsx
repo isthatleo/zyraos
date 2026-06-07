@@ -77,10 +77,37 @@ function classLabel(item: AdmissionClass) {
   return [item.name, item.section && !item.name.toLowerCase().includes(item.section.toLowerCase()) ? item.section : ""].filter(Boolean).join(" ");
 }
 
-function LoadingAdmissions() {
+function AdmissionsShellHeader({ onRefresh, refreshing }: { onRefresh?: () => void; refreshing?: boolean }) {
+  return (
+    <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+      <div className="p-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="rounded-full border-primary/25 bg-primary/10 text-primary">School Admin</Badge>
+          <Badge variant="outline" className="rounded-full">Admissions pipeline</Badge>
+        </div>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">Admissions</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          Loading applicant records, class capacity, admission numbers, and enrollment workflow controls.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button onClick={() => {}} disabled>
+            New Admission
+            <Plus className="size-4" />
+          </Button>
+          <Button variant="ghost" onClick={onRefresh} disabled={!onRefresh || refreshing}>
+            {refreshing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            Refresh
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LoadingAdmissions({ onRefresh, refreshing }: { onRefresh?: () => void; refreshing?: boolean }) {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-60 rounded-3xl" />
+      <AdmissionsShellHeader onRefresh={onRefresh} refreshing={refreshing} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}
       </div>
@@ -188,18 +215,21 @@ export default function AdminAdmissionsPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading) return <LoadingAdmissions />;
+  if (loading) return <LoadingAdmissions onRefresh={() => loadAdmissions()} refreshing={refreshing} />;
 
   if (error || !data) {
     return (
-      <Alert variant="destructive" className="rounded-3xl">
-        <AlertCircle className="size-4" />
-        <AlertTitle>Admissions failed to load</AlertTitle>
-        <AlertDescription className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <span>{error || "No admissions data was returned."}</span>
-          <Button variant="secondary" onClick={() => loadAdmissions()}>Retry</Button>
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-6">
+        <AdmissionsShellHeader onRefresh={() => loadAdmissions()} refreshing={refreshing} />
+        <Alert variant="destructive" className="rounded-3xl">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Admissions failed to load</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error || "No admissions data was returned."}</span>
+            <Button variant="secondary" onClick={() => loadAdmissions()}>Retry</Button>
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 

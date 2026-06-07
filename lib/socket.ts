@@ -6,6 +6,10 @@ let usingFallbackSocket = false
 export const getSocket = () => {
   if (!socket) {
     const configuredSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL
+    const explicitWebSocketEnabled = process.env.NEXT_PUBLIC_SOCKET_ENABLE_WEBSOCKET === "true"
+    const isBrowserLocalTenant =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname.endsWith(".localhost"))
     const shouldUseConfiguredSocket =
       !!configuredSocketUrl &&
       !usingFallbackSocket &&
@@ -20,14 +24,16 @@ export const getSocket = () => {
     const socketPath =
       (shouldUseConfiguredSocket ? process.env.NEXT_PUBLIC_SOCKET_PATH : "/api/socket") ||
       (shouldUseConfiguredSocket ? "/socket.io" : "/api/socket")
+    const enableWebSocket = explicitWebSocketEnabled || (shouldUseConfiguredSocket && !isBrowserLocalTenant)
 
     socket = io(socketUrl, {
       autoConnect: false,
       path: socketPath,
       addTrailingSlash: false,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 5,
+      transports: enableWebSocket ? ["polling", "websocket"] : ["polling"],
+      upgrade: enableWebSocket,
+      reconnection: enableWebSocket,
+      reconnectionAttempts: enableWebSocket ? 3 : 0,
       reconnectionDelay: 300,
       reconnectionDelayMax: 1500,
       timeout: 1500,

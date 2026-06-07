@@ -1,3 +1,1 @@
-import TenantProfilePage from "../../profile/page";
-
-export default TenantProfilePage;
+export { default } from "@/app/profile/page"
