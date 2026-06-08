@@ -57,6 +57,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -67,8 +68,11 @@ type AssignmentStatus = "submitted" | "pending" | "late" | "graded"
 type ExamStatus = "available" | "scheduled" | "completed"
 
 type Course = {
+  id?: string
   code: string
   title: string
+  type?: string
+  teacherId?: string
   instructor: string
   progress: number
   grade: string
@@ -78,28 +82,46 @@ type Course = {
 
 type Assignment = {
   id: string
+  subjectId?: string
   title: string
+  type?: string
   course: string
+  teacherId?: string
+  teacher?: string
   due: string
   dueDate?: string | null
+  releaseDate?: string | null
   points: number
   status: AssignmentStatus
   score?: number
   description?: string
   instructions?: string
+  hasResources?: boolean
 }
 
 type ScheduleItem = {
+  id?: string
+  day?: string
+  period?: string
+  startTime?: string
+  endTime?: string
   time: string
   course: string
+  title?: string
   type: string
   room: string
   instructor: string
+  teacherId?: string
+  subjectId?: string
   online?: boolean
+  reminder?: boolean
+  viewed?: boolean
+  checkedIn?: boolean
 }
 
 type Exam = {
   id: string
+  subjectId?: string
   title: string
   course: string
   date: string
@@ -107,15 +129,34 @@ type Exam = {
   duration: string
   status: ExamStatus
   location?: string
+  invigilator?: string
   instructions?: string
+}
+
+type TeacherSummary = {
+  id: string
+  name: string
+  role: string
+  subjects: string[]
 }
 
 type LearningResource = {
   id: string
   title: string
+  description?: string
   type: string
+  kind?: string
   size: string
   course: string
+  teacher?: string
+  url?: string
+  source?: string
+  saved?: boolean
+  viewed?: boolean
+  downloaded?: boolean
+  available?: number
+  shelf?: string
+  author?: string
 }
 
 type PerformancePoint = {
@@ -178,15 +219,43 @@ type StudentDashboardData = {
     lateDays: number
     pendingAssignments: number
     completedAssignments: number
+    coursework?: number
+    assessments?: number
+    tests?: number
+    exams?: number
+    teachers?: number
+    lessons?: number
     gpa?: number | null
     unreadMessages: number
     outstandingBalance: number
     invoicesNeedingAttention: number
     savedResources?: number
+    viewedResources?: number
+    downloadedResources?: number
+    libraryBooks?: number
   }
   savedResourceIds?: string[]
   courses?: Course[]
   assignments?: Assignment[]
+  academicCatalog?: {
+    subjects: Course[]
+    coursework: Assignment[]
+    assignments: Assignment[]
+    assessments: Assignment[]
+    tests: Assignment[]
+    exams: Exam[]
+    teachers: TeacherSummary[]
+    lessons?: ScheduleItem[]
+    timetable?: {
+      entries: ScheduleItem[]
+      settings: {
+        periodsPerDay: number
+        schoolStart: string
+        schoolEnd: string
+        breaks: Array<{ name: string; day: string; startTime: string; endTime: string }>
+      }
+    }
+  }
   schedule?: ScheduleItem[]
   exams?: Exam[]
   performanceTrend?: PerformancePoint[]
@@ -245,6 +314,74 @@ const levelLabels: Record<Level, { title: string; subtitle: string; term: string
   },
 }
 
+const levelProfiles: Record<Level, {
+  learner: string
+  coursePlural: string
+  workPlural: string
+  educator: string
+  performanceLabel: string
+  financeLabel: string
+  primaryRoute: string
+  secondaryRoute: string
+  focus: string
+}> = {
+  primary: {
+    learner: "Pupil",
+    coursePlural: "Subjects",
+    workPlural: "Homework",
+    educator: "Class teacher",
+    performanceLabel: "Stars and progress",
+    financeLabel: "Parent billing",
+    primaryRoute: "/student/subjects",
+    secondaryRoute: "/student/attendance",
+    focus: "Keep homework simple, track attendance, and keep guardian-teacher communication visible.",
+  },
+  secondary: {
+    learner: "Student",
+    coursePlural: "Subjects",
+    workPlural: "Assignments",
+    educator: "Class teacher",
+    performanceLabel: "Performance",
+    financeLabel: "Fees",
+    primaryRoute: "/student/subjects",
+    secondaryRoute: "/student/exams",
+    focus: "Balance subjects, assignments, attendance, and exam readiness.",
+  },
+  college: {
+    learner: "College student",
+    coursePlural: "Courses",
+    workPlural: "Assessments",
+    educator: "Advisor",
+    performanceLabel: "Academic standing",
+    financeLabel: "Account balance",
+    primaryRoute: "/student/performance",
+    secondaryRoute: "/student/resources",
+    focus: "Track course progress, credit load, resources, and advisor support.",
+  },
+  university: {
+    learner: "University student",
+    coursePlural: "Courses",
+    workPlural: "Coursework",
+    educator: "Academic advisor",
+    performanceLabel: "GPA and progress",
+    financeLabel: "Account balance",
+    primaryRoute: "/student/performance",
+    secondaryRoute: "/student/resources",
+    focus: "Manage courses, assessment evidence, resources, finance, and exam readiness.",
+  },
+  vocational: {
+    learner: "Trainee",
+    coursePlural: "Modules",
+    workPlural: "Practical tasks",
+    educator: "Instructor",
+    performanceLabel: "Skill progress",
+    financeLabel: "Training fees",
+    primaryRoute: "/student/performance",
+    secondaryRoute: "/student/timetable",
+    focus: "Track modules, practical readiness, attendance, and instructor feedback.",
+  },
+}
+
 const statusStyles: Record<AssignmentStatus | ExamStatus, string> = {
   available: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
   completed: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300",
@@ -262,9 +399,9 @@ function formatStatus(status: string) {
 function buildCsv(assignments: Assignment[], activeCourses: Course[], data: StudentDashboardData | null) {
   const rows = [
     ["Metric", "Value"],
-    ["Student", data?.currentUser?.name || "Student"],
+    ["Student", data?.currentUser?.name || ""],
     ["School", data?.school?.name || "School"],
-    ["Class", data?.student?.className || "Unassigned"],
+    ["Class", data?.student?.className || "Class not assigned"],
     ["Level", data?.student?.level || "unknown"],
     ["Courses", String(activeCourses.length)],
     ["Credits", String(activeCourses.reduce((total, course) => total + course.credits, 0))],
@@ -284,6 +421,95 @@ function buildCsv(assignments: Assignment[], activeCourses: Course[], data: Stud
   return rows.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n")
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+        <div className="relative p-6 md:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Skeleton className="h-7 w-24 rounded-full" />
+                <Skeleton className="h-7 w-36 rounded-full" />
+                <Skeleton className="h-7 w-28 rounded-full" />
+                <Skeleton className="h-7 w-32 rounded-full" />
+              </div>
+              <Skeleton className="h-10 w-72 max-w-full" />
+              <Skeleton className="h-6 w-96 max-w-full" />
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-28" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+              <Skeleton className="h-10 w-44" />
+              <Skeleton className="h-10 w-28" />
+              <Skeleton className="h-10 w-40" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Card key={index}>
+            <CardContent className="space-y-4 p-5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="size-10 rounded-2xl" />
+              </div>
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-4 w-36" />
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <Skeleton className="h-6 w-44" />
+            <Skeleton className="h-4 w-80 max-w-full" />
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-28 rounded-2xl" />
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-36" />
+            <Skeleton className="h-4 w-56" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-20 rounded-2xl" />
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full rounded-xl" />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Skeleton className="h-80 rounded-2xl" />
+            <Skeleton className="h-80 rounded-2xl" />
+          </div>
+          <Skeleton className="h-72 rounded-2xl" />
+        </div>
+        <div className="space-y-6">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function StudentDashboardPage() {
   const pathname = usePathname()
   const router = useRouter()
@@ -296,6 +522,8 @@ export function StudentDashboardPage() {
   const [assignmentNote, setAssignmentNote] = React.useState("")
   const [helpOpen, setHelpOpen] = React.useState(false)
   const [messageOpen, setMessageOpen] = React.useState(false)
+  const [messageReceiverId, setMessageReceiverId] = React.useState("")
+  const [messageReceiverName, setMessageReceiverName] = React.useState("")
   const [helpMessage, setHelpMessage] = React.useState("")
   const [messageBody, setMessageBody] = React.useState("")
   const [selectedHelpCourse, setSelectedHelpCourse] = React.useState("")
@@ -319,6 +547,11 @@ export function StudentDashboardPage() {
   const endpoint = React.useCallback(() => {
     const tenant = tenantPrefix ? tenantPrefix.slice(1) : ""
     return tenant ? `/api/tenant/student/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/student/dashboard"
+  }, [tenantPrefix])
+
+  const timetableEndpoint = React.useCallback(() => {
+    const tenant = tenantPrefix ? tenantPrefix.slice(1) : ""
+    return tenant ? `/api/tenant/student/timetable?tenant=${encodeURIComponent(tenant)}` : "/api/student/timetable"
   }, [tenantPrefix])
 
   const loadDashboard = React.useCallback(async (notify = false) => {
@@ -352,7 +585,17 @@ export function StudentDashboardPage() {
   const liveTrend = dashboardData?.performanceTrend || []
   const liveGradeBreakdown = dashboardData?.gradeBreakdown || []
   const liveResources = dashboardData?.resources || []
-  const savedResources = dashboardData?.savedResourceIds || []
+  const savedResources = React.useMemo(
+    () => Array.from(new Set([...(dashboardData?.savedResourceIds || []), ...liveResources.filter((resource) => resource.saved).map((resource) => resource.id)])),
+    [dashboardData?.savedResourceIds, liveResources]
+  )
+  const academicCatalog = dashboardData?.academicCatalog
+  const catalogSubjects = academicCatalog?.subjects || liveCourses
+  const catalogCoursework = academicCatalog?.coursework || []
+  const catalogAssessments = academicCatalog?.assessments || []
+  const catalogTests = academicCatalog?.tests || []
+  const catalogExams = academicCatalog?.exams || liveExams
+  const catalogTeachers = academicCatalog?.teachers || []
   const student = dashboardData?.student
   const currentUser = dashboardData?.currentUser
   const school = dashboardData?.school
@@ -372,9 +615,10 @@ export function StudentDashboardPage() {
     ...levelLabels[level],
     term: student?.term || levelLabels[level].term,
   }
-  const studentDisplayName = currentUser?.name || "Student"
-  const schoolDisplayName = school?.name || "Your school"
-  const classLabel = student?.className || student?.stage || "Unassigned class"
+  const levelProfile = levelProfiles[level]
+  const studentDisplayName = currentUser?.name || ""
+  const schoolDisplayName = school?.name || ""
+  const classLabel = student?.className || student?.stage || "Class not assigned"
   const upcomingAssignments = assignments
     .filter((assignment) => assignment.status === "pending" || assignment.status === "late")
     .toSorted((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
@@ -425,11 +669,68 @@ export function StudentDashboardPage() {
     }] : []),
   ].slice(0, 5)
   const savedResourceRows = liveResources.filter((resource) => savedResources.includes(resource.id))
+  const levelCards = [
+    {
+      title: levelProfile.coursePlural,
+      value: liveCourses.length,
+      helper: level === "primary" ? "Class subjects assigned" : level === "vocational" ? "Training modules active" : `${metrics?.credits ?? 0} credit load`,
+      href: "/student/subjects",
+      icon: BookOpen,
+    },
+    {
+      title: levelProfile.workPlural,
+      value: pendingCount,
+      helper: `${completedCount} completed`,
+      href: level === "primary" ? "/student/assignments" : "/student/assessments",
+      icon: FileText,
+    },
+    {
+      title: levelProfile.performanceLabel,
+      value: `${averageProgress}%`,
+      helper: metrics?.gpa ? `GPA ${metrics.gpa}` : `${averageAttendance}% attendance`,
+      href: "/student/performance",
+      icon: TrendingUp,
+    },
+    {
+      title: levelProfile.financeLabel,
+      value: financeAttention,
+      helper: `${school?.currencyCode || ""} ${metrics?.outstandingBalance ?? 0} outstanding`,
+      href: "/student/finance",
+      icon: ShieldCheck,
+    },
+  ]
+  const academicCatalogCards = [
+    { label: levelProfile.coursePlural, value: catalogSubjects.length, helper: "Student/class enrolment", href: "/student/subjects", icon: BookOpen },
+    { label: "Coursework", value: catalogCoursework.length, helper: "Homework, projects, practical work", href: "/student/assignments", icon: FileText },
+    { label: "Assessments", value: catalogAssessments.length, helper: "Class assessments and graded work", href: "/student/assessments", icon: CheckCircle2 },
+    { label: "Tests", value: catalogTests.length, helper: "Tests, quizzes, mocks, finals", href: "/student/exams", icon: Timer },
+    { label: "Lessons", value: dashboardData?.academicCatalog?.lessons?.length || liveSchedule.length, helper: "Timetable lessons and lectures", href: "/student/timetable", icon: Calendar },
+    { label: "Exams", value: catalogExams.length, helper: "Scheduled and available exams", href: "/student/exams", icon: Award },
+    { label: "Teachers", value: catalogTeachers.length, helper: "Teachers, lecturers, instructors", href: "/student/messages", icon: MessageSquare },
+  ]
+  const levelReadiness = [
+    {
+      label: level === "primary" ? "Guardian contact available" : "Profile and admission verified",
+      ready: level === "primary" ? Boolean(student?.guardianContact) : Boolean(student?.admissionNumber && currentUser?.email),
+    },
+    {
+      label: level === "vocational" ? "Practical schedule visible" : level === "university" || level === "college" ? "Credit/course load visible" : "Class subjects visible",
+      ready: level === "vocational" ? liveSchedule.length > 0 : liveCourses.length > 0,
+    },
+    {
+      label: level === "primary" ? "Homework queue checked" : "Assessment queue checked",
+      ready: pendingCount === 0,
+    },
+    {
+      label: level === "secondary" ? "Exam readiness visible" : level === "primary" ? "Teacher notes checked" : "Advisor support available",
+      ready: level === "secondary" ? upcomingExams.length > 0 : level === "primary" ? Boolean(dashboardData?.progressNotes?.length) : Boolean(student?.classTeacherId),
+    },
+  ]
 
   const kpis = [
-    { label: level === "vocational" ? "Modules" : "Courses", value: liveCourses.length, suffix: "", helper: labels.term, icon: BookOpen, tone: "bg-sky-500/10 text-sky-600 dark:text-sky-300" },
+    { label: levelProfile.coursePlural, value: liveCourses.length, suffix: "", helper: labels.term, icon: BookOpen, tone: "bg-sky-500/10 text-sky-600 dark:text-sky-300" },
     { label: level === "primary" ? "Learning Progress" : "Average Progress", value: averageProgress, suffix: "%", helper: metrics?.gpa ? `GPA ${metrics.gpa}` : "Current academic average", icon: TrendingUp, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300" },
-    { label: "Assignments", value: `${completedCount}/${assignments.length}`, suffix: "", helper: `${pendingCount} pending`, icon: FileText, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-300" },
+    { label: levelProfile.workPlural, value: `${completedCount}/${assignments.length}`, suffix: "", helper: `${pendingCount} pending`, icon: FileText, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-300" },
     { label: "Attendance", value: averageAttendance, suffix: "%", helper: averageAttendance >= 90 ? "Good standing" : `${metrics?.absentDays ?? 0} absences`, icon: ShieldCheck, tone: "bg-violet-500/10 text-violet-600 dark:text-violet-300" },
   ]
 
@@ -535,6 +836,29 @@ export function StudentDashboardPage() {
     }, savedResources.includes(resourceId) ? "Resource removed from saved list" : "Resource saved")
   }
 
+  const openResource = (resource: LearningResource) => {
+    void runDashboardAction({
+      action: resource.url ? "resource.download" : "resource.view",
+      resourceId: resource.id,
+    }, resource.url ? "Resource download recorded" : "Resource opened")
+    if (resource.url) {
+      window.open(resource.url, "_blank", "noopener,noreferrer")
+      return
+    }
+    router.push(studentHref(`/student/resources?resource=${encodeURIComponent(resource.id)}`))
+  }
+
+  const openScheduleItem = async (item: ScheduleItem) => {
+    if (item.id) {
+      await fetch(timetableEndpoint(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "view", itemId: item.id }),
+      }).catch(() => null)
+    }
+    router.push(studentHref(`/student/timetable${item.id ? `?lesson=${encodeURIComponent(item.id)}` : ""}`))
+  }
+
   const sendAcademicHelpRequest = async () => {
     const message = helpMessage.trim()
     if (!message) {
@@ -563,11 +887,11 @@ export function StudentDashboardPage() {
   }
 
   const sendAdvisorMessage = async () => {
-    const receiverId = student?.classTeacherId
+    const receiverId = messageReceiverId || student?.classTeacherId
     const content = messageBody.trim()
     if (!receiverId) {
       router.push(studentHref("/student/messages"))
-      toast.info("Open the inbox to select an advisor")
+      toast.info("Open the inbox to select a teacher or advisor")
       return
     }
     if (!content) {
@@ -585,8 +909,32 @@ export function StudentDashboardPage() {
       return
     }
     setMessageBody("")
+    setMessageReceiverId("")
+    setMessageReceiverName("")
     setMessageOpen(false)
-    toast.success("Message sent to advisor")
+    toast.success(`Message sent to ${messageReceiverName || "advisor"}`)
+  }
+
+  if (loadingData && !dashboardData) {
+    return <DashboardSkeleton />
+  }
+
+  if (!loadError && (!currentUser?.id || !student?.id)) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium text-destructive">Student session profile is required</p>
+              <p className="text-sm text-muted-foreground">The dashboard will not render fallback student data. Sign in with a student account or configure the student profile for this user.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={() => void loadDashboard(true)}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -623,6 +971,9 @@ export function StudentDashboardPage() {
                 <Badge variant="outline" className="bg-background/80">
                   Academic status: {student?.status || "On track"}
                 </Badge>
+                <Badge variant="outline" className="bg-background/80">
+                  {levelProfile.learner}
+                </Badge>
               </div>
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {labels.title}
@@ -633,7 +984,7 @@ export function StudentDashboardPage() {
               </p>
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
                 <span>Stage: <strong className="text-foreground">{student?.stage || level}</strong></span>
-                <span>Class teacher: <strong className="text-foreground">{student?.classTeacher || "Not assigned"}</strong></span>
+                <span>{levelProfile.educator}: <strong className="text-foreground">{student?.classTeacher || "Not assigned"}</strong></span>
                 <span>Classmates: <strong className="text-foreground">{student?.classmates ?? 0}</strong></span>
                 <span>Messages: <strong className="text-foreground">{metrics?.unreadMessages ?? 0} unread</strong></span>
               </div>
@@ -687,6 +1038,135 @@ export function StudentDashboardPage() {
             </Card>
           )
         })}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="size-5" />
+              {formatStatus(level)} Workspace
+            </CardTitle>
+            <CardDescription>{levelProfile.focus}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {levelCards.map((card) => {
+              const Icon = card.icon
+              return (
+                <Link
+                  key={card.title}
+                  href={studentHref(card.href)}
+                  className="rounded-2xl border p-4 transition-colors hover:bg-muted/60"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{card.title}</p>
+                      <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{card.helper}</p>
+                    </div>
+                    <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                      <Icon className="size-5" />
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="size-5" />
+              Level Readiness
+            </CardTitle>
+            <CardDescription>Checks adapted to this student level.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {levelReadiness.map((item) => (
+              <div key={item.label} className="flex items-center gap-3 rounded-xl border p-3">
+                <div className={cn("flex size-8 items-center justify-center rounded-full", item.ready ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
+                  {item.ready ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />}
+                </div>
+                <span className="text-sm">{item.label}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="size-5" />
+              Academic Catalog
+            </CardTitle>
+            <CardDescription>
+              Auto-loaded tenant data for this {levelProfile.learner.toLowerCase()}: subjects, coursework, assessments, tests, exams, and teachers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {academicCatalogCards.map((card) => {
+              const Icon = card.icon
+              return (
+                <Link key={card.label} href={studentHref(card.href)} className="rounded-2xl border p-4 transition-colors hover:bg-muted/60">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{card.label}</p>
+                      <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{card.helper}</p>
+                    </div>
+                    <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                      <Icon className="size-5" />
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="size-5" />
+              Teaching Team
+            </CardTitle>
+            <CardDescription>Teachers linked to this student&apos;s class, subjects, and assessments.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {catalogTeachers.slice(0, 5).map((teacher) => (
+              <div key={teacher.id || teacher.name} className="rounded-2xl border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{teacher.name}</p>
+                    <p className="text-xs text-muted-foreground">{teacher.role}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMessageReceiverId(teacher.id || "")
+                      setMessageReceiverName(teacher.name)
+                      setMessageOpen(true)
+                      setMessageBody((current) => current || `Hello ${teacher.name}, `)
+                    }}
+                  >
+                    Message
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{teacher.subjects.slice(0, 4).join(", ") || "General support"}</p>
+              </div>
+            ))}
+            {!catalogTeachers.length ? (
+              <p className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+                No teachers are linked in the dashboard API yet.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
@@ -839,8 +1319,8 @@ export function StudentDashboardPage() {
         <Tabs defaultValue="overview" className="min-w-0 space-y-4">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="assignments">{level === "primary" ? "Homework" : "Assignments"}</TabsTrigger>
+            <TabsTrigger value="performance">{levelProfile.performanceLabel}</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
           </TabsList>
 
@@ -850,26 +1330,29 @@ export function StudentDashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="size-5" />
-                    Today&apos;s Schedule
+                    {level === "vocational" ? "Today&apos;s Training Schedule" : level === "primary" ? "Today&apos;s Class Schedule" : "Today&apos;s Schedule"}
                   </CardTitle>
-                  <CardDescription>Classes, rooms, lecturers, and launch actions.</CardDescription>
+                  <CardDescription>{level === "primary" ? "Classes, rooms, teacher, and next actions." : level === "vocational" ? "Modules, practical rooms, instructors, and launch actions." : "Classes, rooms, lecturers, and launch actions."}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {liveSchedule.map((item) => (
-                    <div key={`${item.time}-${item.course}`} className="rounded-2xl border p-4">
+                    <div key={item.id || `${item.time}-${item.course}`} className="rounded-2xl border p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-medium">{item.course} - {item.type}</p>
-                          <p className="text-sm text-muted-foreground">{item.time} - {item.room}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {item.day ? `${item.day} - ` : ""}{item.time} - {item.room}
+                          </p>
                           <p className="text-xs text-muted-foreground">{item.instructor}</p>
+                          {item.viewed ? <Badge variant="outline" className={cn("mt-2", statusStyles.submitted)}>Viewed</Badge> : null}
                         </div>
                         <Button
                           type="button"
                           variant={item.online ? "default" : "outline"}
-                          onClick={() => toast.success(item.online ? "Opening live class" : `Directions opened for ${item.room}`)}
+                          onClick={() => void openScheduleItem(item)}
                         >
                           {item.online ? <Play className="size-4" /> : <ExternalLink className="size-4" />}
-                          {item.online ? "Join" : "Directions"}
+                          {item.online ? "Join" : item.type === "Exam" ? "Open exam" : "Open lesson"}
                         </Button>
                       </div>
                     </div>
@@ -892,7 +1375,7 @@ export function StudentDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
-                    {chartsReady ? (
+                    {chartsReady && liveTrend.length ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={liveTrend} margin={{ left: -20, right: 10 }}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -903,6 +1386,10 @@ export function StudentDashboardPage() {
                           <Line type="monotone" dataKey="attendance" stroke="#10b981" strokeWidth={3} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
+                    ) : chartsReady ? (
+                      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
+                        No performance trend data is available from the dashboard API yet.
+                      </div>
                     ) : (
                       <div className="flex h-full items-center justify-center rounded-2xl bg-muted/40 text-sm text-muted-foreground">
                         Loading chart
@@ -917,9 +1404,9 @@ export function StudentDashboardPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="size-5" />
-                  Current Courses
+                  Current {levelProfile.coursePlural}
                 </CardTitle>
-                <CardDescription>Live progress, attendance, grades, and credit load.</CardDescription>
+                <CardDescription>{level === "primary" ? "Live subject progress, attendance, and teacher evidence." : `Live progress, attendance, grades, and ${level === "secondary" ? "subject load" : "credit load"}.`}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -954,6 +1441,46 @@ export function StudentDashboardPage() {
                     </p>
                   ) : null}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="size-5" />
+                  Coursework, Assessments & Tests
+                </CardTitle>
+                <CardDescription>Latest class work auto-loaded from the tenant assessment records.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 lg:grid-cols-3">
+                {[
+                  { title: "Coursework", items: catalogCoursework.slice(0, 3), href: "/student/assignments" },
+                  { title: "Assessments", items: catalogAssessments.slice(0, 3), href: "/student/assessments" },
+                  { title: "Tests", items: catalogTests.slice(0, 3), href: "/student/exams" },
+                ].map((group) => (
+                  <div key={group.title} className="rounded-2xl border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium">{group.title}</p>
+                      <Button type="button" variant="ghost" size="sm" asChild>
+                        <Link href={studentHref(group.href)}>Open</Link>
+                      </Button>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {group.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="w-full rounded-xl bg-muted/40 p-3 text-left hover:bg-muted"
+                          onClick={() => setSelectedAssignment(item)}
+                        >
+                          <p className="truncate text-sm font-medium">{item.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.course} - {item.due}</p>
+                        </button>
+                      ))}
+                      {!group.items.length ? <p className="text-sm text-muted-foreground">No {group.title.toLowerCase()} loaded yet.</p> : null}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
@@ -1088,8 +1615,8 @@ export function StudentDashboardPage() {
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <CardTitle>Assignments Center</CardTitle>
-                    <CardDescription>Search, filter, submit, and review coursework.</CardDescription>
+                  <CardTitle>{levelProfile.workPlural} Center</CardTitle>
+                    <CardDescription>Search, filter, submit, and review {level === "primary" ? "homework" : level === "vocational" ? "practical tasks" : "coursework"}.</CardDescription>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <div className="relative">
@@ -1097,7 +1624,7 @@ export function StudentDashboardPage() {
                       <Input
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search assignments"
+                        placeholder={`Search ${levelProfile.workPlural.toLowerCase()}`}
                         className="pl-8 sm:w-56"
                       />
                     </div>
@@ -1119,7 +1646,7 @@ export function StudentDashboardPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Assignment</TableHead>
+                      <TableHead>{level === "primary" ? "Homework" : level === "vocational" ? "Task" : "Assignment"}</TableHead>
                       <TableHead>Due</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Score</TableHead>
@@ -1150,7 +1677,7 @@ export function StudentDashboardPage() {
                   </TableBody>
                 </Table>
                 {filteredAssignments.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-muted-foreground">No assignments match the current filters.</div>
+                  <div className="py-10 text-center text-sm text-muted-foreground">No {levelProfile.workPlural.toLowerCase()} match the current filters.</div>
                 ) : null}
               </CardContent>
             </Card>
@@ -1160,12 +1687,12 @@ export function StudentDashboardPage() {
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Assessment Breakdown</CardTitle>
-                  <CardDescription>Performance by assessment category.</CardDescription>
+                  <CardTitle>{levelProfile.performanceLabel} Breakdown</CardTitle>
+                  <CardDescription>{level === "primary" ? "Progress evidence by learning activity." : "Performance by assessment category."}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
-                    {chartsReady ? (
+                    {chartsReady && liveGradeBreakdown.length ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={liveGradeBreakdown} margin={{ left: -20, right: 10 }}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -1175,6 +1702,10 @@ export function StudentDashboardPage() {
                           <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
+                    ) : chartsReady ? (
+                      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
+                        No assessment breakdown data is available from the dashboard API yet.
+                      </div>
                     ) : (
                       <div className="flex h-full items-center justify-center rounded-2xl bg-muted/40 text-sm text-muted-foreground">
                         Loading chart
@@ -1191,7 +1722,7 @@ export function StudentDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
-                    {chartsReady ? (
+                    {chartsReady && liveTrend.length ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={liveTrend} margin={{ left: -20, right: 10 }}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -1201,6 +1732,10 @@ export function StudentDashboardPage() {
                           <Area type="monotone" dataKey="attendance" stroke="#10b981" fill="#10b98133" strokeWidth={3} />
                         </AreaChart>
                       </ResponsiveContainer>
+                    ) : chartsReady ? (
+                      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">
+                        No attendance trend data is available from the dashboard API yet.
+                      </div>
                     ) : (
                       <div className="flex h-full items-center justify-center rounded-2xl bg-muted/40 text-sm text-muted-foreground">
                         Loading chart
@@ -1215,8 +1750,8 @@ export function StudentDashboardPage() {
           <TabsContent value="resources">
             <Card>
               <CardHeader>
-                <CardTitle>Learning Resources</CardTitle>
-                <CardDescription>Open, save, and download course materials.</CardDescription>
+                <CardTitle>{level === "primary" ? "Learning Materials" : "Learning Resources"}</CardTitle>
+                <CardDescription>Open and save {level === "vocational" ? "training materials" : level === "primary" ? "class materials" : "course materials"}.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
                 {liveResources.map((resource) => (
@@ -1230,12 +1765,17 @@ export function StudentDashboardPage() {
                         <Star className={cn("size-4", savedResources.includes(resource.id) && "fill-current")} />
                         {savedResources.includes(resource.id) ? "Saved" : "Save"}
                       </Button>
-                      <Button type="button" asChild>
-                        <Link href={studentHref(`/student/resources?resource=${encodeURIComponent(resource.id)}`)}>
-                        <Download className="size-4" />
-                        Open
-                        </Link>
+                      <Button type="button" onClick={() => openResource(resource)} disabled={actingId === resource.id}>
+                        {resource.url ? <Download className="size-4" /> : <ExternalLink className="size-4" />}
+                        {resource.url ? "Download" : "Open"}
                       </Button>
+                    </div>
+                    {resource.description ? <p className="text-sm text-muted-foreground sm:basis-full">{resource.description}</p> : null}
+                    <div className="flex flex-wrap gap-2 sm:basis-full">
+                      {resource.teacher ? <Badge variant="outline">{resource.teacher}</Badge> : null}
+                      {resource.source ? <Badge variant="secondary">{formatStatus(resource.source)}</Badge> : null}
+                      {resource.viewed ? <Badge variant="outline" className={statusStyles.submitted}>Viewed</Badge> : null}
+                      {resource.downloaded ? <Badge variant="outline" className={statusStyles.completed}>Downloaded</Badge> : null}
                     </div>
                   </div>
                 ))}
@@ -1257,10 +1797,10 @@ export function StudentDashboardPage() {
             </CardHeader>
             <CardContent className="grid gap-2">
               {[
-                { label: "View timetable", href: "/student/timetable", icon: Clock },
-                { label: "Check grades", href: "/student/grades", icon: Award },
-                { label: "Open assignments", href: "/student/assignments", icon: FileText },
-                { label: "Exam center", href: "/student/exams", icon: Timer },
+                { label: level === "primary" ? "View class timetable" : level === "vocational" ? "View training timetable" : "View timetable", href: "/student/timetable", icon: Clock },
+                { label: level === "primary" ? "Check progress" : level === "vocational" ? "Check skill progress" : "Check grades", href: level === "primary" ? "/student/performance" : "/student/grades", icon: Award },
+                { label: `Open ${levelProfile.workPlural.toLowerCase()}`, href: "/student/assignments", icon: FileText },
+                { label: level === "primary" ? "Class assessments" : level === "vocational" ? "Practical assessments" : "Exam center", href: level === "primary" ? "/student/assessments" : "/student/exams", icon: Timer },
                 { label: "Notifications", href: "/student/notifications", icon: Bell },
               ].map((action) => {
                 const Icon = action.icon
@@ -1325,10 +1865,10 @@ export function StudentDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { label: "Profile verified", ready: Boolean(student?.admissionNumber && currentUser?.email) },
-                { label: "Fees clearance synced", ready: (metrics?.outstandingBalance ?? 0) <= 0 },
-                { label: "Exam browser ready", ready: liveExams.some((exam) => exam.status === "available" || exam.status === "scheduled") },
-                { label: "Guardian contact active", ready: Boolean(student?.guardianContact) },
+                { label: level === "primary" ? "Pupil profile verified" : "Profile verified", ready: Boolean(student?.admissionNumber && currentUser?.email) },
+                { label: `${levelProfile.financeLabel} synced`, ready: (metrics?.outstandingBalance ?? 0) <= 0 },
+                { label: level === "primary" ? "Class assessments visible" : level === "vocational" ? "Practical assessment readiness" : "Exam browser ready", ready: level === "primary" ? assignments.length > 0 : liveExams.some((exam) => exam.status === "available" || exam.status === "scheduled") },
+                { label: level === "primary" ? "Guardian contact active" : `${levelProfile.educator} assigned`, ready: level === "primary" ? Boolean(student?.guardianContact) : Boolean(student?.classTeacherId) },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
                   <div className={cn("flex size-8 items-center justify-center rounded-full", item.ready ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
@@ -1444,7 +1984,7 @@ export function StudentDashboardPage() {
       <Dialog open={messageOpen} onOpenChange={setMessageOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Message advisor</DialogTitle>
+            <DialogTitle>Message {messageReceiverName || "advisor"}</DialogTitle>
             <DialogDescription>Start a message from the dashboard or continue in the inbox.</DialogDescription>
           </DialogHeader>
           <Textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Write your message" />

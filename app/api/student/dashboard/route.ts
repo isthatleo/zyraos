@@ -11,6 +11,8 @@ export const revalidate = 0
 
 type Row = Record<string, unknown>
 type QueryableDb = ReturnType<typeof getTenantDb>
+const LIBRARY_KEY = "admin_library"
+const TIMETABLE_KEY = "admin_timetable"
 
 function text(value: unknown, fallback = "") {
   const next = String(value ?? "").trim()
@@ -28,6 +30,26 @@ function objectValue(value: unknown) {
 
 function arrayValue(value: unknown) {
   return Array.isArray(value) ? value as unknown[] : []
+}
+
+function rowArray(value: unknown) {
+  return Array.isArray(value) ? value as Row[] : []
+}
+
+function boolValue(value: unknown, fallback = true) {
+  if (typeof value === "boolean") return value
+  if (typeof value === "string") return !["false", "0", "no"].includes(value.toLowerCase())
+  return fallback
+}
+
+function normalizeAttachment(value: unknown) {
+  if (typeof value === "string") {
+    return { title: value.split("/").pop() || "Attachment", url: value, type: "Attachment", size: "Course file" }
+  }
+  const item = objectValue(value)
+  const title = text(item.title, text(item.name, text(item.filename, "Attachment")))
+  const url = text(item.url, text(item.href, text(item.path)))
+  return { title, url, type: text(item.type, "Attachment"), size: text(item.size, "Course file") }
 }
 
 function iso(value: unknown) {
@@ -258,6 +280,35 @@ async function writeDashboardState(db: QueryableDb, studentId: string, state: { 
   `)
 }
 
+async function readResourceState(db: QueryableDb, studentId: string) {
+  const row = await first(db, sql`select value from system_settings where key = ${`student_resources:${studentId}`} limit 1`, "resource state")
+  const value = objectValue(row?.value)
+  return {
+    saved: arrayValue(value.saved).map(String),
+    viewed: arrayValue(value.viewed).map(String),
+    downloaded: arrayValue(value.downloaded).map(String),
+    reservations: arrayValue(value.reservations).map(String),
+  }
+}
+
+async function writeResourceState(db: QueryableDb, studentId: string, state: { saved: string[]; viewed: string[]; downloaded: string[]; reservations: string[] }) {
+  await db.execute(sql`
+    insert into system_settings (id, key, value, category, description, created_at, updated_at)
+    values (${crypto.randomUUID()}, ${`student_resources:${studentId}`}, ${JSON.stringify(state)}::jsonb, 'students', ${`Student resource state ${studentId}`}, now(), now())
+    on conflict (key) do update set value = excluded.value, updated_at = now()
+  `)
+}
+
+async function readTimetableState(db: QueryableDb, studentId: string) {
+  const row = await first(db, sql`select value from system_settings where key = ${`student_timetable:${studentId}`} limit 1`, "timetable state")
+  const value = objectValue(row?.value)
+  return {
+    reminders: arrayValue(value.reminders).map(String),
+    viewed: arrayValue(value.viewed).map(String),
+    checkins: arrayValue(value.checkins).map(String),
+  }
+}
+
 export async function GET(request: NextRequest) {
   const currentUser = await getRequiredDashboardUser(request.headers)
   if (isNextResponse(currentUser)) return currentUser
@@ -279,6 +330,8 @@ export async function GET(request: NextRequest) {
   const classId = text(student.class_id)
   const level = inferLevel(text(school.type), text(student.class_grade, text(student.class_name)))
   const state = await readDashboardState(tenantDb, studentId)
+  const resourceState = await readResourceState(tenantDb, studentId)
+  const timetableState = await readTimetableState(tenantDb, studentId)
 
   const [
     gradeRows,
@@ -293,6 +346,10 @@ export async function GET(request: NextRequest) {
     unreadMessages,
     announcements,
     classmateSummary,
+    libraryRow,
+    timetableRow,
+    timetableSubjectRows,
+    timetableTeacherRows,
   ] = await Promise.all([
     rows(tenantDb, sql`
       select
@@ -321,6 +378,7 @@ export async function GET(request: NextRequest) {
         s.name,
         s.code,
         s.type,
+        teacher.id as teacher_id,
         teacher.name as teacher_name,
         count(g.id)::int as grade_count,
         avg(coalesce(g.percentage, (g.score / nullif(g.max_score, 0)) * 100))::numeric(8,2) as average,
@@ -333,12 +391,13 @@ export async function GET(request: NextRequest) {
       ) or exists (
         select 1 from gradebook g2 where g2.subject_id = s.id and g2.student_id = ${studentId}
       )
-      group by s.id, s.name, s.code, s.type, teacher.name
+      group by s.id, s.name, s.code, s.type, teacher.id, teacher.name
       order by s.name asc
     `, "subjects"),
     rows(tenantDb, sql`
       select
         a.id,
+        a.subject_id,
         a.name,
         a.description,
         a.assessment_type,
@@ -350,22 +409,28 @@ export async function GET(request: NextRequest) {
         a.attachments,
         s.name as subject_name,
         s.code as subject_code,
+        teacher.id as teacher_id,
+        teacher.name as teacher_name,
         g.id as grade_id,
         g.score,
         g.max_score,
         g.percentage
       from assessments a
       left join subjects s on s.id = a.subject_id
+      left join users teacher on teacher.id = a.created_by
       left join gradebook g on g.student_id = ${studentId} and g.assessment_name = a.name and g.subject_id = a.subject_id
       where a.class_id = ${classId}
       order by a.due_date asc nulls last, a.created_at desc
       limit 50
     `, "assessments"),
     rows(tenantDb, sql`
-      select id, name, exam_date, start_time, end_time, location, total_marks, duration, exam_type, status, instructions
-      from exams
-      where class_id = ${classId}
-      order by exam_date asc
+      select e.id, e.name, e.exam_date, e.start_time, e.end_time, e.location, e.total_marks, e.duration, e.exam_type, e.status, e.instructions,
+        e.invigilator, e.assessment_id, a.subject_id, s.name as subject_name, s.code as subject_code
+      from exams e
+      left join assessments a on a.id = e.assessment_id
+      left join subjects s on s.id = a.subject_id
+      where e.class_id = ${classId}
+      order by e.exam_date asc
       limit 20
     `, "exams"),
     rows(tenantDb, sql`
@@ -433,6 +498,10 @@ export async function GET(request: NextRequest) {
       from students
       where class_id = ${classId} and lower(status) = 'active'
     `, "classmates"),
+    first(tenantDb, sql`select value from system_settings where key = ${LIBRARY_KEY} limit 1`, "library"),
+    first(tenantDb, sql`select value from system_settings where key = ${TIMETABLE_KEY} limit 1`, "timetable"),
+    rows(tenantDb, sql`select id, name, code, type from subjects order by name asc`, "timetable subjects"),
+    rows(tenantDb, sql`select id, name, email, role_id from users where is_active = true order by name asc limit 500`, "timetable teachers"),
   ])
 
   const validGrades = gradeRows
@@ -446,8 +515,11 @@ export async function GET(request: NextRequest) {
   const courses = subjectRows.map((row) => {
     const average = numberValue(row.average)
     return {
+      id: text(row.id),
       code: text(row.subject_code, text(row.code, "SUBJ")),
       title: text(row.subject_name, text(row.name, "Subject")),
+      type: text(row.type, level === "vocational" ? "module" : "subject"),
+      teacherId: text(row.teacher_id, text(student.class_teacher_id)),
       instructor: text(row.teacher_name, text(student.class_teacher, "Assigned teacher")),
       progress: average || averageGrade || 0,
       grade: letterGrade(average || averageGrade),
@@ -460,29 +532,109 @@ export async function GET(request: NextRequest) {
     const hasGrade = Boolean(row.grade_id)
     return {
       id: text(row.id),
+      subjectId: text(row.subject_id),
       title: text(row.name, "Assessment"),
+      type: text(row.assessment_type, "assessment"),
       course: text(row.subject_code, text(row.subject_name, "Course")),
+      teacherId: text(row.teacher_id, text(student.class_teacher_id)),
+      teacher: text(row.teacher_name, text(student.class_teacher, "Assigned teacher")),
       due: displayDue(row.due_date),
       dueDate: iso(row.due_date),
+      releaseDate: iso(row.release_date),
       points: numberValue(row.total_score, 100),
       status: statusFromDue(row.due_date, hasGrade, text(row.status)),
       score: hasGrade ? numberValue(row.score) : undefined,
       description: text(row.description),
       instructions: text(row.instructions),
+      hasResources: Boolean(row.attachments || text(row.instructions)),
     }
   })
 
   const exams = examRows.map((row) => ({
     id: text(row.id),
+    subjectId: text(row.subject_id),
     title: text(row.name, "Exam"),
-    course: text(row.exam_type, "Exam"),
+    course: text(row.subject_code, text(row.subject_name, text(row.exam_type, "Exam"))),
     date: displayDate(row.exam_date),
     examDate: iso(row.exam_date),
     duration: row.duration ? `${numberValue(row.duration)} min` : "Scheduled",
     status: examStatus(text(row.status), row.exam_date),
     location: text(row.location, "Exam center"),
+    invigilator: text(row.invigilator, text(student.class_teacher, "Exam office")),
     instructions: text(row.instructions),
   }))
+
+  const courseworkTypes = new Set(["assignment", "homework", "coursework", "project", "practical", "lab"])
+  const testTypes = new Set(["test", "quiz", "mock", "midterm", "final", "exam"])
+  const coursework = assignments.filter((item) => courseworkTypes.has(String(item.type).toLowerCase()))
+  const tests = assignments.filter((item) => testTypes.has(String(item.type).toLowerCase()))
+  const assessments = assignments.filter((item) => !coursework.includes(item) && !tests.includes(item))
+  const timetable = objectValue(timetableRow?.value)
+  const timetableSettings = objectValue(timetable.settings)
+  const timetableSubjects = new Map(timetableSubjectRows.map((row) => [text(row.id), row]))
+  const timetableTeachers = new Map(timetableTeacherRows.map((row) => [text(row.id), row]))
+  const lessons = rowArray(timetable.entries)
+    .filter((item) => text(item.classId) === classId && boolValue(item.published, true))
+    .map((item) => {
+      const subject = timetableSubjects.get(text(item.subjectId))
+      const teacher = timetableTeachers.get(text(item.teacherId))
+      const id = text(item.id, `${text(item.day)}_${text(item.period)}_${text(item.subjectId)}`)
+      return {
+        id,
+        day: text(item.day, "Monday"),
+        period: text(item.period, "1"),
+        startTime: text(item.startTime),
+        endTime: text(item.endTime),
+        time: text(item.startTime) && text(item.endTime) ? `${text(item.startTime)} - ${text(item.endTime)}` : `Period ${text(item.period, "1")}`,
+        course: text(subject?.code, text(subject?.name, "Subject")),
+        title: text(subject?.name, "Subject"),
+        type: level === "university" || level === "college" ? "Lecture" : level === "vocational" ? "Training session" : "Lesson",
+        room: text(item.room, "Classroom"),
+        instructor: text(teacher?.name, text(student.class_teacher, "Teacher")),
+        teacherId: text(item.teacherId),
+        subjectId: text(item.subjectId),
+        online: false,
+        reminder: timetableState.reminders.includes(id),
+        viewed: timetableState.viewed.includes(id),
+        checkedIn: timetableState.checkins.includes(id),
+      }
+    })
+    .toSorted((a, b) => `${a.day}-${a.startTime || a.period}`.localeCompare(`${b.day}-${b.startTime || b.period}`))
+  const teachers = Array.from(
+    [
+      ...lessons.map((lesson) => ({
+        id: lesson.teacherId,
+        name: lesson.instructor,
+        role: level === "university" || level === "college" ? "Lecturer" : level === "vocational" ? "Instructor" : "Lesson teacher",
+        subjects: [lesson.course],
+      })),
+      ...courses.map((course) => ({
+        id: course.teacherId,
+        name: course.instructor,
+        role: level === "university" || level === "college" ? "Course lecturer" : level === "vocational" ? "Instructor" : "Subject teacher",
+        subjects: [course.code],
+      })),
+      ...assignments.map((item) => ({
+        id: item.teacherId,
+        name: item.teacher,
+        role: "Assessment owner",
+        subjects: [item.course],
+      })),
+      {
+        id: text(student.class_teacher_id),
+        name: text(student.class_teacher),
+        role: level === "primary" ? "Class teacher" : "Advisor",
+        subjects: [text(student.class_name, "Class")],
+      },
+    ].reduce((map, teacher) => {
+      if (!teacher.id && !teacher.name) return map
+      const key = teacher.id || teacher.name
+      const existing = map.get(key) || { id: teacher.id, name: teacher.name || "Assigned teacher", role: teacher.role, subjects: [] as string[] }
+      existing.subjects = Array.from(new Set([...existing.subjects, ...teacher.subjects.filter(Boolean)]))
+      map.set(key, existing)
+      return map
+    }, new Map<string, { id: string; name: string; role: string; subjects: string[] }>())
+  ).map(([, teacher]) => teacher)
 
   const performanceTrend = Array.from(
     gradeRows.reduce((map, row) => {
@@ -512,16 +664,76 @@ export async function GET(request: NextRequest) {
     value: values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : 0,
   }))
 
-  const resources = assessmentRows
-    .filter((row) => text(row.instructions) || row.attachments)
-    .slice(0, 6)
-    .map((row) => ({
-      id: `resource_${text(row.id)}`,
-      title: text(row.instructions) ? `${text(row.name, "Assessment")} instructions` : `${text(row.name, "Assessment")} resources`,
-      type: row.attachments ? "Attachment" : "Instructions",
-      size: row.attachments ? "Course file" : "Read online",
-      course: text(row.subject_code, text(row.subject_name, "Course")),
-    }))
+  const courseResources = assessmentRows
+    .filter((row) => text(row.instructions) || text(row.description) || row.attachments)
+    .flatMap((row) => {
+      const base = {
+        sourceId: text(row.id),
+        subjectId: text(row.subject_id),
+        course: text(row.subject_code, text(row.subject_name, "Course")),
+        teacher: text(row.teacher_name, text(student.class_teacher, "Teacher")),
+        createdAt: iso(row.release_date),
+        dueDate: iso(row.due_date),
+      }
+      const instruction = text(row.instructions, text(row.description))
+      const instructionResource = instruction ? [{
+        id: `instructions_${text(row.id)}`,
+        title: `${text(row.name, "Assessment")} instructions`,
+        description: instruction,
+        type: "Instructions",
+        kind: "instructions",
+        size: "Read online",
+        url: "",
+        source: "assessment",
+        ...base,
+      }] : []
+      const attachmentResources = arrayValue(row.attachments).map(normalizeAttachment).map((attachment, index) => ({
+        id: `attachment_${text(row.id)}_${index}`,
+        title: attachment.title,
+        description: `${text(row.name, "Assessment")} resource`,
+        type: attachment.type,
+        kind: attachment.type,
+        size: attachment.size,
+        url: attachment.url,
+        source: "assessment",
+        ...base,
+      }))
+      return [...instructionResource, ...attachmentResources]
+    })
+
+  const library = objectValue(libraryRow?.value)
+  const libraryResources = arrayValue(library.books)
+    .map((item) => objectValue(item))
+    .filter((book) => text(book.status, "active") !== "deleted")
+    .map((book) => {
+      const id = text(book.id, `book_${text(book.title, "library")}`)
+      const available = numberValue(book.available, numberValue(book.copies, 1))
+      return {
+        id,
+        title: text(book.title, "Library book"),
+        description: text(book.notes, text(book.author) ? `By ${text(book.author)}` : "Library catalogue item"),
+        type: "Library book",
+        kind: "library",
+        size: available > 0 ? `${available} available` : "Unavailable",
+        url: "",
+        source: "library",
+        course: text(book.category, "Library"),
+        teacher: "Library",
+        createdAt: null,
+        dueDate: null,
+        available,
+        shelf: text(book.shelf),
+        author: text(book.author),
+      }
+    })
+
+  const resources = [...courseResources, ...libraryResources].slice(0, 24).map((resource) => ({
+    ...resource,
+    saved: resourceState.saved.includes(resource.id) || state.savedResources.includes(resource.id),
+    viewed: resourceState.viewed.includes(resource.id),
+    downloaded: resourceState.downloaded.includes(resource.id),
+  }))
+  const savedResourceIds = Array.from(new Set([...state.savedResources, ...resourceState.saved]))
 
   const payload = {
     generatedAt: new Date().toISOString(),
@@ -572,23 +784,57 @@ export async function GET(request: NextRequest) {
       lateDays: numberValue(attendanceSummary?.late),
       pendingAssignments: assignments.filter((assignment) => assignment.status === "pending" || assignment.status === "late").length,
       completedAssignments: assignments.filter((assignment) => assignment.status === "graded" || assignment.status === "submitted").length,
+      coursework: coursework.length,
+      assessments: assessments.length,
+      tests: tests.length,
+      exams: exams.length,
+      teachers: teachers.length,
+      lessons: lessons.length,
       gpa: gradePoint(averageGrade),
       unreadMessages: numberValue(unreadMessages?.unread),
       outstandingBalance: numberValue(invoiceSummary?.outstanding),
       invoicesNeedingAttention: numberValue(invoiceSummary?.attention),
-      savedResources: state.savedResources.length,
+      savedResources: savedResourceIds.length,
+      viewedResources: resourceState.viewed.length,
+      downloadedResources: resourceState.downloaded.length,
+      libraryBooks: libraryResources.length,
     },
-    savedResourceIds: state.savedResources,
+    savedResourceIds,
     courses,
     assignments,
-    schedule: exams.slice(0, 3).map((exam) => ({
+    academicCatalog: {
+      subjects: courses,
+      coursework,
+      assignments,
+      assessments,
+      tests,
+      exams,
+      teachers,
+      lessons,
+      timetable: {
+        entries: lessons,
+        settings: {
+          periodsPerDay: numberValue(timetableSettings.periodsPerDay, 8),
+          schoolStart: text(timetableSettings.schoolStart, "08:00"),
+          schoolEnd: text(timetableSettings.schoolEnd, "16:00"),
+          breaks: rowArray(timetableSettings.breaks).map((item) => ({
+            name: text(item.name, "Break"),
+            day: text(item.day, "All days"),
+            startTime: text(item.startTime),
+            endTime: text(item.endTime),
+          })),
+        },
+      },
+    },
+    schedule: (lessons.length ? lessons.slice(0, 6) : exams.slice(0, 3).map((exam) => ({
+      id: `exam_${exam.id}`,
       time: exam.date,
       course: exam.title,
       type: "Exam",
       room: exam.location,
       instructor: text(student.class_teacher, "Exam office"),
       online: exam.status === "available",
-    })),
+    }))),
     exams,
     performanceTrend: performanceTrend.length ? performanceTrend : [{ week: "Now", score: averageGrade, attendance: attendanceRate }],
     gradeBreakdown: gradeBreakdown.length ? gradeBreakdown : [{ name: "Current average", value: averageGrade }],
@@ -718,14 +964,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, conversationId, messageId }, { status: 201, headers: { "Cache-Control": "no-store" } })
   }
 
-  if (["resource.save", "resource.unsave"].includes(action)) {
+  if (["resource.save", "resource.unsave", "resource.view", "resource.download"].includes(action)) {
     const resourceId = text(body.resourceId)
     if (!resourceId) return NextResponse.json({ error: "Resource is required" }, { status: 400 })
     const state = await readDashboardState(tenantDb, studentId)
+    const resourceState = await readResourceState(tenantDb, studentId)
     if (action === "resource.save") state.savedResources = Array.from(new Set([resourceId, ...state.savedResources])).slice(0, 50)
     if (action === "resource.unsave") state.savedResources = state.savedResources.filter((id) => id !== resourceId)
+    if (action === "resource.save") resourceState.saved = Array.from(new Set([resourceId, ...resourceState.saved])).slice(0, 100)
+    if (action === "resource.unsave") resourceState.saved = resourceState.saved.filter((id) => id !== resourceId)
+    if (action === "resource.view") resourceState.viewed = Array.from(new Set([resourceId, ...resourceState.viewed])).slice(0, 200)
+    if (action === "resource.download") resourceState.downloaded = Array.from(new Set([resourceId, ...resourceState.downloaded])).slice(0, 200)
     await writeDashboardState(tenantDb, studentId, state)
-    return NextResponse.json({ success: true, state }, { headers: { "Cache-Control": "no-store" } })
+    await writeResourceState(tenantDb, studentId, resourceState)
+    return NextResponse.json({ success: true, state, resourceState }, { headers: { "Cache-Control": "no-store" } })
   }
 
   return NextResponse.json({ error: "Unsupported dashboard action" }, { status: 400 })

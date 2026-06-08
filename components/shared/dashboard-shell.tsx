@@ -576,10 +576,10 @@ const roleConfig: Record<DashboardRole, { label: string; home: string; icon: Nav
     sections: [
       { title: "Parent Portal", items: [
         { name: "Parent Dashboard", href: "/parent/dashboard", icon: Home },
-        { name: "Children", href: "/parent/progress", icon: Users },
+        { name: "Children", href: "/parent/children", icon: Users },
         { name: "Attendance", href: "/parent/attendance", icon: CalendarCheck },
         { name: "Fees", href: "/parent/finance", icon: CreditCard },
-        { name: "Communication", href: "/parent/communication", icon: MessageSquare },
+        { name: "Communication", href: "/parent/messages", icon: MessageSquare },
         { name: "My Profile", href: "/parent/profile", icon: Users },
         { name: "Settings", href: "/parent/settings", icon: Settings },
       ] },
@@ -592,10 +592,10 @@ const roleConfig: Record<DashboardRole, { label: string; home: string; icon: Nav
     sections: [
       { title: "Parent Portal", items: [
         { name: "Parent Dashboard", href: "/parent/dashboard", icon: Home },
-        { name: "Children", href: "/parent/progress", icon: Users },
+        { name: "Children", href: "/parent/children", icon: Users },
         { name: "Attendance", href: "/parent/attendance", icon: CalendarCheck },
         { name: "Fees", href: "/parent/finance", icon: CreditCard },
-        { name: "Communication", href: "/parent/communication", icon: MessageSquare },
+        { name: "Communication", href: "/parent/messages", icon: MessageSquare },
         { name: "My Profile", href: "/parent/profile", icon: Users },
         { name: "Settings", href: "/parent/settings", icon: Settings },
       ] },

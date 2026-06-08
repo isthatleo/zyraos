@@ -283,7 +283,17 @@ export async function POST(request: NextRequest) {
   const amount = numberValue(body.amount)
   const paymentReference = text(body.paymentReference, "manual")
   const reason = text(body.reason)
+  const message = text(body.message)
   const { tenantDb, student } = result.context
+
+  if (action === "refund-note") {
+    if (!message) return NextResponse.json({ error: "Refund note message is required" }, { status: 400 })
+    await tenantDb.execute(sql`
+      insert into student_progress (id, student_id, academic_year_id, term_id, subject_id, progress_type, progress_date, progress_value, progress_note, recorded_by, is_positive, category, created_at, updated_at)
+      values (${crypto.randomUUID()}, ${text(student.id)}, ${text(student.academic_year_id) || null}, ${text(student.term_id) || null}, null, 'refund', now(), null, ${message}, ${text(student.user_id)}, true, 'refund', now(), now())
+    `)
+    return NextResponse.json({ success: true }, { status: 201, headers: { "Cache-Control": "no-store" } })
+  }
 
   if (action !== "refund-request" || amount <= 0 || !reason) {
     return NextResponse.json({ error: "Refund amount and reason are required" }, { status: 400 })

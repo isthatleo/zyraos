@@ -1,3 +1,1 @@
-import TenantMessagesPage from "../../messages/page";
-
-export default TenantMessagesPage;
+export { default } from "@/app/parent/messages/page"

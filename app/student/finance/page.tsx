@@ -359,10 +359,10 @@ export default function StudentFinancePage() {
       toast.error("Message cannot be empty")
       return
     }
-    const response = await fetch("/api/messages", {
+    const response = await fetch(endpoint(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ receiverId: payload.student.classTeacherId, message }),
+      body: JSON.stringify({ action: "finance-note", message: `Message to finance/class staff: ${message}` }),
     }).catch(() => null)
     if (!response?.ok) {
       const data = await response?.json().catch(() => ({}))
