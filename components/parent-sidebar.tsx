@@ -40,7 +40,7 @@ const navigation = [
       { name: "Children", href: "/parent/progress", icon: UsersIcon },
       { name: "Attendance", href: "/parent/attendance", icon: CalendarIcon },
       { name: "Fees", href: "/parent/finance", icon: CreditCardIcon },
-      { name: "Communication", href: "/parent/communication", icon: MessageSquareIcon },
+      { name: "Communication", href: "/parent/messages", icon: MessageSquareIcon },
     ],
   },
   {

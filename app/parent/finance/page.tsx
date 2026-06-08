@@ -41,6 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { fetchParentDashboardJson } from "@/lib/parent-dashboard-fetch"
 import { cn } from "@/lib/utils"
 
 type FinanceChild = {
@@ -226,17 +227,14 @@ export default function ParentFinancePage() {
   const loadFinance = React.useCallback(async (notify = false) => {
     setError("")
     setLoading(true)
-    const response = await fetch(endpoint(), { cache: "no-store" }).catch(() => null)
-    if (!response?.ok) {
-      const data = await response?.json().catch(() => ({}))
-      const messageText = String(data?.error || "Failed to load parent fees")
-      setError(messageText)
+    const result = await fetchParentDashboardJson<FinancePayload>(endpoint(), "Failed to load parent fees")
+    if (result.error) {
+      setError(result.error)
       setLoading(false)
-      if (notify) toast.error(messageText)
+      if (notify) toast.error(result.error)
       return
     }
-    const data = (await response.json()) as FinancePayload
-    setPayload(data)
+    setPayload(result.data)
     setLoading(false)
     if (notify) toast.success("Fees refreshed")
   }, [endpoint])
@@ -260,6 +258,132 @@ export default function ParentFinancePage() {
   const filteredLedger = (payload?.ledger || []).filter((entry) => selectedChildId === "all" || entry.childId === selectedChildId)
   const selectedChild = children.find((child) => child.id === selectedChildId) || null
   const clearanceRate = payload?.metrics?.totalBilled ? Math.round(((payload.metrics.totalPaid || 0) / payload.metrics.totalBilled) * 1000) / 10 : 100
+  const statusCounts = invoices.reduce<Record<string, number>>((counts, invoice) => {
+    counts[invoice.status] = (counts[invoice.status] || 0) + 1
+    return counts
+  }, {})
+  const paymentMethodCounts = (payload?.payments || []).reduce<Record<string, { count: number; amount: number }>>((counts, payment) => {
+    const method = payment.method || payment.provider || "Unspecified"
+    const current = counts[method] || { count: 0, amount: 0 }
+    current.count += 1
+    current.amount += payment.amount || 0
+    counts[method] = current
+    return counts
+  }, {})
+  const childFinanceProfiles = children.map((child) => {
+    const collection = child.metrics.billed ? Math.round((child.metrics.paid / child.metrics.billed) * 1000) / 10 : 100
+    const exposureScore = Math.max(0, Math.min(100, Math.round(((100 - collection) * 0.55) + (child.metrics.overdue > 0 ? 25 : 0) + (child.metrics.unpaidCount * 8))))
+    const nextInvoice = invoices
+      .filter((invoice) => invoice.childId === child.id && invoice.outstandingBalance > 0)
+      .toSorted((a, b) => {
+        const left = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER
+        const right = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER
+        return left - right
+      })[0]
+    const priority = child.metrics.overdue > 0
+      ? "Overdue follow-up"
+      : child.metrics.outstanding > 0
+        ? "Balance pending"
+        : "Cleared"
+    return { child, collection, exposureScore, nextInvoice, priority }
+  }).toSorted((a, b) => b.exposureScore - a.exposureScore)
+  const highestExposure = childFinanceProfiles[0] || null
+  const selectedFinanceProfile = selectedChild ? childFinanceProfiles.find((profile) => profile.child.id === selectedChild.id) || null : highestExposure
+  const overdueInvoices = invoices.filter((invoice) => invoice.status === "overdue")
+  const partialInvoices = invoices.filter((invoice) => invoice.status === "partial")
+  const unpaidInvoices = invoices.filter((invoice) => ["unpaid", "overdue", "partial"].includes(invoice.status))
+  const today = Date.now()
+  const dueSoonInvoices = unpaidInvoices
+    .filter((invoice) => {
+      if (!invoice.dueDate) return false
+      const due = new Date(invoice.dueDate).getTime()
+      if (Number.isNaN(due)) return false
+      const days = Math.ceil((due - today) / 86400000)
+      return days >= 0 && days <= 14
+    })
+    .toSorted((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
+  const receiptCoverage = payload?.payments.length
+    ? Math.round(((payload.receipts.length || 0) / payload.payments.length) * 1000) / 10
+    : 100
+  const averageInvoiceBalance = unpaidInvoices.length
+    ? unpaidInvoices.reduce((sum, invoice) => sum + invoice.outstandingBalance, 0) / unpaidInvoices.length
+    : 0
+  const latestPayment = (payload?.payments || []).toSorted((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())[0]
+  const latestReceipt = (payload?.receipts || []).toSorted((a, b) => new Date(b.issuedDate || 0).getTime() - new Date(a.issuedDate || 0).getTime())[0]
+  const feeChecklist = [
+    {
+      label: "Clear overdue invoices",
+      value: overdueInvoices.length,
+      helper: overdueInvoices.length ? `${money(currency, overdueInvoices.reduce((sum, invoice) => sum + invoice.outstandingBalance, 0))} overdue balance.` : "No overdue invoices.",
+      done: overdueInvoices.length === 0,
+      action: () => setStatusFilter("overdue"),
+    },
+    {
+      label: "Review due-soon invoices",
+      value: dueSoonInvoices.length,
+      helper: dueSoonInvoices.length ? "Invoices are due within the next 14 days." : "No invoice due within 14 days.",
+      done: dueSoonInvoices.length === 0,
+      action: () => setStatusFilter("all"),
+    },
+    {
+      label: "Confirm receipts",
+      value: `${receiptCoverage}%`,
+      helper: payload?.payments.length ? "Receipt coverage across recorded payments." : "No payments have been recorded yet.",
+      done: receiptCoverage >= 100,
+      action: () => undefined,
+    },
+    {
+      label: "Contact finance",
+      value: payload?.financeOffice.email || payload?.financeOffice.phone ? "Ready" : "Missing",
+      helper: payload?.financeOffice.email || payload?.financeOffice.phone ? "Finance office contact is configured." : "Finance office contact details are missing.",
+      done: Boolean(payload?.financeOffice.email || payload?.financeOffice.phone),
+      action: () => router.push(parentHref("/parent/messages")),
+    },
+  ]
+  const financeReadiness = [
+    { label: "Children linked", value: children.length, ready: children.length > 0 },
+    { label: "Invoices loaded", value: invoices.length, ready: invoices.length > 0 },
+    { label: "Payments loaded", value: payload?.payments.length || 0, ready: (payload?.payments.length || 0) > 0 },
+    { label: "Receipts loaded", value: payload?.receipts.length || 0, ready: (payload?.receipts.length || 0) > 0 },
+    { label: "Gateway ready", value: payload?.paymentReadiness.provider || "None", ready: Boolean(payload?.paymentReadiness.onlinePaymentsEnabled) },
+    { label: "Finance office", value: payload?.financeOffice.email || payload?.financeOffice.phone || "Missing", ready: Boolean(payload?.financeOffice.email || payload?.financeOffice.phone) },
+  ]
+  const financeActionCards = [
+    {
+      label: "Overdue follow-up",
+      value: overdueInvoices.length,
+      helper: overdueInvoices.length ? `${money(currency, overdueInvoices.reduce((sum, invoice) => sum + invoice.outstandingBalance, 0))} overdue` : "No overdue invoices.",
+      icon: Clock,
+      toneClass: overdueInvoices.length ? tone.danger : tone.good,
+      action: () => setStatusFilter("overdue"),
+    },
+    {
+      label: "Unpaid invoices",
+      value: unpaidInvoices.length,
+      helper: unpaidInvoices.length ? "Review balances and request payment instructions." : "No unpaid invoices.",
+      icon: FileText,
+      toneClass: unpaidInvoices.length ? tone.warn : tone.good,
+      action: () => setStatusFilter("unpaid"),
+    },
+    {
+      label: "Priority child",
+      value: highestExposure?.child.name || "None",
+      helper: highestExposure ? `${highestExposure.priority} - ${money(currency, highestExposure.child.metrics.outstanding)}` : "No child finance exposure.",
+      icon: Users,
+      toneClass: highestExposure?.exposureScore ? tone.warn : tone.good,
+      action: () => {
+        if (highestExposure) setSelectedChildId(highestExposure.child.id)
+      },
+    },
+    {
+      label: "Finance contact",
+      value: payload?.financeOffice.email || payload?.financeOffice.phone ? "Ready" : "Missing",
+      helper: payload?.financeOffice.email || payload?.financeOffice.phone || "Finance office contact is not configured.",
+      icon: MessageSquare,
+      toneClass: payload?.financeOffice.email || payload?.financeOffice.phone ? tone.good : tone.warn,
+      action: () => router.push(parentHref("/parent/messages")),
+    },
+  ]
 
   const refresh = () => {
     setRefreshing(true)
@@ -298,7 +422,11 @@ export default function ParentFinancePage() {
       ["Parent", payload.currentUser?.name || ""],
       ["School", payload.school?.name || ""],
       ["Total billed", money(currency, payload.metrics?.totalBilled || 0)],
+      ["Total paid", money(currency, payload.metrics?.totalPaid || 0)],
       ["Outstanding", money(currency, payload.metrics?.outstanding || 0)],
+      ["Overdue", money(currency, payload.metrics?.overdue || 0)],
+      ["Collection rate", `${clearanceRate}%`],
+      ["Filtered invoices", String(filteredInvoices.length)],
       [],
       ["Invoice", "Child", "Class", "Issued", "Due", "Status", "Billed", "Paid", "Outstanding"],
       ...filteredInvoices.map((invoice) => [
@@ -422,6 +550,314 @@ export default function ParentFinancePage() {
             </Card>
           )
         })}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Parent Finance Command Center</CardTitle>
+                <CardDescription>Actionable fee follow-up using invoices, balances, readiness, and contact data.</CardDescription>
+              </div>
+              <Badge variant="outline" className={(payload.metrics?.outstanding || 0) > 0 ? tone.warn : tone.good}>
+                {(payload.metrics?.outstanding || 0) > 0 ? "Balance pending" : "Family cleared"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {financeActionCards.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="min-h-32 rounded-2xl border bg-background/60 p-4 text-left transition-colors hover:bg-muted/50"
+                  onClick={item.action}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="mt-1 truncate text-xl font-semibold">{item.value}</p>
+                    </div>
+                    <div className={cn("rounded-xl border p-2", item.toneClass)}>
+                      <Icon className="size-4" />
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{item.helper}</p>
+                </button>
+              )
+            })}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Priority Exposure</CardTitle>
+            <CardDescription>Child with the highest current fee exposure.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <button
+              type="button"
+              className="w-full rounded-2xl border p-4 text-left transition-colors hover:bg-muted/50"
+              onClick={() => {
+                if (highestExposure) setSelectedChildId(highestExposure.child.id)
+              }}
+            >
+              <p className="text-xs text-muted-foreground">Priority child</p>
+              <p className="mt-1 font-semibold">{highestExposure?.child.name || "No child selected"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {highestExposure ? `${highestExposure.priority} - ${highestExposure.collection}% collected` : "No finance exposure found."}
+              </p>
+            </button>
+            <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setRequestOpen(true)}>
+              <CreditCard className="size-4" />
+              Request payment help
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Child Fee Exposure Matrix</CardTitle>
+            <CardDescription>Compare balances, collection rate, overdue exposure, and next invoice by child.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {childFinanceProfiles.map((profile) => (
+              <button
+                key={profile.child.id}
+                type="button"
+                className={cn("rounded-2xl border p-4 text-left transition-colors hover:bg-muted/50", selectedChildId === profile.child.id && "border-primary bg-primary/5")}
+                onClick={() => setSelectedChildId(profile.child.id)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{profile.child.name}</p>
+                    <p className="truncate text-sm text-muted-foreground">{profile.child.className} - {profile.child.admissionNumber || "No admission number"}</p>
+                  </div>
+                  <Badge variant="outline" className={profile.child.metrics.outstanding > 0 ? tone.warn : tone.good}>{profile.priority}</Badge>
+                </div>
+                <Progress className="mt-3" value={profile.collection} />
+                <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Billed</p>
+                    <p className="truncate font-semibold">{money(currency, profile.child.metrics.billed)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paid</p>
+                    <p className="truncate font-semibold">{money(currency, profile.child.metrics.paid)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Due</p>
+                    <p className="truncate font-semibold">{money(currency, profile.child.metrics.outstanding)}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Next: {profile.nextInvoice?.invoiceNumber || "No pending invoice"} {profile.nextInvoice ? `- ${formatDate(profile.nextInvoice.dueDate)}` : ""}
+                </p>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Finance Data Health</CardTitle>
+            <CardDescription>Checks required for reliable parent fee operations.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {financeReadiness.map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="truncate text-xs text-muted-foreground">{item.value}</p>
+                </div>
+                <Badge variant="outline" className={item.ready ? tone.good : tone.warn}>{item.ready ? "Ready" : "Needs data"}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Invoice Status Breakdown</CardTitle>
+            <CardDescription>Click a status to filter the invoice workspace below.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {["paid", "partial", "unpaid", "overdue"].map((status) => {
+              const count = statusCounts[status] || 0
+              const percent = invoices.length ? Math.round((count / invoices.length) * 1000) / 10 : 0
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  className="rounded-2xl border bg-background/60 p-4 text-left transition-colors hover:bg-muted/50"
+                  onClick={() => setStatusFilter(status)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="capitalize text-sm font-medium">{status}</p>
+                    <Badge variant="outline" className={status === "paid" ? tone.good : status === "overdue" ? tone.danger : tone.warn}>{percent}%</Badge>
+                  </div>
+                  <p className="mt-2 text-2xl font-semibold">{count}</p>
+                  <Progress className="mt-3" value={percent} />
+                </button>
+              )
+            })}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Payment Method Mix</CardTitle>
+            <CardDescription>How payments are currently being recorded.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Object.entries(paymentMethodCounts).slice(0, 5).map(([method, data]) => (
+              <div key={method} className="rounded-2xl border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{method}</p>
+                  <Badge variant="outline">{data.count} payment{data.count === 1 ? "" : "s"}</Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{money(currency, data.amount)}</p>
+              </div>
+            ))}
+            {!Object.keys(paymentMethodCounts).length ? (
+              <p className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">No payment methods have been recorded yet.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Payment Planning Board</CardTitle>
+                <CardDescription>Due-soon invoices, partial payments, average balance, and latest finance activity.</CardDescription>
+              </div>
+              <Badge variant="outline" className={dueSoonInvoices.length ? tone.warn : tone.good}>
+                {dueSoonInvoices.length ? `${dueSoonInvoices.length} due soon` : "No near-term due"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "Due soon", value: dueSoonInvoices.length, helper: "Invoices due in the next 14 days", icon: Clock, toneClass: dueSoonInvoices.length ? tone.warn : tone.good, action: () => setStatusFilter("all") },
+              { label: "Partial payments", value: partialInvoices.length, helper: `${money(currency, partialInvoices.reduce((sum, invoice) => sum + invoice.outstandingBalance, 0))} still pending`, icon: CreditCard, toneClass: partialInvoices.length ? tone.warn : tone.good, action: () => setStatusFilter("partial") },
+              { label: "Avg balance", value: money(currency, averageInvoiceBalance), helper: "Average outstanding balance per unpaid invoice", icon: Wallet, toneClass: averageInvoiceBalance > 0 ? tone.warn : tone.good, action: () => setStatusFilter("unpaid") },
+              { label: "Receipt coverage", value: `${receiptCoverage}%`, helper: `${payload.receipts.length} receipts for ${payload.payments.length} payments`, icon: Receipt, toneClass: receiptCoverage >= 100 ? tone.good : tone.warn, action: () => undefined },
+            ].map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="min-h-32 rounded-2xl border bg-background/60 p-4 text-left transition-colors hover:bg-muted/50"
+                  onClick={item.action}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="mt-1 truncate text-xl font-semibold">{item.value}</p>
+                    </div>
+                    <div className={cn("rounded-xl border p-2", item.toneClass)}>
+                      <Icon className="size-4" />
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{item.helper}</p>
+                </button>
+              )
+            })}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Latest Activity</CardTitle>
+            <CardDescription>Most recent payment and receipt records.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-2xl border p-4">
+              <p className="text-xs text-muted-foreground">Latest payment</p>
+              <p className="mt-1 font-semibold">{latestPayment ? money(currency, latestPayment.amount) : "No payment"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{latestPayment ? `${latestPayment.childName} - ${formatDate(latestPayment.completedAt || latestPayment.createdAt)}` : "No payment records available."}</p>
+            </div>
+            <div className="rounded-2xl border p-4">
+              <p className="text-xs text-muted-foreground">Latest receipt</p>
+              <p className="mt-1 font-semibold">{latestReceipt ? money(latestReceipt.currency || currency, latestReceipt.amount) : "No receipt"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{latestReceipt ? `${latestReceipt.childName} - ${formatDate(latestReceipt.issuedDate)}` : "No receipt records available."}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Due-Soon Invoice Planner</CardTitle>
+            <CardDescription>Invoices due within 14 days that need parent attention.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {dueSoonInvoices.slice(0, 6).map((invoice) => (
+              <button
+                key={invoice.id}
+                type="button"
+                className="rounded-2xl border p-4 text-left transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  setSelectedChildId(invoice.childId)
+                  setSelectedInvoice(invoice)
+                  setRequestOpen(true)
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{invoice.invoiceNumber}</p>
+                    <p className="truncate text-sm text-muted-foreground">{invoice.childName} - {formatDate(invoice.dueDate)}</p>
+                  </div>
+                  <Badge variant="outline" className={tone.warn}>{invoice.status}</Badge>
+                </div>
+                <p className="mt-3 text-lg font-semibold">{money(currency, invoice.outstandingBalance)}</p>
+              </button>
+            ))}
+            {!dueSoonInvoices.length ? (
+              <p className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">No unpaid invoices are due within the next 14 days.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Parent Fee Checklist</CardTitle>
+            <CardDescription>Operational checks parents can complete from this page.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {feeChecklist.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className="w-full rounded-2xl border p-3 text-left transition-colors hover:bg-muted/50"
+                onClick={item.action}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.helper}</p>
+                  </div>
+                  <Badge variant="outline" className={item.done ? tone.good : tone.warn}>{item.value}</Badge>
+                </div>
+              </button>
+            ))}
+            <Button type="button" variant="outline" className="w-full justify-start" onClick={exportFees}>
+              <Download className="size-4" />
+              Export fee report
+            </Button>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">

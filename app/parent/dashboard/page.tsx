@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { fetchParentDashboardJson } from "@/lib/parent-dashboard-fetch"
 import { cn } from "@/lib/utils"
 
 type ChildSummary = {
@@ -192,23 +193,22 @@ export default function ParentDashboardPage() {
   const parentHref = React.useCallback((href: string) => `${tenantPrefix}${href}`, [tenantPrefix])
 
   const endpoint = React.useCallback(() => {
-    const tenant = tenantPrefix ? tenantPrefix.slice(1) : ""
+    const hostTenant = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : ""
+    const tenant = tenantPrefix ? tenantPrefix.slice(1) : hostTenant && !["localhost", "127", "www"].includes(hostTenant) ? hostTenant : ""
     return tenant ? `/api/tenant/parent/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/parent/dashboard"
   }, [tenantPrefix])
 
   const loadDashboard = React.useCallback(async (notify = false) => {
     setError("")
     setLoading(true)
-    const response = await fetch(endpoint(), { cache: "no-store" }).catch(() => null)
-    if (!response?.ok) {
-      const data = await response?.json().catch(() => ({}))
-      const message = String(data?.error || "Failed to load parent dashboard")
-      setError(message)
+    const result = await fetchParentDashboardJson<ParentDashboardPayload>(endpoint(), "Failed to load parent dashboard")
+    if (result.error) {
+      setError(result.error)
       setLoading(false)
-      if (notify) toast.error(message)
+      if (notify) toast.error(result.error)
       return
     }
-    const data = (await response.json()) as ParentDashboardPayload
+    const data = result.data!
     setPayload(data)
     setSelectedChildId((current) => current || data.children[0]?.id || "")
     setLoading(false)

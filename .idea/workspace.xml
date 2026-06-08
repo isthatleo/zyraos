@@ -6,18 +6,15 @@
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/parent/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/parent/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/[tenant]/parent/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/parent/messages/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/student/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/student/dashboard/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/student/refunds/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/student/refunds/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/tenant/roles/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/roles/route.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/parent/attendance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/attendance/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/parent/children/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/children/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/parent/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/parent/messages/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/messages/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/student/finance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/finance/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/student/grades/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/grades/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/student/refunds/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/student/refunds/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/student-dashboard-page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/student-dashboard-page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/parent/finance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/finance/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/parent-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/parent-sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/tenant-portal-login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-portal-login.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-results/.last-run.json" beforeDir="false" afterPath="$PROJECT_DIR$/test-results/.last-run.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -215,7 +212,7 @@
       <workItem from="1780844423570" duration="20300000" />
       <workItem from="1780887852695" duration="728000" />
       <workItem from="1780889116402" duration="2439000" />
-      <workItem from="1780917847522" duration="4792000" />
+      <workItem from="1780917847522" duration="11565000" />
     </task>
     <servers />
   </component>

@@ -1,0 +1,45 @@
+2026-06-08T22:50:56.764Z WARN [Better Auth]: Social provider google is missing clientId or clientSecret
+2026-06-08T22:52:36.216Z ERROR [Better Auth]: Invalid origin: http://asake.localhost:3001
+2026-06-08T22:52:36.240Z ERROR [Better Auth]: Invalid origin: http://asake.localhost:3001
+Error loading tenant roles: Error: Failed query: select "id", "name", "slug", "type" from "schools" where "schools"."slug" = $1 limit $2
+params: asake,1
+    at g.queryWithCache (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:40621)
+    at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44180)
+    at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:25959)
+    at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:30321)
+    at async d (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:31362)
+    at async Module.x [as handler] (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:32469) {
+  query: 'select "id", "name", "slug", "type" from "schools" where "schools"."slug" = $1 limit $2',
+  params: [ 'asake', 1 ],
+  [cause]: AggregateError: 
+      at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44395)
+      at async g.queryWithCache (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:40596)
+      at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44180)
+      at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:25959)
+      at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:30321) {
+    code: 'ETIMEDOUT',
+    [errors]: [ [Error], [Error], [Error], [Error], [Error], [Error] ]
+  }
+}
+2026-06-08T22:53:22.845Z ERROR [Better Auth]: Invalid origin: http://asake.localhost:3001
+2026-06-08T22:53:22.866Z ERROR [Better Auth]: Invalid origin: http://asake.localhost:3001
+Error loading tenant roles: Error: Failed query: select "id", "name", "slug", "type" from "schools" where "schools"."slug" = $1 limit $2
+params: asake,1
+    at g.queryWithCache (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:40621)
+    at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44180)
+    at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:25959)
+    at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:30321)
+    at async d (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:31362)
+    at async Module.x [as handler] (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:32469) {
+  query: 'select "id", "name", "slug", "type" from "schools" where "schools"."slug" = $1 limit $2',
+  params: [ 'asake', 1 ],
+  [cause]: AggregateError: 
+      at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44395)
+      at async g.queryWithCache (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:40596)
+      at async (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\_05ijfmo._.js:7:44180)
+      at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:25959)
+      at async l (C:\Users\leona.DESKTOP-10QNDAN\Desktop\zyraos\.next\server\chunks\[root-of-the-server]__1-liks_._.js:1:30321) {
+    code: 'ETIMEDOUT',
+    [errors]: [ [Error], [Error], [Error], [Error], [Error], [Error] ]
+  }
+}

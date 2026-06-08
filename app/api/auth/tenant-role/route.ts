@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, sql } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { getTenantDbBySlug, masterDb } from "@/lib/db";
@@ -100,6 +100,92 @@ async function findTenantUser(input: { tenantSlug: string; email: string; userId
   return { tenantUser: null, source: "none" as const };
 }
 
+async function findOrCreateGuardianTenantUser(input: {
+  tenantSlug: string;
+  email: string;
+  userId: string;
+  name: string;
+  image?: string | null;
+}) {
+  try {
+    const tenantDb = await getTenantDbBySlug(input.tenantSlug);
+    const guardianResult = await tenantDb.execute(sql`
+      select id
+      from guardians
+      where lower(coalesce(email, '')) = lower(${input.email})
+      limit 1
+    `);
+
+    if (!guardianResult.rows?.length) {
+      return { tenantUser: null, source: "guardian" as const };
+    }
+
+    await tenantDb.execute(sql`
+      insert into roles (id, name, description, is_system, created_at, updated_at)
+      values ('parent', 'Parent / Guardian', 'Parent and guardian portal access', true, now(), now())
+      on conflict (id) do nothing
+    `);
+
+    const existingUser = await tenantDb.execute(sql`
+      select id
+      from users
+      where id = ${input.userId} or lower(email) = lower(${input.email})
+      limit 1
+    `);
+    const existingUserId = String((existingUser.rows?.[0] as Record<string, unknown> | undefined)?.id || "");
+
+    if (existingUserId) {
+      await tenantDb.execute(sql`
+        update users
+        set email = ${input.email},
+            name = ${input.name || input.email},
+            image = ${input.image || null},
+            role_id = 'parent',
+            is_active = true,
+            updated_at = now()
+        where id = ${existingUserId}
+      `);
+    } else {
+      await tenantDb.execute(sql`
+        insert into users (id, email, email_verified, name, image, role_id, is_active, created_at, updated_at)
+        values (${input.userId}, ${input.email}, true, ${input.name || input.email}, ${input.image || null}, 'parent', true, now(), now())
+      `);
+    }
+
+    const userResult = await tenantDb.execute(sql`
+      select u.id, u.email, u.is_active, u.role_id, r.name as role_name
+      from users u
+      left join roles r on r.id = u.role_id
+      where u.id = ${input.userId} or lower(u.email) = lower(${input.email})
+      limit 1
+    `);
+    const row = userResult.rows?.[0] as Record<string, unknown> | undefined;
+    if (!row) return { tenantUser: null, source: "guardian" as const };
+
+    return {
+      tenantUser: {
+        id: String(row.id || input.userId),
+        email: String(row.email || input.email),
+        isActive: row.is_active !== false,
+        roleId: String(row.role_id || "parent"),
+        roleName: String(row.role_name || "Parent / Guardian"),
+      } satisfies ResolvedTenantUser,
+      source: "guardian" as const,
+    };
+  } catch (error) {
+    console.warn("Guardian tenant role fallback failed:", {
+      tenantSlug: input.tenantSlug,
+      userId: input.userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      tenantUser: null,
+      source: "guardian" as const,
+      lookupError: error instanceof Error ? error.message : "Guardian tenant lookup failed",
+    };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
@@ -139,11 +225,31 @@ export async function POST(request: NextRequest) {
       .where(or(eq(userTable.id, session.user.id), ilike(userTable.email, email)))
       .limit(1);
 
-    const { tenantUser, source, lookupError } = await findTenantUser({
+    const lookup = await findTenantUser({
       tenantSlug,
       email,
       userId: session.user.id,
     });
+    let tenantUser = lookup.tenantUser;
+    let source: "tenant" | "guardian" | "none" = lookup.source;
+    let lookupError = lookup.lookupError;
+
+    const canUseGuardianFallback =
+      requestedRole === "parent" ||
+      normalizeRole(masterUser?.role || (session.user as { role?: string }).role) === "parent";
+
+    if (!tenantUser && canUseGuardianFallback) {
+      const guardianLookup = await findOrCreateGuardianTenantUser({
+        tenantSlug,
+        email,
+        userId: session.user.id,
+        name: session.user.name || email,
+        image: session.user.image || null,
+      });
+      tenantUser = guardianLookup.tenantUser;
+      source = guardianLookup.tenantUser ? guardianLookup.source : source;
+      lookupError = guardianLookup.lookupError || lookupError;
+    }
 
     if (!tenantUser) {
       return NextResponse.json(

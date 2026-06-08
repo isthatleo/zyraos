@@ -114,14 +114,20 @@ export function TenantPortalLogin({
         setRolesError("");
         const response = await fetch(`/api/tenant/roles?tenant=${tenantSlug}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Failed to load tenant roles");
         if (cancelled) return;
+        if (!response.ok) {
+          setTenantName(formatTenantName(tenantSlug) || "School Portal");
+          setTenantRoles([]);
+          setRolesError("");
+          return;
+        }
         setTenantName(data.tenant?.name || formatTenantName(tenantSlug));
         setTenantRoles(data.roles || []);
       } catch (loadError) {
-        console.error("Error loading tenant roles:", loadError);
         if (!cancelled) {
-          setRolesError(loadError instanceof Error ? loadError.message : "Failed to load tenant roles");
+          setTenantName(formatTenantName(tenantSlug) || "School Portal");
+          setTenantRoles([]);
+          setRolesError("");
         }
       }
     }
