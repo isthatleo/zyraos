@@ -30,6 +30,10 @@ import {
   Award,
   Target,
   Percent,
+  Plus,
+  Trash2,
+  Send,
+  CheckCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -85,6 +89,9 @@ type AssessmentInsight = {
   performanceDistribution: { range: string; count: number }[]
   topPerformers: StudentAssessment[]
   needsImprovement: StudentAssessment[]
+  pendingAssessments: number
+  completedAssessments: number
+  averageCompletionTime: number
 }
 
 const GRADE_COLORS = {
@@ -134,6 +141,9 @@ const getAssessmentInsights = (assessments: StudentAssessment[]): AssessmentInsi
       performanceDistribution: [],
       topPerformers: [],
       needsImprovement: [],
+      pendingAssessments: 0,
+      completedAssessments: 0,
+      averageCompletionTime: 0,
     }
   }
 
@@ -141,6 +151,8 @@ const getAssessmentInsights = (assessments: StudentAssessment[]): AssessmentInsi
   const failed = assessments.filter((a) => a.status === "fail").length
   const percentages = assessments.map((a) => a.percentage)
   const marks = assessments.map((a) => a.marksObtained)
+  const pending = assessments.filter((a) => !a.checkedOn).length
+  const completed = assessments.filter((a) => a.checkedOn).length
 
   const assessmentsBySubject: { [key: string]: number } = {}
   const assessmentsByGrade: { [key: string]: number } = {}
@@ -153,6 +165,14 @@ const getAssessmentInsights = (assessments: StudentAssessment[]): AssessmentInsi
 
   const topPerformers = [...assessments].sort((a, b) => b.percentage - a.percentage).slice(0, 5)
   const needsImprovement = [...assessments].filter((a) => a.percentage < 50).sort((a, b) => a.percentage - b.percentage).slice(0, 5)
+
+  const completionTimes = assessments
+    .filter((a) => a.checkedOn && a.submittedOn)
+    .map((a) => {
+      const submitted = new Date(a.submittedOn).getTime()
+      const checked = new Date(a.checkedOn).getTime()
+      return (checked - submitted) / (1000 * 60 * 60 * 24)
+    })
 
   return {
     totalAssessments: assessments.length,
@@ -174,6 +194,9 @@ const getAssessmentInsights = (assessments: StudentAssessment[]): AssessmentInsi
     ],
     topPerformers,
     needsImprovement,
+    pendingAssessments: pending,
+    completedAssessments: completed,
+    averageCompletionTime: completionTimes.length > 0 ? Math.round(completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length) : 0,
   }
 }
 
@@ -198,6 +221,22 @@ export default function AssessmentPage() {
   const [detailsDialogOpen, setDetailsDialogOpen] = React.useState(false)
   const [editingAssessment, setEditingAssessment] = React.useState<StudentAssessment | null>(null)
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
+  const [addDialogOpen, setAddDialogOpen] = React.useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = React.useState(false)
+  const [markCompleteDialogOpen, setMarkCompleteDialogOpen] = React.useState(false)
+  const [newAssessment, setNewAssessment] = React.useState({
+    examName: "",
+    subject: "",
+    className: "",
+    totalMarks: 100,
+    deadline: "",
+  })
+  const [assignmentData, setAssignmentData] = React.useState({
+    assessmentId: "",
+    studentIds: [] as string[],
+  })
+  const [classes, setClasses] = React.useState<string[]>([])
+  const [students, setStudents] = React.useState<{ id: string; name: string; className: string }[]>([])
 
   React.useEffect(() => {
     const tenantSlug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : ""
@@ -311,6 +350,114 @@ export default function AssessmentPage() {
     }
   }
 
+  const addNewAssessment = async () => {
+    if (!tenant || !newAssessment.examName || !newAssessment.subject || !newAssessment.className) {
+      toast.error("Please fill all required fields")
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/teacher/dashboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assessment.create",
+          examName: newAssessment.examName,
+          subject: newAssessment.subject,
+          className: newAssessment.className,
+          totalMarks: newAssessment.totalMarks,
+          deadline: newAssessment.deadline,
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to create assessment")
+
+      const data = await res.json()
+      setAssessments(data.assessments || [])
+      setAddDialogOpen(false)
+      setNewAssessment({ examName: "", subject: "", className: "", totalMarks: 100, deadline: "" })
+      toast.success("Assessment created successfully")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create assessment")
+    }
+  }
+
+  const assignAssessment = async () => {
+    if (!tenant || !assignmentData.assessmentId || assignmentData.studentIds.length === 0) {
+      toast.error("Please select assessment and students")
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/teacher/dashboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assessment.assign",
+          assessmentId: assignmentData.assessmentId,
+          studentIds: assignmentData.studentIds,
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to assign assessment")
+
+      const data = await res.json()
+      setAssessments(data.assessments || [])
+      setAssignDialogOpen(false)
+      setAssignmentData({ assessmentId: "", studentIds: [] })
+      toast.success("Assessment assigned to students successfully")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to assign assessment")
+    }
+  }
+
+  const markAssessmentComplete = async (assessmentId: string) => {
+    if (!tenant) return
+
+    try {
+      const res = await fetch(`/api/teacher/dashboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assessment.markComplete",
+          assessmentId,
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to mark assessment as complete")
+
+      const data = await res.json()
+      setAssessments(data.assessments || [])
+      setMarkCompleteDialogOpen(false)
+      toast.success("Assessment marked as complete")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to mark assessment")
+    }
+  }
+
+  const deleteAssessment = async (assessmentId: string) => {
+    if (!tenant) return
+
+    try {
+      const res = await fetch(`/api/teacher/dashboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assessment.delete",
+          assessmentId,
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to delete assessment")
+
+      const data = await res.json()
+      setAssessments(data.assessments || [])
+      toast.success("Assessment deleted successfully")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete assessment")
+    }
+  }
+
   if (loading) {
     return (
       <div className="w-full space-y-6 p-6 lg:p-8">
@@ -375,6 +522,14 @@ export default function AssessmentPage() {
                 <Download className="size-4" />
                 Export
               </Button>
+              <Button onClick={() => setAddDialogOpen(true)} className="dark:bg-blue-600 dark:hover:bg-blue-700">
+                <Plus className="size-4" />
+                Add Assessment
+              </Button>
+              <Button onClick={() => setAssignDialogOpen(true)} className="dark:bg-purple-600 dark:hover:bg-purple-700">
+                <Send className="size-4" />
+                Assign
+              </Button>
             </div>
           </div>
         </div>
@@ -397,6 +552,34 @@ export default function AssessmentPage() {
                 <p className="mt-1 text-xs text-muted-foreground dark:text-slate-500">{helper}</p>
               </div>
               <div className={cn("rounded-2xl p-3", color)}>
+                <Icon className="size-5" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      {/* Extended Metrics */}
+      <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
+        {[
+          { label: "Pending Assessments", value: insights.pendingAssessments, helper: "Awaiting submission", icon: Clock, color: "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400" },
+          { label: "Completed", value: insights.completedAssessments, helper: "Checked & graded", icon: CheckCheck, color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" },
+          { label: "Avg Check Time", value: `${insights.averageCompletionTime}d`, helper: "Days to grade", icon: Activity, color: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" },
+        ].map(({ label, value, helper, icon: Icon, color }, idx) => (
+          <Card key={idx} className="rounded-3xl shadow-sm dark:bg-slate-900 dark:border-slate-800">
+            <CardContent className="flex min-h-32 items-start justify-between gap-4 p-5">
+              <div>
+                <p className="text-sm text-muted-foreground dark:text-slate-400">{label}</p>
+                <p className="mt-2 text-3xl font-semibold dark:text-white">{value}</p>
+                <p className="mt-1 text-xs text-muted-foreground dark:text-slate-500">{helper}</p>
+              </div>
+              <div className={cn("rounded-2xl p-3", color)}>
+                <Icon className="size-5" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
                 <Icon className="size-5" />
               </div>
             </CardContent>
@@ -906,6 +1089,153 @@ export default function AssessmentPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Assessment Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-2xl dark:bg-slate-900 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="dark:text-white">Create New Assessment</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">Add a new assessment for your class</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium dark:text-white">Exam Name</label>
+              <Input
+                value={newAssessment.examName}
+                onChange={(e) => setNewAssessment({ ...newAssessment, examName: e.target.value })}
+                placeholder="Enter exam name..."
+                className="mt-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white dark:placeholder:text-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium dark:text-white">Subject</label>
+              <Select value={newAssessment.subject} onValueChange={(value) => setNewAssessment({ ...newAssessment, subject: value })}>
+                <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                  <SelectValue placeholder="Select subject..." />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject} value={subject}>
+                      {subject}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium dark:text-white">Class</label>
+              <Input
+                value={newAssessment.className}
+                onChange={(e) => setNewAssessment({ ...newAssessment, className: e.target.value })}
+                placeholder="Enter class name..."
+                className="mt-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white dark:placeholder:text-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium dark:text-white">Total Marks</label>
+              <Input
+                type="number"
+                value={newAssessment.totalMarks}
+                onChange={(e) => setNewAssessment({ ...newAssessment, totalMarks: parseInt(e.target.value) })}
+                className="mt-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium dark:text-white">Deadline</label>
+              <Input
+                type="date"
+                value={newAssessment.deadline}
+                onChange={(e) => setNewAssessment({ ...newAssessment, deadline: e.target.value })}
+                className="mt-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddDialogOpen(false)} className="dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700 dark:text-white">
+                Cancel
+              </Button>
+              <Button onClick={addNewAssessment} className="dark:bg-emerald-600 dark:hover:bg-emerald-700">
+                <Plus className="mr-2 size-4" />
+                Create Assessment
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Assessment Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="max-w-2xl dark:bg-slate-900 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="dark:text-white">Assign Assessment</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">Assign assessments to students</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium dark:text-white">Select Assessment</label>
+              <Select value={assignmentData.assessmentId} onValueChange={(value) => setAssignmentData({ ...assignmentData, assessmentId: value })}>
+                <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                  <SelectValue placeholder="Select assessment..." />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
+                  {[...new Set(assessments.map((a) => a.examId))].map((id) => {
+                    const assessment = assessments.find((a) => a.examId === id)
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {assessment?.examName}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium dark:text-white">Select Students</label>
+              <p className="text-xs text-muted-foreground dark:text-slate-400 mt-1">Select multiple students to assign this assessment</p>
+              <div className="mt-3 space-y-2 max-h-48 overflow-y-auto rounded-lg border border-input dark:border-slate-700 p-3">
+                {assessments.map((assessment) => (
+                  <label key={assessment.id} className="flex items-center gap-2 p-2 rounded hover:bg-accent dark:hover:bg-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={assignmentData.studentIds.includes(assessment.studentId)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setAssignmentData({
+                            ...assignmentData,
+                            studentIds: [...assignmentData.studentIds, assessment.studentId],
+                          })
+                        } else {
+                          setAssignmentData({
+                            ...assignmentData,
+                            studentIds: assignmentData.studentIds.filter((id) => id !== assessment.studentId),
+                          })
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-sm font-medium dark:text-white">{assessment.studentName}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700 dark:text-white">
+                Cancel
+              </Button>
+              <Button onClick={assignAssessment} className="dark:bg-purple-600 dark:hover:bg-purple-700">
+                <Send className="mr-2 size-4" />
+                Assign
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
