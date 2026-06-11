@@ -286,8 +286,17 @@ export default function MasterDashboard() {
         credentials: "include",
         signal: controller.signal,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Failed to load dashboard data");
+      let result: any = {};
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        // If the server returned non-JSON or empty body, fall back to status text
+        result = { error: response.statusText || "Invalid server response" };
+      }
+      if (!response.ok) {
+        const serverMsg = result?.error || result?.errorMessage || result?.reason || response.statusText || `Server returned ${response.status}`;
+        throw new Error(serverMsg);
+      }
       setData({
         stats: { ...emptyStats, ...(result.stats || {}) },
         recentSchools: result.recentSchools || [],
@@ -319,13 +328,17 @@ export default function MasterDashboard() {
       setError(null);
     } catch (caught) {
       console.error("Error fetching dashboard data:", caught);
-      setError(
-        caught instanceof DOMException && caught.name === "AbortError"
-          ? "Dashboard data request timed out. Check the database connection and try again."
-          : caught instanceof Error
-            ? caught.message
-            : "Failed to load dashboard data"
-      );
+      let friendly = "Failed to load dashboard data";
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        friendly = "Dashboard data request timed out. Check the database connection and try again.";
+      } else if (caught instanceof Error) {
+        friendly = caught.message || friendly;
+      }
+      // Add brief actionable hint for DB connection issues
+      if (typeof friendly === "string" && /database connection|connection error|database/i.test(friendly)) {
+        friendly += " — verify DATABASE_URL and that your Postgres server is reachable.";
+      }
+      setError(friendly);
     } finally {
       window.clearTimeout(timeoutId);
       setIsLoading(false);

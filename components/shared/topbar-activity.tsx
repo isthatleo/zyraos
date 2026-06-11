@@ -83,7 +83,10 @@ export function TopbarActivityButtons() {
         role === "nurse" ? "health" :
         role;
 
-      const pageForSegment = (segment: string) => (page === "messages" && segment === "student" ? "communication" : page);
+      const pageForSegment = (segment: string) => {
+        if (page === "messages" && segment === "student") return "communication";
+        return page;
+      };
 
       if (first === "master") return `/master/${page}`;
 
@@ -96,6 +99,7 @@ export function TopbarActivityButtons() {
         "librarian",
         "hr",
         "canteen",
+        "teacher",
       ]);
       if (first && rootDashboardSegments.has(first)) return `/${first}/${pageForSegment(first)}`;
 
@@ -244,7 +248,13 @@ export function TopbarActivityButtons() {
     <>
       <DropdownMenu onOpenChange={(open) => open && void load()}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative" aria-label="Open recent messages">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            aria-label="Open recent messages"
+            onClick={() => router.push(dashboardRoute("messages"))}
+          >
             <MessageSquare className="size-4" />
             {messageCount > 0 && <Badge className="absolute -right-1 -top-1 size-5 p-0 text-[10px]">{messageCount}</Badge>}
           </Button>

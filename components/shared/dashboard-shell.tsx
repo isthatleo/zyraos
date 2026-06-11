@@ -269,6 +269,7 @@ const teacherSections: NavSection[] = [
   {
     title: "School Operations",
     items: [
+      { name: "Teacher Dashboard", href: "/teacher/dashboard", icon: Home },
       {
         name: "Classes",
         href: "/teacher/classes",

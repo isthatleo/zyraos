@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AIDiffSettings">
+    <option name="showAIDiff" value="false" />
+  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/auth/tenant-role/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/tenant/roles/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/roles/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/parent/attendance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/attendance/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/parent/children/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/children/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/parent/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/parent/finance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/parent/finance/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/parent-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/parent-sidebar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/tenant-portal-login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-portal-login.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test-results/.last-run.json" beforeDir="false" afterPath="$PROJECT_DIR$/test-results/.last-run.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/master/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/proxy.ts" beforeDir="false" afterPath="$PROJECT_DIR$/proxy.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +36,7 @@
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="1026" />
+    <option name="cachedIndexableFilesCount" value="1054" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -141,7 +141,7 @@
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;npm.Next.js: server-side.executor&quot;: &quot;Run&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMConfigurable&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
     &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
     &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2026.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
@@ -174,7 +174,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-WS-261.24374.125" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-WS-261.25134.101" />
       </set>
     </attachedChunks>
   </component>
@@ -212,7 +212,18 @@
       <workItem from="1780844423570" duration="20300000" />
       <workItem from="1780887852695" duration="728000" />
       <workItem from="1780889116402" duration="2439000" />
-      <workItem from="1780917847522" duration="11565000" />
+      <workItem from="1780917847522" duration="12900000" />
+      <workItem from="1781007210356" duration="1039000" />
+      <workItem from="1781022248110" duration="337000" />
+      <workItem from="1781022653243" duration="166000" />
+      <workItem from="1781022838963" duration="3000" />
+      <workItem from="1781022980137" duration="915000" />
+      <workItem from="1781029769195" duration="177000" />
+      <workItem from="1781032369763" duration="1618000" />
+      <workItem from="1781034802451" duration="1770000" />
+      <workItem from="1781037385077" duration="2528000" />
+      <workItem from="1781110994696" duration="4268000" />
+      <workItem from="1781192874986" duration="616000" />
     </task>
     <servers />
   </component>

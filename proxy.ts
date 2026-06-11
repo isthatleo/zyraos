@@ -11,6 +11,10 @@ const RESERVED_PATHS = new Set([
   "master",
   "signup",
   "access-denied",
+  "admins",
+  "staff",
+  "student-parent",
+  "canteen",
 ]);
 
 function applySecurityHeaders(response: NextResponse, tenantSlug?: string | null) {

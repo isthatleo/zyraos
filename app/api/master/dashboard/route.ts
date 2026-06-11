@@ -342,9 +342,26 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching master dashboard data:", error);
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    let userFriendly = "Failed to fetch dashboard data";
+    if (
+      message.includes("connect") ||
+      message.includes("timeout") ||
+      message.includes("connection refused") ||
+      message.includes("econnrefused") ||
+      message.includes("no password supplied") ||
+      message.includes("authentication")
+    ) {
+      userFriendly = "Database connection error. Verify DATABASE_URL and DB availability.";
+    }
+    const devInfo = process.env.NODE_ENV !== "production" ? {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    } : {};
+
     return NextResponse.json(
-      {
-        error: "Failed to fetch dashboard data",
+      Object.assign({
+        error: userFriendly,
         stats: {
           totalSchools: 0,
           activeSchools: 0,
@@ -371,7 +388,7 @@ export async function GET(request: NextRequest) {
         expiringSubscriptions: [],
         recentActivity: [],
         alerts: [],
-      },
+      }, devInfo),
       { status: 500 }
     );
   }
