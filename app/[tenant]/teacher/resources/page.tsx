@@ -113,6 +113,8 @@ type ResourceForm = {
   title: string
   category: string
   resourceType: string
+  subjectId: string
+  classId: string
   description: string
   isPublic: boolean
   tags: string
@@ -122,6 +124,8 @@ const emptyForm: ResourceForm = {
   title: "",
   category: "Learning Materials",
   resourceType: "document",
+  subjectId: "",
+  classId: "",
   description: "",
   isPublic: false,
   tags: "",
@@ -221,11 +225,30 @@ export default function TeacherResourcesPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [form, setForm] = React.useState<ResourceForm>(emptyForm)
   const [acting, setActing] = React.useState(false)
+  const [previewOpen, setPreviewOpen] = React.useState(false)
+  const [previewResource, setPreviewResource] = React.useState<TeacherResource | null>(null)
   const payloadRef = React.useRef<LearningContentPayload | null>(null)
 
   React.useEffect(() => {
     payloadRef.current = payload
   }, [payload])
+
+  // Sync filters/search to the URL so the page is linkable and sharable.
+  React.useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        const params = new URLSearchParams()
+        if (query) params.set("q", query)
+        if (selectedCategory && selectedCategory !== "all") params.set("category", selectedCategory)
+        if (selectedSubject && selectedSubject !== "all") params.set("subject", selectedSubject)
+        const newUrl = `${pathname}${params.toString() ? `?${params.toString()}` : ""}`
+        void router.replace(newUrl)
+      } catch (e) {
+        // ignore URL update failures
+      }
+    }, 450)
+    return () => window.clearTimeout(t)
+  }, [query, selectedCategory, selectedSubject, pathname, router])
 
   const tenantPrefix = React.useMemo(() => {
     const segments = (pathname || "").split("/").filter(Boolean)
@@ -320,22 +343,75 @@ export default function TeacherResourcesPage() {
     return true
   }
 
-  const toggleFavorite = (resourceId: string) => {
+  const toggleFavorite = async (resourceId: string) => {
     const resource = resources.find((r) => r.id === resourceId)
     if (!resource) return
-    postAction({ action: resource.favorited ? "unfavorite" : "favorite", resourceId }, resource.favorited ? "Removed from favorites" : "Added to favorites")
+    const ok = await postAction({ action: resource.favorited ? "unfavorite" : "favorite", resourceId }, resource.favorited ? "Removed from favorites" : "Added to favorites")
+    if (ok && previewResource?.id === resourceId) setPreviewResource({ ...previewResource, favorited: !previewResource.favorited })
   }
 
-  const toggleShared = (resourceId: string) => {
+  const toggleShared = async (resourceId: string) => {
     const resource = resources.find((r) => r.id === resourceId)
     if (!resource) return
-    postAction({ action: resource.shared ? "unshare" : "share", resourceId }, resource.shared ? "Unshared" : "Shared with learners")
+    const ok = await postAction({ action: resource.shared ? "unshare" : "share", resourceId }, resource.shared ? "Unshared" : "Shared with learners")
+    if (ok && previewResource?.id === resourceId) setPreviewResource({ ...previewResource, shared: !previewResource.shared })
   }
 
-  const toggleArchived = (resourceId: string) => {
+  const toggleArchived = async (resourceId: string) => {
     const resource = resources.find((r) => r.id === resourceId)
     if (!resource) return
-    postAction({ action: resource.archived ? "unarchive" : "archive", resourceId }, resource.archived ? "Unarchived" : "Archived")
+    const ok = await postAction({ action: resource.archived ? "unarchive" : "archive", resourceId }, resource.archived ? "Unarchived" : "Archived")
+    if (ok && previewResource?.id === resourceId) setPreviewResource({ ...previewResource, archived: !previewResource.archived })
+  }
+
+  const createResource = async () => {
+    const ok = await postAction(
+      {
+        action: "resource.create",
+        ...form,
+        tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+      },
+      "Resource created"
+    )
+    if (ok) {
+      setDialogOpen(false)
+      setForm(emptyForm)
+    }
+  }
+
+  // Preview, copy and duplicate helpers
+  const openPreview = (resource: TeacherResource) => {
+    setPreviewResource(resource)
+    setPreviewOpen(true)
+  }
+
+  const closePreview = () => {
+    setPreviewOpen(false)
+    setPreviewResource(null)
+  }
+
+  const copyResourceLink = async (resource: TeacherResource) => {
+    try {
+      const link = resource.url || `${window.location.origin}${teacherHref(`/teacher/resources?q=${encodeURIComponent(resource.title)}`)}`
+      await navigator.clipboard.writeText(link)
+      toast.success("Link copied to clipboard")
+    } catch (e) {
+      toast.error("Could not copy link")
+    }
+  }
+
+  const duplicateResource = (resource: TeacherResource) => {
+    setForm({
+      title: `${resource.title} (copy)`,
+      category: resource.category || "Learning Materials",
+      resourceType: resource.kind || "document",
+      subjectId: resource.subjectId || "",
+      classId: resource.classId || "",
+      description: resource.description || "",
+      isPublic: resource.isPublic || false,
+      tags: Array.isArray(resource.tags) ? resource.tags.join(", ") : String(resource.tags || ""),
+    })
+    setDialogOpen(true)
   }
 
   if (loading) return <PageSkeleton />
@@ -365,13 +441,13 @@ export default function TeacherResourcesPage() {
             <div className="max-w-4xl space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-background/80"><GraduationCap className="mr-1 size-3.5" />Teacher workspace</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.school.name}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.school?.name}</Badge>
                 <Badge variant="outline" className="bg-background/80">Learning Content Library</Badge>
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Learning Content Hub</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Organize, manage, and share learning resources across {payload?.teacher.name}'s classes. Store lesson materials, assessments, templates, and multimedia in one centralized library.
+                  Organize, manage, and share learning resources across {payload?.teacher?.name}'s classes. Store lesson materials, assessments, templates, and multimedia in one centralized library.
                 </p>
               </div>
             </div>
@@ -392,10 +468,10 @@ export default function TeacherResourcesPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Total Resources", value: stats.activeResources.length, helper: `${payload?.metrics.archived || 0} archived`, icon: ListChecks, color: "bg-blue-50 text-blue-700" },
-          { label: "Favorited", value: payload?.metrics.favorited || 0, helper: "Quick access items", icon: Star, color: "bg-amber-50 text-amber-700" },
-          { label: "Shared", value: payload?.metrics.shared || 0, helper: "Available to learners", icon: Share2, color: "bg-emerald-50 text-emerald-700" },
-          { label: "Storage Used", value: formatBytes(payload?.metrics.totalSize || 0), helper: `${payload?.metrics.totalDownloads || 0} downloads`, icon: Download, color: "bg-purple-50 text-purple-700" },
+            { label: "Total Resources", value: stats.activeResources.length, helper: `${payload?.metrics?.archived || 0} archived`, icon: ListChecks, color: "bg-blue-50 text-blue-700" },
+            { label: "Favorited", value: payload?.metrics?.favorited || 0, helper: "Quick access items", icon: Star, color: "bg-amber-50 text-amber-700" },
+            { label: "Shared", value: payload?.metrics?.shared || 0, helper: "Available to learners", icon: Share2, color: "bg-emerald-50 text-emerald-700" },
+            { label: "Storage Used", value: formatBytes(payload?.metrics?.totalSize || 0), helper: `${payload?.metrics?.totalDownloads || 0} downloads`, icon: Download, color: "bg-purple-50 text-purple-700" },
         ].map((card) => {
           const Icon = card.icon
           return (
@@ -611,14 +687,17 @@ export default function TeacherResourcesPage() {
                             <CardTitle className="line-clamp-2 text-base">{resource.title}</CardTitle>
                             <CardDescription className="mt-1">{resource.subject} • {resource.category}</CardDescription>
                           </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button size="icon" variant="ghost" onClick={() => toggleFavorite(resource.id)}>
-                              <Heart className={cn("size-4", resource.favorited && "fill-destructive text-destructive")} />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => toggleShared(resource.id)}>
-                              <Share2 className={cn("size-4", resource.shared && "text-primary")} />
-                            </Button>
-                          </div>
+                           <div className="flex gap-1 flex-shrink-0">
+                             <Button size="icon" variant="ghost" onClick={() => toggleFavorite(resource.id)}>
+                               <Heart className={cn("size-4", resource.favorited && "fill-destructive text-destructive")} />
+                             </Button>
+                             <Button size="icon" variant="ghost" onClick={() => toggleShared(resource.id)}>
+                               <Share2 className={cn("size-4", resource.shared && "text-primary")} />
+                             </Button>
+                             <Button size="icon" variant="ghost" onClick={() => openPreview(resource)}>
+                               <Eye className="size-4" />
+                             </Button>
+                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -797,12 +876,12 @@ export default function TeacherResourcesPage() {
               <div>
                 <div className="mb-2 flex justify-between text-xs text-muted-foreground">
                   <span>Used capacity</span>
-                  <span>{((payload?.metrics.totalSize || 0) / (5 * 1024 * 1024 * 1024)) * 100 | 0}%</span>
+                  <span>{((payload?.metrics?.totalSize || 0) / (5 * 1024 * 1024 * 1024)) * 100 | 0}%</span>
                 </div>
-                <Progress value={Math.min(100, ((payload?.metrics.totalSize || 0) / (5 * 1024 * 1024 * 1024)) * 100)} />
+                <Progress value={Math.min(100, ((payload?.metrics?.totalSize || 0) / (5 * 1024 * 1024 * 1024)) * 100)} />
               </div>
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>Total: {formatBytes(payload?.metrics.totalSize || 0)}</p>
+                <p>Total: {formatBytes(payload?.metrics?.totalSize || 0)}</p>
                 <p>Quota: 5 GB</p>
               </div>
             </CardContent>
@@ -821,6 +900,47 @@ export default function TeacherResourcesPage() {
           </Card>
         </aside>
       </section>
+
+      <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePreview(); else setPreviewOpen(open) }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{previewResource?.title || "Resource preview"}</DialogTitle>
+            <DialogDescription>{previewResource ? `${previewResource.subject} • ${previewResource.category}` : "Preview a resource"}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <p className="text-sm text-muted-foreground">{previewResource?.description}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => previewResource && toggleFavorite(previewResource.id)}>
+                <Heart className={cn("size-4", previewResource?.favorited && "fill-destructive text-destructive")} />{previewResource?.favorited ? " Favorited" : " Favorite"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => previewResource && toggleShared(previewResource.id)}>
+                <Share2 className="size-4" />{previewResource?.shared ? " Unshare" : " Share"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => previewResource && toggleArchived(previewResource.id)}>
+                <Archive className="size-4" />{previewResource?.archived ? " Unarchive" : " Archive"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => previewResource && copyResourceLink(previewResource)}>
+                <Copy className="size-4" /> Copy link
+              </Button>
+              <Button size="sm" onClick={() => previewResource && duplicateResource(previewResource)}>
+                <Copy className="size-4" /> Duplicate
+              </Button>
+              {previewResource?.url && (
+                <Button size="sm" asChild>
+                  <a href={previewResource.url} target="_blank" rel="noopener noreferrer"><Download className="size-4" /> Open</a>
+                </Button>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <p>{previewResource ? `${previewResource.viewCount} views • ${previewResource.downloadCount} downloads` : ""}</p>
+              <p>Created: {formatDate(previewResource?.createdAt || null)}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { closePreview() }}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -845,6 +965,22 @@ export default function TeacherResourcesPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select value={form.subjectId || "none"} onValueChange={(value) => setForm((current) => ({ ...current, subjectId: value === "none" ? "" : value }))}>
+                <SelectTrigger><SelectValue placeholder="Subject" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">General resource</SelectItem>
+                  {subjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={form.classId || "none"} onValueChange={(value) => setForm((current) => ({ ...current, classId: value === "none" ? "" : value }))}>
+                <SelectTrigger><SelectValue placeholder="Class" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All assigned classes</SelectItem>
+                  {classes.map((classItem) => <SelectItem key={classItem.id} value={classItem.id}>{classItem.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <Input placeholder="Tags (comma-separated)" value={form.tags} onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))} />
             <div className="flex items-center gap-2">
               <input type="checkbox" id="isPublic" checked={form.isPublic} onChange={(event) => setForm((current) => ({ ...current, isPublic: event.target.checked }))} />
@@ -853,7 +989,7 @@ export default function TeacherResourcesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => { toast.success("Resource created. Upload functionality coming soon!"); setDialogOpen(false) }} disabled={acting || !form.title}>
+            <Button onClick={createResource} disabled={acting || !form.title}>
               {acting ? "Creating..." : "Create resource"}
             </Button>
           </DialogFooter>

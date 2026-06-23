@@ -386,6 +386,136 @@ export async function GET(request: NextRequest) {
     totalMarks: numberValue(row.total_marks),
   }))
 
+  const examSchedules = exams.map((exam) => ({
+    id: exam.id,
+    examName: exam.name,
+    subject: exam.type || "Exam",
+    className: exam.className,
+    date: exam.date,
+    startTime: exam.startTime,
+    endTime: exam.endTime,
+    room: exam.room,
+    status: exam.status || "scheduled",
+    difficulty: "medium",
+    totalMarks: exam.totalMarks || 100,
+    passingMarks: 40,
+    isActive: exam.status !== "cancelled",
+    isArchived: exam.status === "archived",
+    remarks: "",
+  }))
+
+  const learnerSummaries = learnerRows.map((row) => {
+    const attended = numberValue(row.attended_count)
+    const attendanceTotal = numberValue(row.attendance_count)
+    return {
+      id: text(row.id),
+      name: text(row.name, "Learner"),
+      className: classLabel({ name: row.class_name, grade: row.grade, section: row.section }),
+      averageScore: numberValue(row.average_score),
+      attendanceRate: attendanceTotal ? Math.round((attended / attendanceTotal) * 1000) / 10 : 0,
+    }
+  })
+
+  const alerts = learnerSummaries.filter((learner) => learner.attendanceRate < 85 || learner.averageScore < 50).map((learner) => ({
+    id: `alert_${learner.id}`,
+    studentId: learner.id,
+    studentName: learner.name,
+    className: learner.className,
+    type: learner.attendanceRate < 85 ? "attendance" : "performance",
+    severity: learner.attendanceRate < 70 || learner.averageScore < 40 ? "high" : "medium",
+    status: "open",
+    message: learner.attendanceRate < 85
+      ? `${learner.name} attendance is ${learner.attendanceRate}%`
+      : `${learner.name} average score is ${learner.averageScore}%`,
+    createdAt: new Date().toISOString(),
+    remarks: "",
+  }))
+
+  const biometricRecords = attendance.map((record) => ({
+    id: record.id,
+    studentId: "",
+    studentName: record.studentName,
+    admissionNumber: "",
+    classId: record.classId,
+    className: record.className,
+    timestamp: record.date,
+    date: record.date,
+    time: record.date ? new Date(record.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+    status: record.status || "pending",
+    type: "attendance",
+    device: "Tenant attendance register",
+    syncedAt: record.date,
+    remarks: record.remarks,
+  }))
+
+  const reportCardsByStudent = new Map<string, {
+    id: string
+    studentId: string
+    studentName: string
+    admissionNumber: string
+    className: string
+    examId: string
+    examName: string
+    status: string
+    subjectMarks: Array<{ id: string; subjectId: string; subject: string; marks: number; totalMarks: number; percentage: number; grade: string; status: string; teacherRemarks: string | null; adminRemarks: string | null; suggestedImprovement: string | null; remarked: boolean }>
+    generalRemarks: string | null
+    adminRemarks: string | null
+    submittedBy: string | null
+    submittedOn: string | null
+    approvedBy: string | null
+    approvedOn: string | null
+    totalMarks: number
+    marksObtained: number
+    overallPercentage: number
+    overallGrade: string
+    overallStatus: string
+  }>()
+  for (const grade of grades) {
+    const existing = reportCardsByStudent.get(grade.studentId) || {
+      id: `report_${grade.studentId}`,
+      studentId: grade.studentId,
+      studentName: grade.studentName,
+      className: grade.className,
+      status: "draft",
+      admissionNumber: "",
+      examId: "",
+      examName: "Current term",
+      subjectMarks: [],
+      generalRemarks: null,
+      adminRemarks: null,
+      submittedBy: null,
+      submittedOn: null,
+      approvedBy: null,
+      approvedOn: null,
+      totalMarks: 0,
+      marksObtained: 0,
+      overallPercentage: 0,
+      overallGrade: "N/A",
+      overallStatus: "fail",
+    }
+    existing.subjectMarks.push({
+      id: grade.id,
+      subjectId: grade.subjectId,
+      subject: grade.subject || "Subject",
+      marks: grade.score,
+      totalMarks: grade.maxScore || 100,
+      percentage: grade.percentage,
+      grade: grade.grade || "N/A",
+      status: "pending",
+      teacherRemarks: null,
+      adminRemarks: null,
+      suggestedImprovement: null,
+      remarked: false,
+    })
+    existing.marksObtained += grade.score
+    existing.totalMarks += grade.maxScore || 100
+    existing.overallPercentage = existing.totalMarks ? Math.round((existing.marksObtained / existing.totalMarks) * 1000) / 10 : 0
+    existing.overallGrade = existing.overallPercentage >= 80 ? "A" : existing.overallPercentage >= 70 ? "B" : existing.overallPercentage >= 60 ? "C" : existing.overallPercentage >= 50 ? "D" : "F"
+    existing.overallStatus = existing.overallPercentage >= 50 ? "pass" : "fail"
+    reportCardsByStudent.set(grade.studentId, existing)
+  }
+  const reportCards = Array.from(reportCardsByStudent.values())
+
   const subjects = subjectRows.map((row) => ({
     id: text(row.id),
     name: text(row.name),
@@ -443,9 +573,50 @@ export async function GET(request: NextRequest) {
     todaysLessons,
     attendance,
     exams,
+    examSchedules,
+    alerts,
+    biometricRecords,
+    reportCards,
     notes: noteRows,
     announcements: announcementRows.map((row) => ({ id: text(row.id), title: text(row.title), content: text(row.content), createdAt: iso(row.publish_date || row.created_at) })),
   }, { headers: { "Cache-Control": "no-store, max-age=0" } })
+}
+
+async function refreshDashboard(request: NextRequest) {
+  return GET(request)
+}
+
+async function resolveClassByName(db: Db, teacherId: string, className: string) {
+  if (!className) return null
+  const candidates = await rows(db, sql`
+    select c.id, c.academic_year_id
+    from classes c
+    where (c.teacher_id = ${teacherId} or c.id in (select distinct class_id from gradebook where teacher_id = ${teacherId}) or c.id in (select distinct class_id from assessments where created_by = ${teacherId}))
+      and lower(concat_ws(' ', c.name, c.grade, c.section)) ilike ${`%${className.toLowerCase()}%`}
+    limit 1
+  `, "class by name")
+  return candidates[0] || null
+}
+
+async function resolveSubjectByName(db: Db, subjectName: string) {
+  if (!subjectName) return null
+  return first(db, sql`
+    select id, name from subjects
+    where lower(name) = lower(${subjectName}) or lower(code) = lower(${subjectName})
+    order by name asc
+    limit 1
+  `, "subject by name")
+}
+
+async function appendWorkflowEvent(db: Db, key: string, event: Row) {
+  const row = await first(db, sql`select value from system_settings where key = ${key} limit 1`, "teacher workflow state")
+  const current = objectValue(row?.value)
+  const events = arrayValue(current.events)
+  await db.execute(sql`
+    insert into system_settings (id, key, value, category, description, created_at, updated_at)
+    values (${crypto.randomUUID()}, ${key}, ${JSON.stringify({ events: [event, ...events].slice(0, 200) })}::jsonb, 'academic', 'Teacher dashboard workflow state', now(), now())
+    on conflict (key) do update set value = excluded.value, updated_at = now()
+  `)
 }
 
 export async function POST(request: NextRequest) {
@@ -456,9 +627,17 @@ export async function POST(request: NextRequest) {
   const action = text(body.action)
 
   if (action === "assessment.create") {
-    const classId = text(body.classId)
-    const subjectId = text(body.subjectId)
-    const name = text(body.name) || text(body.title)
+    let classId = text(body.classId)
+    let subjectId = text(body.subjectId)
+    const name = text(body.name) || text(body.title) || text(body.examName)
+    if (!classId) {
+      const classRow = await resolveClassByName(context.tenantDb, context.teacher.id, text(body.className))
+      classId = text(classRow?.id)
+    }
+    if (!subjectId) {
+      const subjectRow = await resolveSubjectByName(context.tenantDb, text(body.subject))
+      subjectId = text(subjectRow?.id)
+    }
     if (!classId || !subjectId || !name) return NextResponse.json({ error: "Class, subject, and title are required" }, { status: 400 })
 
     const classRow = await assertAssignedClass(context.tenantDb, context.teacher.id, classId)
@@ -472,11 +651,147 @@ export async function POST(request: NextRequest) {
     `, "assessment term")
 
     await context.tenantDb.execute(sql`
-      insert into assessments (id, name, description, subject_id, class_id, academic_year_id, term_id, assessment_type, total_score, passing_score, due_date, release_date, created_by, status, instructions, created_at, updated_at)
-      values (${`assessment_${crypto.randomUUID()}`}, ${name}, ${text(body.description)}, ${subjectId}, ${classId}, ${text(classRow?.academic_year_id)}, ${text(termRow?.id)}, ${text(body.type, "assignment")}, ${String(numberValue(body.totalScore) || 100)}, ${String(numberValue(body.passingScore) || 50)}, ${text(body.dueDate) ? new Date(text(body.dueDate)) : null}, now(), ${context.teacher.id}, 'published', ${text(body.instructions)}, now(), now())
+      insert into assessments (id, name, description, subject_id, class_id, academic_year_id, term_id, assessment_type, total_score, passing_score, due_date, release_date, created_by, status, instructions, attachments, created_at, updated_at)
+      values (
+        ${`assessment_${crypto.randomUUID()}`},
+        ${name},
+        ${text(body.description)},
+        ${subjectId},
+        ${classId},
+        ${text(classRow?.academic_year_id)},
+        ${text(termRow?.id)},
+        ${text(body.type, "assignment")},
+        ${String(numberValue(body.totalScore) || 100)},
+        ${String(numberValue(body.passingScore) || 50)},
+        ${text(body.dueDate) ? new Date(text(body.dueDate)) : null},
+        now(),
+        ${context.teacher.id},
+        'published',
+        ${text(body.instructions)},
+        ${body.attachments ? JSON.stringify(body.attachments) : null}::jsonb,
+        now(),
+        now()
+      )
     `)
 
-    return NextResponse.json({ ok: true, message: "Assessment created" })
+    return refreshDashboard(request)
+  }
+
+  if (action === "assessment.update") {
+    const assessmentId = text(body.assessmentId)
+    if (!assessmentId) return NextResponse.json({ error: "Assessment ID is required" }, { status: 400 })
+    await context.tenantDb.execute(sql`
+      update assessments
+      set instructions = concat(coalesce(instructions, ''), ${`\nTeacher update: ${text(body.remarks)} Marks: ${numberValue(body.marksObtained)}`}), updated_at = now()
+      where id = ${assessmentId} and created_by = ${context.teacher.id}
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action === "assessment.markComplete") {
+    const assessmentId = text(body.assessmentId)
+    if (!assessmentId) return NextResponse.json({ error: "Assessment ID is required" }, { status: 400 })
+    await context.tenantDb.execute(sql`
+      update assessments set status = 'completed', updated_at = now()
+      where id = ${assessmentId} and created_by = ${context.teacher.id}
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action === "assessment.delete") {
+    const assessmentId = text(body.assessmentId)
+    if (!assessmentId) return NextResponse.json({ error: "Assessment ID is required" }, { status: 400 })
+    await context.tenantDb.execute(sql`delete from assessments where id = ${assessmentId} and created_by = ${context.teacher.id}`)
+    return refreshDashboard(request)
+  }
+
+  if (action === "assessment.assign") {
+    const assessmentId = text(body.assessmentId)
+    await appendWorkflowEvent(context.tenantDb, `teacher_assessment_assignments:${context.teacher.id}`, {
+      id: `assignment_${crypto.randomUUID()}`,
+      assessmentId,
+      studentIds: Array.isArray(body.studentIds) ? body.studentIds.map((id) => text(id)).filter(Boolean) : [],
+      createdAt: new Date().toISOString(),
+    })
+    return refreshDashboard(request)
+  }
+
+  if (action === "attendance.update") {
+    const recordId = text(body.recordId)
+    if (!recordId) return NextResponse.json({ error: "Attendance record ID is required" }, { status: 400 })
+    await context.tenantDb.execute(sql`
+      update attendance
+      set status = ${text(body.status, "present")}, remarks = ${text(body.remarks)}, updated_at = now()
+      where id = ${recordId}
+        and class_id in (select id from classes where teacher_id = ${context.teacher.id} or id in (select distinct class_id from gradebook where teacher_id = ${context.teacher.id}))
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action === "attendance.mark-daily") {
+    const date = text(body.date) || new Date().toISOString().slice(0, 10)
+    const records = Array.isArray(body.records) ? body.records as Row[] : []
+    for (const record of records) {
+      const studentId = text(record.studentId) || text(record.id)
+      const classId = text(record.classId)
+      if (!studentId || !classId) continue
+      const classRow = await assertAssignedClass(context.tenantDb, context.teacher.id, classId)
+      if (!classRow) continue
+      await context.tenantDb.execute(sql`
+        insert into attendance (id, student_id, class_id, attendance_date, status, remarks, recorded_by, created_at, updated_at)
+        values (${`attendance_${crypto.randomUUID()}`}, ${studentId}, ${classId}, ${new Date(date)}, ${text(record.status, "present")}, ${text(record.remarks)}, ${context.teacher.id}, now(), now())
+      `)
+    }
+    return refreshDashboard(request)
+  }
+
+  if (action === "exam.schedule.update" || action === "exam.archive" || action === "exam.toggle_active") {
+    const scheduleId = text(body.scheduleId)
+    if (!scheduleId) return NextResponse.json({ error: "Exam ID is required" }, { status: 400 })
+    const status = action === "exam.archive" ? "archived" : action === "exam.toggle_active" ? (body.isActive === false ? "inactive" : "scheduled") : text(body.status, "scheduled")
+    await context.tenantDb.execute(sql`
+      update exams
+      set status = ${status}, updated_at = now()
+      where id = ${scheduleId}
+        and class_id in (select id from classes where teacher_id = ${context.teacher.id} or id in (select distinct class_id from assessments where created_by = ${context.teacher.id}))
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action === "exam.delete") {
+    const scheduleId = text(body.scheduleId)
+    if (!scheduleId) return NextResponse.json({ error: "Exam ID is required" }, { status: 400 })
+    await context.tenantDb.execute(sql`
+      delete from exams
+      where id = ${scheduleId}
+        and class_id in (select id from classes where teacher_id = ${context.teacher.id} or id in (select distinct class_id from assessments where created_by = ${context.teacher.id}))
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action === "exam.create") {
+    const exam = objectValue(body.exam)
+    const classRow = await resolveClassByName(context.tenantDb, context.teacher.id, text(exam.className))
+    if (!classRow) return NextResponse.json({ error: "Assigned class is required" }, { status: 400 })
+    const termRow = await first(context.tenantDb, sql`
+      select id from terms where academic_year_id = ${text(classRow.academic_year_id)}
+      order by case when status = 'active' then 0 else 1 end, start_date desc limit 1
+    `, "exam term")
+    await context.tenantDb.execute(sql`
+      insert into exams (id, name, class_id, academic_year_id, term_id, exam_date, start_time, end_time, location, exam_type, status, total_marks, created_at, updated_at)
+      values (${`exam_${crypto.randomUUID()}`}, ${text(exam.examName)}, ${text(classRow.id)}, ${text(classRow.academic_year_id)}, ${text(termRow?.id)}, ${text(exam.date) ? new Date(text(exam.date)) : new Date()}, ${text(exam.startTime)}, ${text(exam.endTime)}, ${text(exam.room)}, ${text(exam.subject, "exam")}, ${text(exam.status, "scheduled")}, ${String(numberValue(exam.totalMarks) || 100)}, now(), now())
+    `)
+    return refreshDashboard(request)
+  }
+
+  if (action.startsWith("reportcard.") || action.startsWith("biometric.") || action === "alert.update") {
+    await appendWorkflowEvent(context.tenantDb, `teacher_workflows:${context.teacher.id}`, {
+      id: `workflow_${crypto.randomUUID()}`,
+      action,
+      payload: body,
+      createdAt: new Date().toISOString(),
+    })
+    return refreshDashboard(request)
   }
 
   if (action === "class-note") {
@@ -500,7 +815,7 @@ export async function POST(request: NextRequest) {
       values (${crypto.randomUUID()}, ${key}, ${JSON.stringify({ notes: [note, ...current].slice(0, 25) })}::jsonb, 'academic', 'Teacher dashboard notes', now(), now())
       on conflict (key) do update set value = excluded.value, updated_at = now()
     `)
-    return NextResponse.json({ ok: true, note })
+    return refreshDashboard(request)
   }
 
   return NextResponse.json({ error: "Unsupported teacher dashboard action" }, { status: 400 })

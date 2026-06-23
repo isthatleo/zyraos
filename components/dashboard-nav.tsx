@@ -100,10 +100,12 @@ export function DashboardNav({ user }: DashboardNavProps) {
     const pageByRole = page === "messages" && role === "student" ? "communication" : page;
     if (role === "master") return page === "dashboard" ? "/master/dashboard" : `/master/${page}`;
     if (!role) return `/${pageByRole}`;
+    if (page === "profile" || page === "settings") {
+      const context = role ? `?from=${encodeURIComponent(role)}` : "";
+      return routeContext.tenant ? `/${routeContext.tenant}/${page}${context}` : `/${page}${context}`;
+    }
     const base = routeContext.tenant ? `/${routeContext.tenant}/${role}` : `/${role}`;
     if (page === "dashboard") return `${base}/dashboard`;
-    if (page === "settings" && role === "admin") return `${base}/user-settings`;
-    if (page === "settings" && role === "owner") return `${base}/user-settings`;
     return `${base}/${pageByRole}`;
   };
 

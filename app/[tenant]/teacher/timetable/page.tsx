@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -173,7 +175,7 @@ export default function MySchedulePage() {
   React.useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/teacher/dashboard")
+        const res = await fetch(teacherDashboardApi("timetable"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setPayload(data)

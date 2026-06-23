@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,7 +88,7 @@ export default function EnrollmentWizard() {
 
   const handleSubmit = () => {
     console.log('Submitting form:', formData);
-    alert('Student enrolled successfully!');
+    toast.success('Student enrolled successfully!');
   };
 
   return (

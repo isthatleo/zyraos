@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   Bell,
+  ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Database,
@@ -132,11 +133,42 @@ function initials(name?: string | null, email?: string | null) {
 function getScopedPath(target: "profile" | "settings") {
   if (typeof window === "undefined") return `/${target}`;
   const parts = window.location.pathname.split("/").filter(Boolean);
+  const from = new URLSearchParams(window.location.search).get("from") || parts[1] || "";
+  const suffix = from ? `?from=${encodeURIComponent(from)}` : "";
   if (parts[0] === "master") return target === "settings" ? "/master/user-settings" : "/master/profile";
-  if (parts[1] === "owner") return `/${parts[0]}/owner/${target === "settings" ? "user-settings" : "profile"}`;
-  if (parts[1] === "admin") return `/${parts[0]}/admin/${target === "settings" ? "user-settings" : "profile"}`;
-  if (parts.length > 1) return `/${parts[0]}/${parts[1]}/${target}`;
+  if (parts.length > 1) return `/${parts[0]}/${target}${suffix}`;
   return `/${target}`;
+}
+
+function getDashboardContext() {
+  if (typeof window === "undefined") return { label: "Dashboard context", shortLabel: "Dashboard", href: "" };
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const from = new URLSearchParams(window.location.search).get("from") || parts[1] || "";
+  const normalized = from.trim().toLowerCase();
+  const tenant = parts[0] === "master" ? "" : parts[0] || "";
+  const labels: Record<string, string> = {
+    teacher: "Teacher dashboard context",
+    student: "Student dashboard context",
+    parent: "Parent dashboard context",
+    admin: "Admin dashboard context",
+    owner: "Owner dashboard context",
+    finance: "Finance dashboard context",
+    staff: "Staff dashboard context",
+  };
+  const shortLabels: Record<string, string> = {
+    teacher: "Teacher Dashboard",
+    student: "Student Dashboard",
+    parent: "Parent Dashboard",
+    admin: "Admin Dashboard",
+    owner: "Owner Dashboard",
+    finance: "Finance Dashboard",
+    staff: "Staff Dashboard",
+  };
+  return {
+    label: labels[normalized] || "Dashboard context",
+    shortLabel: shortLabels[normalized] || "Dashboard",
+    href: tenant && normalized ? `/${encodeURIComponent(tenant)}/${normalized}/dashboard` : "",
+  };
 }
 
 export function SettingsContent() {
@@ -174,6 +206,7 @@ export function SettingsContent() {
   const user = session?.user || currentUser;
   const role = String((user as { role?: string } | undefined)?.role || "user").replace(/_/g, " ");
   const profilePath = getScopedPath("profile");
+  const dashboardContext = getDashboardContext();
 
   const saveSettings = async (nextSettings = settings, nextPreferences = preferences) => {
     setSaving(true);
@@ -250,6 +283,7 @@ export function SettingsContent() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="capitalize">{role}</Badge>
+                <Badge variant="outline">{dashboardContext.label}</Badge>
                 <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
                   <CheckCircle2 className="size-3" />
                   Synced account
@@ -260,6 +294,14 @@ export function SettingsContent() {
             </div>
           </div>
           <div className="grid content-start gap-2 sm:grid-cols-2 lg:w-72 lg:grid-cols-1">
+            {dashboardContext.href ? (
+              <Button asChild variant="outline">
+                <Link href={dashboardContext.href}>
+                  <ArrowLeft className="size-4" />
+                  Back to {dashboardContext.shortLabel}
+                </Link>
+              </Button>
+            ) : null}
             <Button onClick={() => void saveSettings()} disabled={saving}>
               {saving ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
               Save Settings

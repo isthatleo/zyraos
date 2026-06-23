@@ -292,7 +292,8 @@ const teacherSections: NavSection[] = [
         ],
       },
       { name: "Messages", href: "/teacher/messages", icon: MessageSquare },
-      { name: "My Profile", href: "/teacher/profile", icon: Users },
+      { name: "My Profile", href: "/profile?from=teacher", icon: Users },
+      { name: "Settings", href: "/settings?from=teacher", icon: Settings },
       {
         name: "Attendance",
         href: "/teacher/attendance",
@@ -310,7 +311,7 @@ const teacherSections: NavSection[] = [
         icon: ClipboardCheck,
         children: [
           { name: "Scheduling", href: "/teacher/exams/scheduling", icon: CalendarCheck },
-          { name: "Assessments", href: "/teacher/exams/assessments", icon: ClipboardList },
+          { name: "Assessments", href: "/teacher/exams/assessment", icon: ClipboardList },
           { name: "Results", href: "/teacher/exams/results", icon: BarChart3 },
           { name: "Report Cards", href: "/teacher/exams/report-cards", icon: FileText },
           { name: "Exam Analytics", href: "/teacher/exams/analytics", icon: BarChart3 },
@@ -783,30 +784,8 @@ export function DashboardShell({
   const scopedAccountPath = (page: "profile" | "settings") => {
     const first = routeBreadcrumbs[0];
     if (first === "master") return page === "settings" ? "/master/user-settings" : "/master/profile";
-    if (first === "owner") return withTenantPath(page === "settings" ? "/owner/user-settings" : "/owner/profile");
-    if (first === "admin") return withTenantPath(page === "settings" ? "/admin/user-settings" : "/admin/profile");
-    if (
-      [
-        "staff",
-        "student",
-        "parent",
-        "finance",
-        "librarian",
-        "hr",
-        "canteen",
-        "health",
-        "hostel",
-        "transport",
-        "security",
-        "reception",
-        "inventory",
-        "wellbeing",
-        "alumni",
-      ].includes(first)
-    ) {
-      return withTenantPath(`/${first}/${page}`);
-    }
-    return withTenantPath(`/${page}`);
+    const dashboardContext = first && first !== page ? `?from=${encodeURIComponent(first)}` : "";
+    return withTenantPath(`/${page}${dashboardContext}`);
   };
   const profilePath = scopedAccountPath("profile");
   const settingsPath = scopedAccountPath("settings");

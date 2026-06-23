@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
@@ -192,7 +194,7 @@ export default function ClassDetailPage() {
   const endpoint = React.useCallback(() => {
     const hostTenant = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : ""
     const tenant = tenantPrefix ? tenantPrefix.slice(1) : hostTenant && !["localhost", "127", "www"].includes(hostTenant) ? hostTenant : ""
-    return tenant ? `/api/tenant/teacher/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/teacher/dashboard"
+    return teacherDashboardApi(`classes/${classId}`)
   }, [tenantPrefix])
 
   const load = React.useCallback(async (notify = false) => {

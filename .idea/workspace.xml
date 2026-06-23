@@ -9,12 +9,40 @@
   <component name="ChangeListManager">
     <list default="true" id="6cdfe643-d75c-451c-aea9-984928fe3635" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/profile/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/profile/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/[...slug]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/[...slug]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/assignments/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/assignments/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/alerts/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/alerts/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/biometric/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/biometric/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/daily/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/daily/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/attendance/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/class-insights/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/class-insights/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/classes/[classId]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/classes/[classId]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/classes/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/classes/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/dashboard/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/master/dashboard/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/master/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/master/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/exams/assessment/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/exams/assessment/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/exams/results/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/exams/results/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/exams/scheduling/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/exams/scheduling/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/grades/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/grades/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/lesson-plans/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/lesson-plans/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/my-schedule/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/my-schedule/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/notifications/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/notifications/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/profile/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/profile/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/resources/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/resources/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/[tenant]/teacher/timetable/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/[tenant]/teacher/timetable/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/teacher/resources/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/teacher/resources/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/tenant/teacher/dashboard/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/tenant/teacher/dashboard/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/staff/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/staff/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/dashboard-nav.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/dashboard-nav.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/profile-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/profile-form.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/dashboard-shell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/shared/topbar-activity.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/proxy.ts" beforeDir="false" afterPath="$PROJECT_DIR$/proxy.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/tenant-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/tenant-sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/admin/sis/admissions/enroll/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/admin/sis/admissions/enroll/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/admin/sis/promotion/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/admin/sis/promotion/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/teacher/dashboard/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/teacher/dashboard/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/teacher/sidebar-nav.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/teacher/sidebar-nav.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +64,7 @@
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="1054" />
+    <option name="cachedIndexableFilesCount" value="1093" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -48,61 +76,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="3.4363502848435176E-5" />
-      <entry key="MS500" value="0.34852861139488583" />
-      <entry key="S2" value="2.7485332134589786" />
-      <entry key="S5" value="4.358414189066365" />
-      <entry key="S10" value="5.107153719344093" />
-      <entry key="S30" value="5.820578261256411" />
-      <entry key="S60" value="7.009125139553357" />
-      <entry key="M2" value="10.553084931912625" />
-      <entry key="M5" value="61.092871746077435" />
-      <entry key="M10" value="199.57991662342747" />
-      <entry key="M15" value="333.8348130258553" />
-      <entry key="M30" value="689.6168776344335" />
-      <entry key="H1" value="1347.138099238068" />
-      <entry key="H2" value="2676.463413997361" />
-      <entry key="H4" value="4965.01761453751" />
-      <entry key="D1" value="13042.065979355762" />
-      <entry key="W1" value="17062.077374692486" />
+      <entry key="MS100" value="2.9356749454222824E-5" />
+      <entry key="MS500" value="0.3344523306468235" />
+      <entry key="S2" value="3.236466223797386" />
+      <entry key="S5" value="6.1454281557710635" />
+      <entry key="S10" value="7.7908851242151345" />
+      <entry key="S30" value="9.316996743194057" />
+      <entry key="S60" value="10.719206835085995" />
+      <entry key="M2" value="14.354991826783264" />
+      <entry key="M5" value="64.7145517948806" />
+      <entry key="M10" value="202.9805620298331" />
+      <entry key="M15" value="337.1699887912163" />
+      <entry key="M30" value="692.9329199728234" />
+      <entry key="H1" value="1350.4712613809672" />
+      <entry key="H2" value="2679.801611295437" />
+      <entry key="H4" value="4968.404039494003" />
+      <entry key="D1" value="13045.797440557573" />
+      <entry key="W1" value="17066.02718950469" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0" />
-      <entry key="M2" value="1.0" />
-      <entry key="M5" value="1.0000000003885534" />
-      <entry key="M10" value="1.0000373694225846" />
-      <entry key="M15" value="1.0017996796759079" />
-      <entry key="M30" value="1.0912884174128952" />
-      <entry key="H1" value="1.6835533306273005" />
-      <entry key="H2" value="2.9520040703958803" />
-      <entry key="H4" value="4.378558345199785" />
-      <entry key="D1" value="6.440420709856678" />
-      <entry key="W1" value="6.916316866934702" />
+      <entry key="MS100" value="1.000000018861243" />
+      <entry key="MS500" value="1.0285176715169828" />
+      <entry key="S2" value="1.4109400936474252" />
+      <entry key="S5" value="1.7006665847937619" />
+      <entry key="S10" value="1.8370582923511134" />
+      <entry key="S30" value="1.9424360731622299" />
+      <entry key="S60" value="1.970791467392575" />
+      <entry key="M2" value="1.985287504940855" />
+      <entry key="M5" value="1.9940888216749677" />
+      <entry key="M10" value="1.9970772887431694" />
+      <entry key="M15" value="1.9998218384373099" />
+      <entry key="M30" value="2.0902106262858684" />
+      <entry key="H1" value="2.682721759865089" />
+      <entry key="H2" value="3.9512749270314247" />
+      <entry key="H4" value="5.3780175610657" />
+      <entry key="D1" value="7.440288129818934" />
+      <entry key="W1" value="7.916296527233253" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="3.027336973763692E-4" />
-      <entry key="MS500" value="0.5363051282843219" />
-      <entry key="S2" value="3.399425401405678" />
-      <entry key="S5" value="5.1988633410596075" />
-      <entry key="S10" value="6.023520446378435" />
-      <entry key="S30" value="6.791748626232834" />
-      <entry key="S60" value="7.994439028019516" />
-      <entry key="M2" value="11.544387153549895" />
-      <entry key="M5" value="62.080398287698216" />
-      <entry key="M10" value="200.56450103522172" />
-      <entry key="M15" value="334.8214621858681" />
-      <entry key="M30" value="690.6952116585592" />
-      <entry key="H1" value="1348.8111931380838" />
-      <entry key="H2" value="2679.407115471417" />
-      <entry key="H4" value="4969.38969660963" />
-      <entry key="D1" value="13048.504008430415" />
-      <entry key="W1" value="17068.99325683636" />
+      <entry key="MS100" value="2.4240013658766822E-4" />
+      <entry key="MS500" value="0.5002898528590122" />
+      <entry key="S2" value="4.103621221326076" />
+      <entry key="S5" value="7.5435622409162155" />
+      <entry key="S10" value="9.4563566890753" />
+      <entry key="S30" value="11.196897193579861" />
+      <entry key="S60" value="12.657861745642911" />
+      <entry key="M2" value="16.322719995010345" />
+      <entry key="M5" value="66.6926330377033" />
+      <entry key="M10" value="204.96042616036914" />
+      <entry key="M15" value="339.15348561271975" />
+      <entry key="M30" value="695.0095865713863" />
+      <entry key="H1" value="1353.1432276061457" />
+      <entry key="H2" value="2683.74443502765" />
+      <entry key="H4" value="4973.775506253744" />
+      <entry key="D1" value="13053.235324546247" />
+      <entry key="W1" value="17073.943049516536" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -143,7 +171,7 @@
     &quot;npm.Next.js: server-side.executor&quot;: &quot;Run&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMThirdPartyAiProvidersConfigurable&quot;,
     &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2026.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\leona.DESKTOP-10QNDAN\\Desktop\\zyraos\\node_modules\\typescript\\lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -224,6 +252,11 @@
       <workItem from="1781037385077" duration="2528000" />
       <workItem from="1781110994696" duration="4268000" />
       <workItem from="1781192874986" duration="616000" />
+      <workItem from="1781251110760" duration="7223000" />
+      <workItem from="1781453966914" duration="1949000" />
+      <workItem from="1781456111880" duration="521000" />
+      <workItem from="1781469620644" duration="4990000" />
+      <workItem from="1781944340439" duration="5000" />
     </task>
     <servers />
   </component>

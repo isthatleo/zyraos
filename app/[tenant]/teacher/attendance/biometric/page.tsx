@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -233,7 +235,7 @@ export default function BiometricHubPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("attendance/biometric"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setBiometricRecords(data.biometricRecords || [])
@@ -304,7 +306,7 @@ export default function BiometricHubPage() {
   const syncBiometricDevices = async () => {
     try {
       setIsSyncing(true)
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("attendance/biometric"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -329,7 +331,7 @@ export default function BiometricHubPage() {
     if (!editingRecord || !tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("attendance/biometric"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

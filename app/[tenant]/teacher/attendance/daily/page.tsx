@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -128,7 +130,7 @@ export default function DailyAttendanceTrackingPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("attendance/daily"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
 
@@ -210,7 +212,7 @@ export default function DailyAttendanceTrackingPage() {
 
     setSaving(true)
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("attendance/daily"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

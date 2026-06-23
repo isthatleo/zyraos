@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -183,7 +185,7 @@ export default function AttendancePage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("attendance"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setAttendanceRecords(data.attendance || [])
@@ -247,7 +249,7 @@ export default function AttendancePage() {
     if (!editingRecord || !tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("attendance"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

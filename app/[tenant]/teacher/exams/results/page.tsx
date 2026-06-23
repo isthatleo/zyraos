@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
 import {
   AlertCircle,
   BarChart3,
@@ -226,7 +227,7 @@ export default function ResultsPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("exams/results"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setResults(data.results || data.assessments || [])

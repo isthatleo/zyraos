@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
@@ -286,7 +288,7 @@ export default function ClassInsightsPage() {
   const endpoint = React.useCallback(() => {
     const hostTenant = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : ""
     const tenant = tenantPrefix ? tenantPrefix.slice(1) : hostTenant && !["localhost", "127", "www"].includes(hostTenant) ? hostTenant : ""
-    return tenant ? `/api/tenant/teacher/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/teacher/dashboard"
+    return teacherDashboardApi("class-insights")
   }, [tenantPrefix])
 
   const loadResources = React.useCallback(async (notify = false) => {
@@ -368,7 +370,7 @@ export default function ClassInsightsPage() {
             <div className="max-w-4xl space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-background/80"><GraduationCap className="mr-1 size-3.5" />Teacher workspace</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.school.name}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.school?.name}</Badge>
                 <Badge variant="outline" className="bg-background/80">Class Insights</Badge>
               </div>
               <div>
@@ -549,7 +551,7 @@ export default function ClassInsightsPage() {
                   <SelectItem value="high">High risk</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={() => downloadFile(`${payload?.school.slug || "teacher"}-learner-insights.csv`, toCsv(filteredLearners.map((l) => ({
+               <Button variant="outline" onClick={() => downloadFile(`${payload?.school?.slug || "teacher"}-learner-insights.csv`, toCsv(filteredLearners.map((l) => ({
                 name: l.name,
                 class: l.className,
                 admission: l.admissionNumber,

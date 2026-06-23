@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -238,7 +240,7 @@ export default function TeacherDashboardPage() {
   const endpoint = React.useCallback(() => {
     const hostTenant = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : ""
     const tenant = tenantPrefix ? tenantPrefix.slice(1) : hostTenant && !["localhost", "127", "www"].includes(hostTenant) ? hostTenant : ""
-    return tenant ? `/api/tenant/teacher/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/teacher/dashboard"
+    return teacherDashboardApi()
   }, [tenantPrefix])
 
   const loadDashboard = React.useCallback(async (notify = false) => {
@@ -344,7 +346,7 @@ export default function TeacherDashboardPage() {
 
   const exportDashboard = () => {
     if (!payload) return
-    downloadFile(`${payload.school.slug}-teacher-dashboard.json`, JSON.stringify(payload, null, 2), "application/json")
+    downloadFile(`${payload?.school?.slug}-teacher-dashboard.json`, JSON.stringify(payload, null, 2), "application/json")
   }
 
   if (loading) return <DashboardSkeleton />
@@ -374,13 +376,13 @@ export default function TeacherDashboardPage() {
             <div className="max-w-4xl space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-background/80"><GraduationCap className="mr-1 size-3.5" />Teacher workspace</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.school.name}</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.currentUser.position || "Teacher / Lecturer"}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.school?.name}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.currentUser?.position || "Teacher / Lecturer"}</Badge>
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Teacher Dashboard</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Welcome {payload?.currentUser.name}. Manage classes, lessons, attendance, assessments, gradebook activity, and school communication from one tenant-aware command center.
+                  Welcome {payload?.currentUser?.name}. Manage classes, lessons, attendance, assessments, gradebook activity, and school communication from one tenant-aware command center.
                 </p>
               </div>
               <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
@@ -407,13 +409,13 @@ export default function TeacherDashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Classes", value: payload?.metrics.classes || 0, helper: `${payload?.metrics.students || 0} learners`, icon: Users },
-          { label: "Average Score", value: `${payload?.metrics.averageScore || 0}%`, helper: "Current gradebook average", icon: BarChart3 },
-          { label: "Pending Grading", value: payload?.metrics.pendingGrading || 0, helper: "Submissions needing marks", icon: ClipboardCheck },
-          { label: "Lessons Today", value: payload?.metrics.lessonsToday || 0, helper: `${payload?.metrics.timetableEntries || 0} timetable entries`, icon: CalendarCheck },
-          { label: "Subjects", value: payload?.metrics.subjects || 0, helper: "Mapped to assigned teaching load", icon: BookOpen },
-          { label: "Attendance", value: `${payload?.metrics.attendanceRate || 0}%`, helper: "Assigned learners only", icon: ShieldCheck },
-          { label: "Upcoming Exams", value: payload?.metrics.upcomingExams || 0, helper: "For assigned classes", icon: FileText },
+          { label: "Classes", value: payload?.metrics?.classes || 0, helper: `${payload?.metrics?.students || 0} learners`, icon: Users },
+          { label: "Average Score", value: `${payload?.metrics?.averageScore || 0}%`, helper: "Current gradebook average", icon: BarChart3 },
+          { label: "Pending Grading", value: payload?.metrics?.pendingGrading || 0, helper: "Submissions needing marks", icon: ClipboardCheck },
+          { label: "Lessons Today", value: payload?.metrics?.lessonsToday || 0, helper: `${payload?.metrics?.timetableEntries || 0} timetable entries`, icon: CalendarCheck },
+          { label: "Subjects", value: payload?.metrics?.subjects || 0, helper: "Mapped to assigned teaching load", icon: BookOpen },
+          { label: "Attendance", value: `${payload?.metrics?.attendanceRate || 0}%`, helper: "Assigned learners only", icon: ShieldCheck },
+          { label: "Upcoming Exams", value: payload?.metrics?.upcomingExams || 0, helper: "For assigned classes", icon: FileText },
           { label: "At-Risk Learners", value: coverage.belowTarget, helper: "Needs teacher follow-up", icon: TrendingUp },
         ].map((card) => {
           const Icon = card.icon

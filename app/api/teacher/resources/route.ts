@@ -123,10 +123,11 @@ async function readResourceCollection(db: QueryableDb, teacherId: string) {
     favorites: arrayValue(value.favorites).map(String),
     shared: arrayValue(value.shared).map(String),
     archived: arrayValue(value.archived).map(String),
+    created: arrayValue(value.created).map((item) => objectValue(item)),
   }
 }
 
-async function writeResourceCollection(db: QueryableDb, teacherId: string, collection: { favorites: string[]; shared: string[]; archived: string[] }) {
+async function writeResourceCollection(db: QueryableDb, teacherId: string, collection: { favorites: string[]; shared: string[]; archived: string[]; created: Row[] }) {
   await db.execute(sql`
     insert into system_settings (id, key, value, category, description, created_at, updated_at)
     values (${crypto.randomUUID()}, ${`teacher_resources:${teacherId}`}, ${JSON.stringify(collection)}::jsonb, 'teachers', ${`Teacher resource collection ${teacherId}`}, now(), now())
@@ -278,6 +279,30 @@ async function buildPayload(request: NextRequest, currentUser: { id: string; nam
       createdAt: iso(row.created_at),
       updatedAt: iso(row.updated_at),
     })),
+    ...collection.created.map((row) => ({
+      id: text(row.id),
+      title: text(row.title, "Resource"),
+      description: text(row.description),
+      kind: text(row.kind, "document"),
+      category: text(row.category, "Teacher-created"),
+      url: text(row.url),
+      size: text(row.size, "Teacher-created"),
+      fileSize: numberValue(row.fileSize, 0),
+      sourceType: "teacher-created",
+      sourceId: text(row.id),
+      subjectId: text(row.subjectId),
+      subject: text(row.subject, "General"),
+      subjectCode: text(row.subjectCode),
+      classId: text(row.classId),
+      className: text(row.className, "All classes"),
+      isPublic: row.isPublic === true,
+      viewCount: numberValue(row.viewCount, 0),
+      downloadCount: numberValue(row.downloadCount, 0),
+      tags: arrayValue(row.tags).map(String),
+      metadata: objectValue(row.metadata),
+      createdAt: iso(row.createdAt),
+      updatedAt: iso(row.updatedAt),
+    })),
   ]
 
   const enrichedResources = resources.map((resource) => ({
@@ -343,6 +368,39 @@ export async function POST(request: NextRequest) {
   const action = text(body.action)
   const resourceId = text(body.resourceId)
 
+  if (action === "resource.create") {
+    const collection = result.collection
+    const subject = result.payload.subjects.find((item) => item.id === text(body.subjectId) || item.name === text(body.subject))
+    const classItem = result.payload.classes.find((item) => item.id === text(body.classId) || item.name === text(body.className))
+    const resource = {
+      id: `resource_${crypto.randomUUID()}`,
+      title: text(body.title),
+      description: text(body.description),
+      kind: text(body.resourceType, "document"),
+      category: text(body.category, "Teacher-created"),
+      url: text(body.url),
+      size: "Teacher-created",
+      fileSize: 0,
+      subjectId: subject?.id || "",
+      subject: subject?.name || text(body.subject, "General"),
+      subjectCode: subject?.code || "",
+      classId: classItem?.id || "",
+      className: classItem?.name || "All classes",
+      tags: Array.isArray(body.tags) ? body.tags.map(String) : text(body.tags).split(",").map((tag) => tag.trim()).filter(Boolean),
+      isPublic: body.isPublic === true,
+      viewCount: 0,
+      downloadCount: 0,
+      metadata: { createdIn: "teacher-resources" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    if (!resource.title) return NextResponse.json({ error: "Resource title is required" }, { status: 400 })
+    collection.created = [resource, ...collection.created].slice(0, 200)
+    if (resource.isPublic && !collection.shared.includes(resource.id)) collection.shared.push(resource.id)
+    await writeResourceCollection(result.context.tenantDb, text(result.context.teacher.id), collection)
+    return NextResponse.json({ success: true, resource }, { headers: { "Cache-Control": "no-store" } })
+  }
+
   if (!resourceId || !["favorite", "unfavorite", "share", "unshare", "archive", "unarchive"].includes(action)) {
     return NextResponse.json({ error: "Unsupported resource action" }, { status: 400 })
   }
@@ -351,10 +409,11 @@ export async function POST(request: NextRequest) {
   if (!resourceExists) return NextResponse.json({ error: "Resource was not found" }, { status: 404 })
 
   const collection = result.collection
-  const add = (key: keyof typeof collection) => {
+  type ResourceListKey = "favorites" | "shared" | "archived"
+  const add = (key: ResourceListKey) => {
     if (!collection[key].includes(resourceId)) collection[key] = [...collection[key], resourceId]
   }
-  const remove = (key: keyof typeof collection) => {
+  const remove = (key: ResourceListKey) => {
     collection[key] = collection[key].filter((id) => id !== resourceId)
   }
 

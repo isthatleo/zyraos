@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
 import {
   AlertCircle,
   BarChart3,
@@ -249,7 +250,7 @@ export default function GradesPage() {
   React.useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/tenant/teacher/dashboard")
+        const res = await fetch(teacherDashboardApi("grades"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setPayload(data)

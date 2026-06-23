@@ -48,7 +48,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// Tabs UI from the design system is not used here; render a custom nav tab bar for consistent look with resources
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
@@ -371,6 +371,7 @@ function PageSkeleton() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-3xl" />)}
       </section>
+
       <Skeleton className="h-[640px] rounded-3xl" />
     </div>
   )
@@ -438,6 +439,10 @@ export default function TeacherLessonPlansPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editingId, setEditingId] = React.useState("")
   const [form, setForm] = React.useState<PlanForm>(emptyForm)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
+  const [pendingDeletePlan, setPendingDeletePlan] = React.useState<LessonPlan | null>(null)
+  const [levelDialogOpen, setLevelDialogOpen] = React.useState(false)
+  const [levelStep, setLevelStep] = React.useState(0)
   const payloadRef = React.useRef<LessonPlanPayload | null>(null)
 
   React.useEffect(() => {
@@ -566,7 +571,16 @@ export default function TeacherLessonPlansPage() {
   }
 
   const deletePlan = async (plan: LessonPlan) => {
-    if (!window.confirm(`Delete "${plan.title}"? This cannot be undone.`)) return
+    // open a non-blocking confirm dialog instead of window.confirm for better UX
+    setPendingDeletePlan(plan)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDeletePlan) return setDeleteConfirmOpen(false)
+    const plan = pendingDeletePlan
+    setDeleteConfirmOpen(false)
+    setPendingDeletePlan(null)
     await postAction({ action: "plan.delete", id: plan.id }, "Lesson plan deleted")
   }
 
@@ -626,14 +640,14 @@ export default function TeacherLessonPlansPage() {
             <div className="max-w-4xl space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-background/80"><GraduationCap className="mr-1 size-3.5" />Teacher workspace</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.school.name}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.school?.name}</Badge>
                 <Badge variant="outline" className="bg-background/80">{levelConfig.badge}</Badge>
                 <Badge variant="outline" className="bg-background/80">Real tenant API</Badge>
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{levelConfig.title}</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Plan, review, export, and track readiness for {payload?.currentUser.name}. This {levelConfig.actor} workspace adapts language and planning checks for {payload?.school.type || levelConfig.level} delivery.
+                  Plan, review, export, and track readiness for {payload?.currentUser?.name}. This {levelConfig.actor} workspace adapts language and planning checks for {payload?.school?.type || levelConfig.level} delivery.
                 </p>
               </div>
             </div>
@@ -654,12 +668,12 @@ export default function TeacherLessonPlansPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: levelConfig.planPlural[0].toUpperCase() + levelConfig.planPlural.slice(1), value: payload?.metrics.total || 0, helper: `${payload?.metrics.drafts || 0} drafts`, icon: FileText },
-          { label: "Readiness", value: `${payload?.metrics.averageReadiness || 0}%`, helper: "Average completeness", icon: ListChecks },
-          { label: "Coverage", value: `${payload?.metrics.timetableCoverage || 0}%`, helper: `${timetable.length} timetable entries`, icon: CalendarCheck },
+            { label: levelConfig.planPlural[0].toUpperCase() + levelConfig.planPlural.slice(1), value: payload?.metrics?.total || 0, helper: `${payload?.metrics?.drafts || 0} drafts`, icon: FileText },
+            { label: "Readiness", value: `${payload?.metrics?.averageReadiness || 0}%`, helper: "Average completeness", icon: ListChecks },
+            { label: "Coverage", value: `${payload?.metrics?.timetableCoverage || 0}%`, helper: `${timetable.length} timetable entries`, icon: CalendarCheck },
           { label: "Needs Attention", value: attentionPlans.length, helper: "Draft or under 70% ready", icon: AlertCircle },
-          { label: "Ready", value: payload?.metrics.ready || 0, helper: `Prepared ${levelConfig.planPlural}`, icon: CheckCircle2 },
-          { label: "In Progress", value: payload?.metrics.inProgress || 0, helper: "Currently teaching", icon: ClipboardCheck },
+            { label: "Ready", value: payload?.metrics?.ready || 0, helper: `Prepared ${levelConfig.planPlural}`, icon: CheckCircle2 },
+            { label: "In Progress", value: payload?.metrics?.inProgress || 0, helper: "Currently teaching", icon: ClipboardCheck },
           { label: "Upcoming", value: upcomingPlans.length, helper: "Scheduled active plans", icon: CalendarCheck },
           { label: levelConfig.classPlural[0].toUpperCase() + levelConfig.classPlural.slice(1), value: classes.length, helper: `${subjects.length} ${levelConfig.subjectPlural} available`, icon: GraduationCap },
         ].map((item) => {
@@ -735,7 +749,14 @@ export default function TeacherLessonPlansPage() {
               </div>
               <Progress value={Math.min(100, plans.length ? (totalActivities / plans.length) * 14 : 0)} />
             </div>
-            <Button variant="outline" className="w-full" onClick={() => setActiveTab("level")}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setLevelDialogOpen(true)
+                setLevelStep(0)
+              }}
+            >
               <LayoutTemplate className="size-4" />Open level workflow
             </Button>
           </CardContent>
@@ -744,6 +765,26 @@ export default function TeacherLessonPlansPage() {
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
+          <Card className="rounded-3xl shadow-sm">
+            <CardHeader>
+              <CardTitle>Top plans needing attention</CardTitle>
+              <CardDescription>Plans below readiness threshold or drafts. Review and update to improve readiness.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {attentionPlans.slice(0, 6).length ? attentionPlans.slice(0, 6).map((plan) => (
+                <div key={plan.id} className="grid gap-3 rounded-2xl border p-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-center">
+                  <div>
+                    <p className="font-medium line-clamp-1">{plan.title}</p>
+                    <p className="text-xs text-muted-foreground">{plan.subject} • {plan.className} • {plan.readiness}% ready</p>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(plan)}><Edit3 className="size-4" />Edit</Button>
+                    <Button size="sm" onClick={() => updateStatus(plan, plan.status === "completed" ? "ready" : "completed")}>{plan.status === "completed" ? "Reopen" : "Complete"}</Button>
+                  </div>
+                </div>
+              )) : <p className="p-4 text-sm text-muted-foreground">No plans need attention right now.</p>}
+            </CardContent>
+          </Card>
           <Card className="rounded-3xl shadow-sm">
             <CardHeader>
               <CardTitle>Planning Controls</CardTitle>
@@ -783,159 +824,252 @@ export default function TeacherLessonPlansPage() {
             </CardContent>
           </Card>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-2xl bg-muted p-2 md:grid-cols-5">
-                <TabsTrigger value="plans">Plans</TabsTrigger>
-                <TabsTrigger value="weeks">Weekly Board</TabsTrigger>
-                <TabsTrigger value="coverage">Coverage</TabsTrigger>
-                <TabsTrigger value="templates">Suggestions</TabsTrigger>
-                <TabsTrigger value="level">Level Fit</TabsTrigger>
-              </TabsList>
+          {/* Nav tabs styled like resources and classes pages: responsive, scrollable, with active state */}
+          <div className="space-y-4">
+            <div className="border-b border-muted">
+              <div className="flex gap-1 overflow-x-auto">
+                <button
+                  onClick={() => setActiveTab("plans")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "plans"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <ListChecks className="size-4" />
+                  Plans
+                  <Badge variant="secondary" className="ml-1 text-xs">{filteredPlans.length}</Badge>
+                </button>
 
-            <TabsContent value="plans" className="grid gap-4 lg:grid-cols-2">
-              {filteredPlans.map((plan) => (
-                <Card key={plan.id} className="rounded-3xl shadow-sm">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="line-clamp-2">{plan.title}</CardTitle>
-                        <CardDescription>{plan.subject} - {plan.className}</CardDescription>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Plan actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => openEditDialog(plan)}><Edit3 className="size-4" />Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => duplicatePlan(plan)}><Copy className="size-4" />Duplicate</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {(["draft", "ready", "in-progress", "completed", "archived"] as const).map((status) => (
-                            <DropdownMenuItem key={status} onClick={() => updateStatus(plan, status)}>Mark {status}</DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="destructive" onClick={() => deletePlan(plan)}><Trash2 className="size-4" />Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className={cn("border", statusTone[plan.status])}>{plan.status}</Badge>
-                      <Badge variant="outline">{formatDate(plan.date)}</Badge>
-                      <Badge variant="outline">{plan.week || "No week"}</Badge>
-                      {plan.period ? <Badge variant="outline">{plan.period}</Badge> : null}
-                    </div>
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                        <span>Readiness</span>
-                        <span>{plan.readiness}%</span>
-                      </div>
-                      <Progress value={plan.readiness} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Objectives</p><p className="text-lg font-semibold">{plan.objectives.length}</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Activities</p><p className="text-lg font-semibold">{plan.activities.length}</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Assessments</p><p className="text-lg font-semibold">{plan.assessments.length + plan.relatedAssessments.length}</p></div>
-                    </div>
-                    {plan.objectives.length ? (
-                      <ul className="space-y-1 text-sm text-muted-foreground">
-                        {plan.objectives.slice(0, 3).map((objective) => <li key={objective} className="line-clamp-1">- {objective}</li>)}
-                      </ul>
-                    ) : <p className="text-sm text-muted-foreground">No objectives added yet.</p>}
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <Button variant="outline" onClick={() => openEditDialog(plan)}><Edit3 className="size-4" />Edit</Button>
-                      <Button variant="outline" onClick={() => duplicatePlan(plan)}><Copy className="size-4" />Duplicate</Button>
-                      <Button onClick={() => updateStatus(plan, plan.status === "completed" ? "ready" : "completed")}><CheckCircle2 className="size-4" />{plan.status === "completed" ? "Reopen" : "Complete"}</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {!filteredPlans.length ? (
-                <Card className="rounded-3xl lg:col-span-2">
-                  <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-                    <LayoutTemplate className="size-10 text-muted-foreground" />
-                    <div>
-                      <p className="font-semibold">No lesson plans match this view</p>
-                      <p className="text-sm text-muted-foreground">Create a plan manually or use a timetable suggestion.</p>
-                    </div>
-                    <Button onClick={() => openCreateDialog()}><Plus className="size-4" />Create lesson plan</Button>
-                  </CardContent>
-                </Card>
-              ) : null}
-            </TabsContent>
+                <button
+                  onClick={() => setActiveTab("weeks")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "weeks"
+                      ? "border-destructive text-destructive"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CalendarCheck className="size-4" />
+                  Weekly Board
+                  <Badge variant="secondary" className="ml-1 text-xs">{weekGroups.length}</Badge>
+                </button>
 
-            <TabsContent value="weeks" className="space-y-4">
-              {weekGroups.map((week) => {
-                const weekPlans = filteredPlans.filter((plan) => (plan.week || "Unscheduled") === week)
-                return (
-                  <Card key={week} className="rounded-3xl shadow-sm">
+                <button
+                  onClick={() => setActiveTab("coverage")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "coverage"
+                      ? "border-emerald-500 text-emerald-600"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <GraduationCap className="size-4" />
+                  Coverage
+                  <Badge variant="secondary" className="ml-1 text-xs">{classCoverage.length}</Badge>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("templates")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "templates"
+                      ? "border-amber-500 text-amber-600"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="size-4" />
+                  Suggestions
+                  <Badge variant="secondary" className="ml-1 text-xs">{suggestions.length}</Badge>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("level")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "level"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <LayoutTemplate className="size-4" />
+                  Level Fit
+                  <Badge variant="secondary" className="ml-1 text-xs">{readyPlans.length}</Badge>
+                </button>
+              </div>
+            </div>
+
+            {/* Panels rendered conditionally to match previous TabsContent sections */}
+            {activeTab === "plans" && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {filteredPlans.map((plan) => (
+                  <Card key={plan.id} className="rounded-3xl shadow-sm">
                     <CardHeader>
-                      <CardTitle>{week}</CardTitle>
-                      <CardDescription>{weekPlans.length} planned lesson{weekPlans.length === 1 ? "" : "s"}</CardDescription>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="line-clamp-2">{plan.title}</CardTitle>
+                          <CardDescription>{plan.subject} - {plan.className}</CardDescription>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Plan actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDialog(plan)}><Edit3 className="size-4" />Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => duplicatePlan(plan)}><Copy className="size-4" />Duplicate</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {(["draft", "ready", "in-progress", "completed", "archived"] as const).map((status) => (
+                              <DropdownMenuItem key={status} onClick={() => updateStatus(plan, status)}>Mark {status}</DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={() => deletePlan(plan)}><Trash2 className="size-4" />Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      {weekPlans.map((plan) => (
-                        <button key={plan.id} type="button" onClick={() => openEditDialog(plan)} className="grid w-full gap-3 rounded-2xl border p-4 text-left transition-colors hover:bg-muted md:grid-cols-[minmax(0,1fr)_120px_120px] md:items-center">
-                          <div>
-                            <p className="font-medium">{plan.title}</p>
-                            <p className="text-sm text-muted-foreground">{plan.subject} - {plan.className} - {formatDate(plan.date)}</p>
-                          </div>
-                          <Badge variant="outline" className={cn("w-fit border", statusTone[plan.status])}>{plan.status}</Badge>
-                          <span className="text-sm text-muted-foreground">{plan.readiness}% ready</span>
-                        </button>
-                      ))}
+                    <CardContent className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={cn("border", statusTone[plan.status])}>{plan.status}</Badge>
+                        <Badge variant="outline">{formatDate(plan.date)}</Badge>
+                        <Badge variant="outline">{plan.week || "No week"}</Badge>
+                        {plan.period ? <Badge variant="outline">{plan.period}</Badge> : null}
+                      </div>
+                      <div>
+                        <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                          <span>Readiness</span>
+                          <span>{plan.readiness}%</span>
+                        </div>
+                        <Progress value={plan.readiness} />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Objectives</p><p className="text-lg font-semibold">{plan.objectives.length}</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Activities</p><p className="text-lg font-semibold">{plan.activities.length}</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Assessments</p><p className="text-lg font-semibold">{plan.assessments.length + plan.relatedAssessments.length}</p></div>
+                      </div>
+                      {plan.objectives.length ? (
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          {plan.objectives.slice(0, 3).map((objective) => <li key={objective} className="line-clamp-1">- {objective}</li>)}
+                        </ul>
+                      ) : <p className="text-sm text-muted-foreground">No objectives added yet.</p>}
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Button variant="outline" onClick={() => openEditDialog(plan)}><Edit3 className="size-4" />Edit</Button>
+                        <Button variant="outline" onClick={() => duplicatePlan(plan)}><Copy className="size-4" />Duplicate</Button>
+                        <Button onClick={() => updateStatus(plan, plan.status === "completed" ? "ready" : "completed")}><CheckCircle2 className="size-4" />{plan.status === "completed" ? "Reopen" : "Complete"}</Button>
+                      </div>
                     </CardContent>
                   </Card>
-                )
-              })}
-              {!weekGroups.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No weekly plan groups yet.</CardContent></Card> : null}
-            </TabsContent>
+                ))}
+                {!filteredPlans.length ? (
+                  <Card className="rounded-3xl lg:col-span-2">
+                    <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+                      <LayoutTemplate className="size-10 text-muted-foreground" />
+                      <div>
+                        <p className="font-semibold">No lesson plans match this view</p>
+                        <p className="text-sm text-muted-foreground">Create a plan manually or use a timetable suggestion.</p>
+                      </div>
+                      <Button onClick={() => openCreateDialog()}><Plus className="size-4" />Create lesson plan</Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </div>
+            )}
 
-            <TabsContent value="coverage" className="grid gap-4 lg:grid-cols-2">
-              {classCoverage.map((item) => (
-                <Card key={item.id} className="rounded-3xl shadow-sm">
+            {activeTab === "weeks" && (
+              <div className="space-y-4">
+                {weekGroups.map((week) => {
+                  const weekPlans = filteredPlans.filter((plan) => (plan.week || "Unscheduled") === week)
+                  return (
+                    <Card key={week} className="rounded-3xl shadow-sm">
+                      <CardHeader>
+                        <CardTitle>{week}</CardTitle>
+                        <CardDescription>{weekPlans.length} planned lesson{weekPlans.length === 1 ? "" : "s"}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {weekPlans.map((plan) => (
+                          <button key={plan.id} type="button" onClick={() => openEditDialog(plan)} className="grid w-full gap-3 rounded-2xl border p-4 text-left transition-colors hover:bg-muted md:grid-cols-[minmax(0,1fr)_120px_120px] md:items-center">
+                            <div>
+                              <p className="font-medium">{plan.title}</p>
+                              <p className="text-sm text-muted-foreground">{plan.subject} - {plan.className} - {formatDate(plan.date)}</p>
+                            </div>
+                            <Badge variant="outline" className={cn("w-fit border", statusTone[plan.status])}>{plan.status}</Badge>
+                            <span className="text-sm text-muted-foreground">{plan.readiness}% ready</span>
+                          </button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+                {!weekGroups.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No weekly plan groups yet.</CardContent></Card> : null}
+              </div>
+            )}
+
+            {activeTab === "coverage" && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {classCoverage.map((item) => (
+                  <Card key={item.id} className="rounded-3xl shadow-sm">
+                    <CardHeader>
+                      <CardTitle>{item.name}</CardTitle>
+                      <CardDescription>{item.students} learners - {item.timetableEntries} timetable entries</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Plans</p><p className="text-lg font-semibold">{item.plans}</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Readiness</p><p className="text-lg font-semibold">{item.readiness}%</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Timetable</p><p className="text-lg font-semibold">{item.timetableEntries}</p></div>
+                      </div>
+                      <Progress value={item.timetableEntries ? Math.min(100, (item.plans / item.timetableEntries) * 100) : item.plans ? 100 : 0} />
+                      <Button variant="outline" onClick={() => { setSelectedClassId(item.id); setActiveTab("plans") }}>Open class plans</Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "templates" && (
+              <div className="space-y-3">
+                {suggestions.map((suggestion) => (
+                  <Card key={suggestion.id} className="rounded-3xl shadow-sm">
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_180px_160px] md:items-center">
+                      <div>
+                        <p className="font-semibold">{suggestion.title}</p>
+                        <p className="text-sm text-muted-foreground">{suggestion.day} - {suggestion.startTime || "TBA"} to {suggestion.endTime || "TBA"} - Room {suggestion.room || "TBA"}</p>
+                      </div>
+                      <Badge variant="outline" className="w-fit">{suggestion.week}</Badge>
+                      <Button onClick={() => openCreateDialog({
+                        title: suggestion.title,
+                        classId: suggestion.classId,
+                        subjectId: suggestion.subjectId,
+                        week: suggestion.week,
+                        period: suggestion.period || `${suggestion.day} ${suggestion.startTime}`,
+                      })}>
+                        <Sparkles className="size-4" />Use suggestion
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {!suggestions.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No timetable suggestions available. Published timetable entries will appear here.</CardContent></Card> : null}
+              </div>
+            )}
+
+            {activeTab === "level" && (
+              <div className="space-y-4">
+                <Card className="rounded-3xl">
                   <CardHeader>
-                    <CardTitle>{item.name}</CardTitle>
-                    <CardDescription>{item.students} learners - {item.timetableEntries} timetable entries</CardDescription>
+                    <CardTitle>Level Workflow Fit</CardTitle>
+                    <CardDescription>{levelConfig.title} workflow and evidence checks</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Plans</p><p className="text-lg font-semibold">{item.plans}</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Readiness</p><p className="text-lg font-semibold">{item.readiness}%</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Timetable</p><p className="text-lg font-semibold">{item.timetableEntries}</p></div>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">This view surfaces level-specific guidance and readiness checks. Use the button below to open the level workflow.</p>
+                    <div className="mt-4">
+                      <Button variant="outline" onClick={() => setActiveTab("level")}><LayoutTemplate className="size-4" />Open level workflow</Button>
                     </div>
-                    <Progress value={item.timetableEntries ? Math.min(100, (item.plans / item.timetableEntries) * 100) : item.plans ? 100 : 0} />
-                    <Button variant="outline" onClick={() => { setSelectedClassId(item.id); setActiveTab("plans") }}>Open class plans</Button>
                   </CardContent>
                 </Card>
-              ))}
-            </TabsContent>
-
-            <TabsContent value="templates" className="space-y-3">
-              {suggestions.map((suggestion) => (
-                <Card key={suggestion.id} className="rounded-3xl shadow-sm">
-                  <CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_180px_160px] md:items-center">
-                    <div>
-                      <p className="font-semibold">{suggestion.title}</p>
-                      <p className="text-sm text-muted-foreground">{suggestion.day} - {suggestion.startTime || "TBA"} to {suggestion.endTime || "TBA"} - Room {suggestion.room || "TBA"}</p>
-                    </div>
-                    <Badge variant="outline" className="w-fit">{suggestion.week}</Badge>
-                    <Button onClick={() => openCreateDialog({
-                      title: suggestion.title,
-                      classId: suggestion.classId,
-                      subjectId: suggestion.subjectId,
-                      week: suggestion.week,
-                      period: suggestion.period || `${suggestion.day} ${suggestion.startTime}`,
-                    })}>
-                      <Sparkles className="size-4" />Use suggestion
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-              {!suggestions.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No timetable suggestions available. Published timetable entries will appear here.</CardContent></Card> : null}
-            </TabsContent>
-          </Tabs>
+              </div>
+            )}
+          </div>
         </div>
 
         <aside className="space-y-6">
@@ -1042,6 +1176,97 @@ export default function TeacherLessonPlansPage() {
             <Button onClick={savePlan} disabled={acting || !form.title || !form.classId || !form.subjectId}>
               {acting ? "Saving..." : editingId ? "Update lesson plan" : "Create lesson plan"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Level workflow dialog: step-through guidance and quick actions */}
+      <Dialog open={levelDialogOpen} onOpenChange={setLevelDialogOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{levelConfig.title} workflow</DialogTitle>
+            <DialogDescription>Step-by-step guidance for planning at this level. Use the arrows to move through the recommended workflow and see suggested evidence types.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              {levelConfig.workflow.map((step, idx) => (
+                <div
+                  key={step}
+                  className={cn(
+                    "rounded-2xl border p-3",
+                    idx === levelStep ? "border-primary bg-primary/5" : ""
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Step {idx + 1}</p>
+                      <p className="font-medium">{step}</p>
+                    </div>
+                    {idx === levelStep ? <Badge variant="outline">Current</Badge> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold">Suggested evidence types</h3>
+              <div className="mt-2 grid gap-2">
+                {levelConfig.evidenceTypes.map((e) => (
+                  <div key={e} className="rounded-2xl border p-2 text-sm flex items-center justify-between">
+                    <span>{e}</span>
+                    <Button size="sm" variant="ghost" onClick={() => openCreateDialog({ assessments: e })}>Add</Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold">Planning focus</h3>
+              <div className="mt-2 grid gap-2">
+                {levelConfig.planningFocus.map((f) => (
+                  <div key={f} className="rounded-2xl border p-2 text-sm">{f}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <div className="flex items-center justify-between w-full gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setLevelStep((s) => Math.max(0, s - 1))}
+                  disabled={levelStep === 0}
+                >
+                  Previous
+                </Button>
+                <Button
+                  onClick={() => setLevelStep((s) => Math.min(levelConfig.workflow.length - 1, s + 1))}
+                  disabled={levelStep >= levelConfig.workflow.length - 1}
+                >
+                  Next
+                </Button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setLevelDialogOpen(false)}>Close</Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete lesson plan</DialogTitle>
+            <DialogDescription>Are you sure you want to delete this lesson plan? This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground">{pendingDeletePlan ? pendingDeletePlan.title : ""}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

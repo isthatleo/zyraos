@@ -1,3 +1,11 @@
-import TenantProfilePage from "../../profile/page";
+import { redirect } from "next/navigation"
 
-export default TenantProfilePage;
+export default async function TeacherProfileRedirect({
+  params,
+}: {
+  params: Promise<{ tenant: string }>
+}) {
+  const { tenant } = await params
+  redirect(`/${encodeURIComponent(tenant)}/profile?from=teacher`)
+}
+

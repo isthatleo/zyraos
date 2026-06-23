@@ -1,5 +1,7 @@
 "use client"
 
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
+
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
@@ -38,7 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// Tabs UI from the design system is not used here; we'll render a custom nav tab bar
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -215,7 +217,9 @@ export default function TeacherClassesPage() {
   const endpoint = React.useCallback(() => {
     const hostTenant = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : ""
     const tenant = tenantPrefix ? tenantPrefix.slice(1) : hostTenant && !["localhost", "127", "www"].includes(hostTenant) ? hostTenant : ""
-    return tenant ? `/api/tenant/teacher/dashboard?tenant=${encodeURIComponent(tenant)}` : "/api/teacher/dashboard"
+    // The dashboard API returns the full teacher payload (classes, learners, metrics, etc.)
+    // Use the dashboard endpoint rather than an unimplemented /api/teacher/classes route.
+    return teacherDashboardApi("dashboard")
   }, [tenantPrefix])
 
   const load = React.useCallback(async (notify = false) => {
@@ -226,7 +230,8 @@ export default function TeacherClassesPage() {
       const data = await fetchTeacherJson(endpoint())
       setPayload(data)
       const requestedClass = requestedClassId
-      if (requestedClass && data.classes.some((item) => item.id === requestedClass)) {
+      // guard in case the payload shape is incomplete
+      if (requestedClass && Array.isArray(data.classes) && data.classes.some((item) => item.id === requestedClass)) {
         setSelectedClassId(requestedClass)
       }
       if (notify) toast.success("Assigned classes refreshed")
@@ -346,7 +351,7 @@ export default function TeacherClassesPage() {
       toast.error("No learners available to export")
       return
     }
-    downloadFile(`${payload?.school.slug || "teacher"}-${classId || "assigned"}-roster.csv`, toCsv(rows), "text/csv")
+    downloadFile(`${payload?.school?.slug ?? "teacher"}-${classId || "assigned"}-roster.csv`, toCsv(rows), "text/csv")
     toast.success("Roster export started")
   }
 
@@ -380,13 +385,13 @@ export default function TeacherClassesPage() {
             <div className="max-w-4xl space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-background/80"><GraduationCap className="mr-1 size-3.5" />Teacher workspace</Badge>
-                <Badge variant="outline" className="bg-background/80">{payload?.school.name}</Badge>
+                <Badge variant="outline" className="bg-background/80">{payload?.school?.name}</Badge>
                 <Badge variant="outline" className="bg-background/80">Assigned scope only</Badge>
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">My Classes</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Manage the classes, learners, timetable records, assessments, and class notes assigned to {payload?.currentUser.name}.
+                  Manage the classes, learners, timetable records, assessments, and class notes assigned to {payload?.currentUser?.name}.
                 </p>
               </div>
             </div>
@@ -407,10 +412,10 @@ export default function TeacherClassesPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Assigned Classes", value: payload?.metrics.classes || 0, helper: `${payload?.metrics.students || 0} learners`, icon: Users },
-          { label: "Average Score", value: `${payload?.metrics.averageScore || 0}%`, helper: "Across teacher gradebook", icon: BarChart3 },
-          { label: "Attendance", value: `${payload?.metrics.attendanceRate || 0}%`, helper: "Assigned learners only", icon: CalendarCheck },
-          { label: "Pending Grading", value: payload?.metrics.pendingGrading || 0, helper: `${payload?.metrics.assessments || 0} assessments`, icon: ClipboardCheck },
+          { label: "Assigned Classes", value: payload?.metrics?.classes ?? 0, helper: `${payload?.metrics?.students ?? 0} learners`, icon: Users },
+          { label: "Average Score", value: `${payload?.metrics?.averageScore ?? 0}%`, helper: "Across teacher gradebook", icon: BarChart3 },
+          { label: "Attendance", value: `${payload?.metrics?.attendanceRate ?? 0}%`, helper: "Assigned learners only", icon: CalendarCheck },
+          { label: "Pending Grading", value: payload?.metrics?.pendingGrading ?? 0, helper: `${payload?.metrics?.assessments ?? 0} assessments`, icon: ClipboardCheck },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -453,69 +458,126 @@ export default function TeacherClassesPage() {
             </CardContent>
           </Card>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-2xl bg-muted p-2 md:grid-cols-4">
-              <TabsTrigger value="classes">Classes</TabsTrigger>
-              <TabsTrigger value="learners">Learners</TabsTrigger>
-              <TabsTrigger value="assessments">Assessments</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule</TabsTrigger>
-            </TabsList>
+          {/* Nav tabs styled like resources page: responsive, scrollable, with active state */}
+          <div className="space-y-4">
+            <div className="border-b border-muted">
+              <div className="flex gap-1 overflow-x-auto">
+                <button
+                  onClick={() => setActiveTab("classes")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "classes"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Users className="size-4" />
+                  Classes
+                  <Badge variant="secondary" className="ml-1 text-xs">{filteredClasses.length}</Badge>
+                </button>
 
-            <TabsContent value="classes" className="grid gap-4 lg:grid-cols-2">
-              {filteredClasses.map((item) => (
-                <Card key={item.id} className="rounded-3xl shadow-sm">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
+                <button
+                  onClick={() => setActiveTab("learners")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "learners"
+                      ? "border-destructive text-destructive"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Users className="size-4" />
+                  Learners
+                  <Badge variant="secondary" className="ml-1 text-xs">{filteredLearners.length}</Badge>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("assessments")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "assessments"
+                      ? "border-emerald-500 text-emerald-600"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <ClipboardCheck className="size-4" />
+                  Assessments
+                  <Badge variant="secondary" className="ml-1 text-xs">{filteredAssessments.length}</Badge>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("schedule")}
+                  className={cn(
+                    "flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all",
+                    activeTab === "schedule"
+                      ? "border-amber-500 text-amber-600"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CalendarCheck className="size-4" />
+                  Schedule
+                  <Badge variant="secondary" className="ml-1 text-xs">{filteredLessons.length}</Badge>
+                </button>
+              </div>
+            </div>
+
+            {/* Tab panels (previously TabsContent) rendered conditionally */}
+            {activeTab === "classes" && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {filteredClasses.map((item) => (
+                  <Card key={item.id} className="rounded-3xl shadow-sm">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <CardTitle>{item.name}</CardTitle>
+                          <CardDescription>{item.academicYear || "Academic year not assigned"}</CardDescription>
+                        </div>
+                        <Badge className={cn("border", item.risk >= 40 ? riskTone.high : item.risk >= 20 ? riskTone.medium : riskTone.low)} variant="outline">
+                          Risk {item.risk}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-4">
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Learners</p><p className="text-lg font-semibold">{item.students}</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Score</p><p className="text-lg font-semibold">{item.averageScore}%</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Attendance</p><p className="text-lg font-semibold">{item.attendanceRate}%</p></div>
+                        <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Lessons</p><p className="text-lg font-semibold">{item.timetableEntries}</p></div>
+                      </div>
                       <div>
-                        <CardTitle>{item.name}</CardTitle>
-                        <CardDescription>{item.academicYear || "Academic year not assigned"}</CardDescription>
+                        <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                          <span>Capacity</span>
+                          <span>{item.capacity ? `${item.students}/${item.capacity}` : `${item.students} learners`}</span>
+                        </div>
+                        <Progress value={item.capacity ? Math.min(100, (item.students / item.capacity) * 100) : 100} />
                       </div>
-                      <Badge className={cn("border", item.risk >= 40 ? riskTone.high : item.risk >= 20 ? riskTone.medium : riskTone.low)} variant="outline">
-                        Risk {item.risk}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Learners</p><p className="text-lg font-semibold">{item.students}</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Score</p><p className="text-lg font-semibold">{item.averageScore}%</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Attendance</p><p className="text-lg font-semibold">{item.attendanceRate}%</p></div>
-                      <div className="rounded-2xl border p-3"><p className="text-xs text-muted-foreground">Lessons</p><p className="text-lg font-semibold">{item.timetableEntries}</p></div>
-                    </div>
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                        <span>Capacity</span>
-                        <span>{item.capacity ? `${item.students}/${item.capacity}` : `${item.students} learners`}</span>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/classes/${encodeURIComponent(item.id)}`))}>
+                          <Users className="size-4" />Roster
+                        </Button>
+                        <Button variant="outline" onClick={() => messageClass(item.id)}>
+                          <MessageSquare className="size-4" />Message
+                        </Button>
+                        <Button onClick={() => openAssessmentDialog(item.id)}>
+                          <Plus className="size-4" />Assessment
+                        </Button>
+                        <Button variant="outline" onClick={() => openNoteDialog(item.id)}>
+                          <FileText className="size-4" />Note
+                        </Button>
+                        <Button variant="outline" onClick={() => exportRoster(item.id)}>
+                          <Download className="size-4" />Export
+                        </Button>
+                        <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/attendance?classId=${encodeURIComponent(item.id)}`))}>
+                          <CalendarCheck className="size-4" />Attendance
+                        </Button>
                       </div>
-                      <Progress value={item.capacity ? Math.min(100, (item.students / item.capacity) * 100) : 100} />
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/classes/${encodeURIComponent(item.id)}`))}>
-                        <Users className="size-4" />Roster
-                      </Button>
-                      <Button variant="outline" onClick={() => messageClass(item.id)}>
-                        <MessageSquare className="size-4" />Message
-                      </Button>
-                      <Button onClick={() => openAssessmentDialog(item.id)}>
-                        <Plus className="size-4" />Assessment
-                      </Button>
-                      <Button variant="outline" onClick={() => openNoteDialog(item.id)}>
-                        <FileText className="size-4" />Note
-                      </Button>
-                      <Button variant="outline" onClick={() => exportRoster(item.id)}>
-                        <Download className="size-4" />Export
-                      </Button>
-                      <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/attendance?classId=${encodeURIComponent(item.id)}`))}>
-                        <CalendarCheck className="size-4" />Attendance
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {!filteredClasses.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No assigned classes match this filter.</CardContent></Card> : null}
-            </TabsContent>
+                    </CardContent>
+                  </Card>
+                ))}
+                {!filteredClasses.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No assigned classes match this filter.</CardContent></Card> : null}
+              </div>
+            )}
 
-            <TabsContent value="learners">
+            {activeTab === "learners" && (
               <Card className="rounded-3xl shadow-sm">
                 <CardHeader>
                   <CardTitle>Assigned Learners</CardTitle>
@@ -561,44 +623,48 @@ export default function TeacherClassesPage() {
                   {!filteredLearners.length ? <p className="py-8 text-center text-sm text-muted-foreground">No learners found for this filter.</p> : null}
                 </CardContent>
               </Card>
-            </TabsContent>
+            )}
 
-            <TabsContent value="assessments" className="space-y-3">
-              {filteredAssessments.map((assessment) => (
-                <Card key={assessment.id} className="rounded-3xl shadow-sm">
-                  <CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_220px_140px] lg:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{assessment.name}</p>
-                        <Badge variant="outline">{assessment.type}</Badge>
-                        <Badge variant={assessment.status === "published" ? "default" : "secondary"}>{assessment.status}</Badge>
+            {activeTab === "assessments" && (
+              <div className="space-y-3">
+                {filteredAssessments.map((assessment) => (
+                  <Card key={assessment.id} className="rounded-3xl shadow-sm">
+                    <CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_220px_140px] lg:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold">{assessment.name}</p>
+                          <Badge variant="outline">{assessment.type}</Badge>
+                          <Badge variant={assessment.status === "published" ? "default" : "secondary"}>{assessment.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{assessment.subject || "Subject"} - {assessment.className} - Due {formatDate(assessment.dueDate)}</p>
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{assessment.subject || "Subject"} - {assessment.className} - Due {formatDate(assessment.dueDate)}</p>
-                    </div>
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Grading</span><span>{assessment.gradingProgress}%</span></div>
-                      <Progress value={assessment.gradingProgress} />
-                    </div>
-                    <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/assignments?assessmentId=${encodeURIComponent(assessment.id)}`))}>
-                      Open
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-              {!filteredAssessments.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No assessments found for this filter.</CardContent></Card> : null}
-            </TabsContent>
+                      <div>
+                        <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Grading</span><span>{assessment.gradingProgress}%</span></div>
+                        <Progress value={assessment.gradingProgress} />
+                      </div>
+                      <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/assignments?assessmentId=${encodeURIComponent(assessment.id)}`))}>
+                        Open
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {!filteredAssessments.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No assessments found for this filter.</CardContent></Card> : null}
+              </div>
+            )}
 
-            <TabsContent value="schedule" className="space-y-3">
-              {filteredLessons.map((lesson) => (
-                <div key={lesson.id} className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[120px_minmax(0,1fr)_150px] md:items-center">
-                  <div><p className="font-semibold">{lesson.day}</p><p className="text-sm text-muted-foreground">{lesson.startTime || "TBA"} - {lesson.endTime || "TBA"}</p></div>
-                  <div><p className="font-medium">{lesson.subject}</p><p className="text-sm text-muted-foreground">{lesson.className} - Room {lesson.room || "TBA"}</p></div>
-                  <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/attendance?classId=${encodeURIComponent(lesson.classId)}`))}>Attendance</Button>
-                </div>
-              ))}
-              {!filteredLessons.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No timetable entries found for this filter.</CardContent></Card> : null}
-            </TabsContent>
-          </Tabs>
+            {activeTab === "schedule" && (
+              <div className="space-y-3">
+                {filteredLessons.map((lesson) => (
+                  <div key={lesson.id} className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-[120px_minmax(0,1fr)_150px] md:items-center">
+                    <div><p className="font-semibold">{lesson.day}</p><p className="text-sm text-muted-foreground">{lesson.startTime || "TBA"} - {lesson.endTime || "TBA"}</p></div>
+                    <div><p className="font-medium">{lesson.subject}</p><p className="text-sm text-muted-foreground">{lesson.className} - Room {lesson.room || "TBA"}</p></div>
+                    <Button variant="outline" onClick={() => router.push(teacherHref(`/teacher/attendance?classId=${encodeURIComponent(lesson.classId)}`))}>Attendance</Button>
+                  </div>
+                ))}
+                {!filteredLessons.length ? <Card className="rounded-3xl"><CardContent className="p-6 text-sm text-muted-foreground">No timetable entries found for this filter.</CardContent></Card> : null}
+              </div>
+            )}
+          </div>
         </div>
 
         <aside className="space-y-6">

@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
@@ -20,7 +21,7 @@ export default function PromotionPage() {
 
   const handlePromote = (studentId: string) => {
     console.log('Promoting student:', studentId);
-    alert('Student promoted successfully!');
+    toast.success('Student promoted successfully!');
   };
 
   return (

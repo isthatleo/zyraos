@@ -207,9 +207,9 @@ const teacherSections: NavSection[] = [
         children: [
           { name: "My Classes", href: "/teacher/classes", icon: Users },
           { name: "Lesson Plans", href: "/teacher/lesson-plans", icon: ClipboardList },
-          { name: "Learning Content", href: "/teacher/learning-content", icon: BookOpen },
+          { name: "Learning Content", href: "/teacher/resources", icon: BookOpen },
           { name: "Class Insights", href: "/teacher/class-insights", icon: BarChart3 },
-          { name: "My Schedule", href: "/teacher/schedule", icon: CalendarCheck },
+          { name: "My Schedule", href: "/teacher/my-schedule", icon: CalendarCheck },
         ],
       },
       {
@@ -218,19 +218,20 @@ const teacherSections: NavSection[] = [
         icon: ClipboardCheck,
         children: [
           { name: "Assignments", href: "/teacher/assignments", icon: ClipboardList },
-          { name: "Grading Hub", href: "/teacher/grading-hub", icon: BarChart3 },
+          { name: "Grading Hub", href: "/teacher/grades", icon: BarChart3 },
         ],
       },
       { name: "Messages", href: "/teacher/messages", icon: MessageSquare },
-      { name: "My Profile", href: "/teacher/profile", icon: Users },
+      { name: "My Profile", href: "/profile?from=teacher", icon: Users },
+      { name: "Settings", href: "/settings?from=teacher", icon: Settings },
       {
         name: "Attendance",
         href: "/teacher/attendance",
         icon: CalendarCheck,
         children: [
-          { name: "Mark Attendance", href: "/teacher/attendance/mark", icon: CalendarCheck },
-          { name: "Daily Tracking", href: "/teacher/attendance/daily-tracking", icon: Activity },
-          { name: "Biometric Hub", href: "/teacher/attendance/biometric-hub", icon: Shield },
+          { name: "Mark Attendance", href: "/teacher/attendance", icon: CalendarCheck },
+          { name: "Daily Tracking", href: "/teacher/attendance/daily", icon: Activity },
+          { name: "Biometric Hub", href: "/teacher/attendance/biometric", icon: Shield },
           { name: "Alerts", href: "/teacher/attendance/alerts", icon: Bell },
         ],
       },

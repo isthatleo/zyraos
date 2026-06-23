@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
 import {
   AlertCircle,
   AlertTriangle,
@@ -223,7 +224,7 @@ export default function AlertsPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("attendance/alerts"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setAlerts(data.alerts || [])
@@ -294,7 +295,7 @@ export default function AlertsPage() {
     if (!editingAlert || !tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("attendance/alerts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

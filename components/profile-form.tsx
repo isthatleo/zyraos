@@ -130,19 +130,20 @@ function formatRole(role?: string | null) {
 function getProfilePath() {
   if (typeof window === "undefined") return "/profile"
   const parts = window.location.pathname.split("/").filter(Boolean)
+  const from = new URLSearchParams(window.location.search).get("from") || parts[1] || ""
+  const suffix = from ? `?from=${encodeURIComponent(from)}` : ""
   if (parts[0] === "master") return "/master/profile"
-  if (parts[1] === "owner") return `/${parts[0]}/owner/profile`
-  if (parts.length > 1) return `/${parts[0]}/${parts[1]}/profile`
+  if (parts.length > 1) return `/${parts[0]}/profile${suffix}`
   return "/profile"
 }
 
 function getSettingsPath() {
   if (typeof window === "undefined") return "/settings"
   const parts = window.location.pathname.split("/").filter(Boolean)
+  const from = new URLSearchParams(window.location.search).get("from") || parts[1] || ""
+  const suffix = from ? `?from=${encodeURIComponent(from)}` : ""
   if (parts[0] === "master") return "/master/user-settings"
-  if (parts[1] === "owner") return `/${parts[0]}/owner/user-settings`
-  if (parts[1] === "admin") return `/${parts[0]}/admin/user-settings`
-  if (parts.length > 1) return `/${parts[0]}/${parts[1]}/settings`
+  if (parts.length > 1) return `/${parts[0]}/settings${suffix}`
   return "/settings"
 }
 

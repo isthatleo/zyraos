@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
 import {
   AlertCircle,
   BarChart3,
@@ -249,7 +250,7 @@ export default function AssessmentPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("exams/assessment"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setAssessments(data.assessments || [])
@@ -327,7 +328,7 @@ export default function AssessmentPage() {
     if (!editingAssessment || !tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("exams/assessment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -357,7 +358,7 @@ export default function AssessmentPage() {
     }
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("exams/assessment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -389,7 +390,7 @@ export default function AssessmentPage() {
     }
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("exams/assessment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -415,7 +416,7 @@ export default function AssessmentPage() {
     if (!tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("exams/assessment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -439,7 +440,7 @@ export default function AssessmentPage() {
     if (!tenant) return
 
     try {
-      const res = await fetch(`/api/teacher/dashboard`, {
+      const res = await fetch(teacherDashboardApi("exams/assessment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -574,12 +575,6 @@ export default function AssessmentPage() {
                 <p className="mt-1 text-xs text-muted-foreground dark:text-slate-500">{helper}</p>
               </div>
               <div className={cn("rounded-2xl p-3", color)}>
-                <Icon className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
                 <Icon className="size-5" />
               </div>
             </CardContent>

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { teacherDashboardApi } from "@/lib/teacher-api-client"
 import {
   AlertCircle,
   BarChart3,
@@ -184,7 +185,7 @@ export default function MySchedulePage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/teacher/dashboard`)
+        const res = await fetch(teacherDashboardApi("my-schedule"))
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
         setLessons(data.timetable || [])

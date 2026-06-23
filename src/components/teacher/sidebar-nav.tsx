@@ -16,6 +16,7 @@ import {
   ClipboardList,
   MessageSquare,
   User,
+  Settings,
   LogOut,
   ChevronDown,
 } from 'lucide-react';
@@ -50,18 +51,18 @@ export function TeacherSidebarNav() {
           children: [
             { label: 'My Classes', href: '/teacher/classes' },
             { label: 'Lesson Plans', href: '/teacher/lesson-plans' },
-            { label: 'Learning Content', href: '/teacher/learning-content' },
+            { label: 'Learning Content', href: '/teacher/resources' },
             { label: 'Class Insights', href: '/teacher/class-insights' },
           ],
         },
         {
           label: 'My Schedule',
-          href: '/teacher/schedule',
+          href: '/teacher/my-schedule',
           icon: <Calendar className="h-5 w-5" />,
         },
         {
           label: 'Grading & Tasks',
-          href: '/teacher/grading',
+          href: '/teacher/grades',
           icon: <ClipboardList className="h-5 w-5" />,
         },
       ],
@@ -81,7 +82,7 @@ export function TeacherSidebarNav() {
         },
         {
           label: 'Messaging',
-          href: '/teacher/messaging',
+          href: '/teacher/messages',
           icon: <MessageSquare className="h-5 w-5" />,
         },
       ],
@@ -91,8 +92,13 @@ export function TeacherSidebarNav() {
       items: [
         {
           label: 'My Profile',
-          href: '/teacher/profile',
+          href: '/profile?from=teacher',
           icon: <User className="h-5 w-5" />,
+        },
+        {
+          label: 'Settings',
+          href: '/settings?from=teacher',
+          icon: <Settings className="h-5 w-5" />,
         },
       ],
     },
