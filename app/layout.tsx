@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RouteScrollToTop } from "@/components/shared/route-scroll-to-top";
+import { Analytics } from "@vercel/analytics/next";
+
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -55,6 +57,7 @@ export default function RootLayout({
             {children}
           </TooltipProvider>
         </ThemeProvider>
+        <Analytics />
         <Toaster />
       </body>
     </html>

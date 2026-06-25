@@ -1,9 +1,8 @@
-# Subscription Plans Edit/Delete Implementation
-- [ ] 1. Add Trash2 import to app/admin/audit/page.tsx
-- [ ] 2. Add delete state: deleteDialogOpen, planToDelete
-- [ ] 3. Add openDelete(plan) handler
-- [x] 4. Add handleDelete(planId) → DELETE API + refetch + toast
-- [x] 5. Replace bottom "Choose Plan"/"Get Started" Button with Edit/Delete icon buttons div
-- [x] 6. Add AlertDialog* imports
-- [x] 7. Add AlertDialog confirmation dialog
-- [ ] 8. Test functionality
+## TODO - Chart sizing warnings + build issue
+
+- [ ] Inspect chart usage files to confirm where container size becomes 0/-1 during prerender.
+- [ ] Patch `components/ui/chart.tsx` to ensure `ResponsiveContainer` always has safe sizing (minWidth/minHeight and/or explicit width/height forwarding).
+- [ ] Patch any other chart container components if needed (e.g., wrappers around `ChartContainer`).
+- [ ] Re-run `npm run build` to verify warnings disappear.
+- [ ] If the `/vercel/...middleware.js.nft.json` error persists, isolate whether it’s a Vercel-specific artifact and ensure Next middleware is not misconfigured.
+
