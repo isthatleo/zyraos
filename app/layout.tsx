@@ -26,8 +26,9 @@ export const metadata: Metadata = {
   title: "Roxan — Education Operations System",
   description: "Production-grade multi-tenant SaaS education ERP platform for schools and universities.",
   icons: {
-    icon: "/images/roxan-logo.svg",
-    shortcut: "/images/roxan-logo.svg",
+    // Canonical favicon source (served from /public)
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
     apple: "/images/roxan-logo.svg",
   },
 };
@@ -43,6 +44,10 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
       suppressHydrationWarning
     >
+      <head>
+        <link rel="icon" href="/icon.svg" sizes="any" />
+        <link rel="apple-touch-icon" href="/images/roxan-logo.svg" />
+      </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider
           attribute="class"
